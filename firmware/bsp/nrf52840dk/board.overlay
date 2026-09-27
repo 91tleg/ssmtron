@@ -1,0 +1,52 @@
+/* nRF52840 DK. Keep the id order in step with bsp.h.
+ *
+ * ECU UART on UART1: TX P1.02, RX P1.01 (3.3 V here; the car side needs the
+ * level shifter). Button 1 on P0.11. UART0 stays the DK's console.
+ *
+ * Display SPI on SPI2 (the DK's default pins for it): SCK P0.19,
+ * MOSI P0.20, MISO P0.21 (unused by a write-only panel, but the pinctrl
+ * group needs it claimed). No panel is wired to bsp.h yet; this only
+ * satisfies hal_spi.c's devicetree property so hal_nrf52 builds. */
+
+&pinctrl {
+	uart1_default: uart1_default {
+		group1 {
+			psels = <NRF_PSEL(UART_TX, 1, 2)>;
+		};
+		group2 {
+			psels = <NRF_PSEL(UART_RX, 1, 1)>;
+			bias-pull-up;
+		};
+	};
+
+	uart1_sleep: uart1_sleep {
+		group1 {
+			psels = <NRF_PSEL(UART_TX, 1, 2)>,
+				<NRF_PSEL(UART_RX, 1, 1)>;
+			low-power-enable;
+		};
+	};
+};
+
+&uart1 {
+	status = "okay";
+	current-speed = <9600>; /* the HAL sets the real rate */
+	pinctrl-0 = <&uart1_default>;
+	pinctrl-1 = <&uart1_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-0 = <&spi2_default>;
+	pinctrl-1 = <&spi2_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+/ {
+	zephyr,user {
+		hal-gpios = <&gpio0 11 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		hal-uarts = <&uart1>;
+		hal-spis = <&spi2>;
+	};
+};
