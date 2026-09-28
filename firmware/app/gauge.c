@@ -4,6 +4,7 @@
 
 #include "ecu.h"
 #include "fmt.h"
+#include "hal_log.h"
 #include "hal_nvm.h"
 #include "ui.h"
 
@@ -155,16 +156,25 @@ static void poll_action( uint32_t now )
             {
                 ( void )ecu_clear_start();
                 clear_ui = CLEAR_UI_ACTIVE;
+                hal_log_write( "ecu clear: started" );
             }
             break;
 
         case CLEAR_UI_ACTIVE:
-            if ( ecu_clear_state() != ECU_CLEAR_BUSY )
+        {
+            ecu_clear_t result = ecu_clear_state();
+
+            if ( result != ECU_CLEAR_BUSY )
             {
                 clear_ui                     = CLEAR_UI_RESULT;
                 action_released_since_result = false;
+                hal_log_write(
+                    ( result == ECU_CLEAR_DONE ) ? "ecu clear: done"
+                                                 : "ecu clear: failed"
+                );
             }
             break;
+        }
 
         case CLEAR_UI_RESULT:
         default:
