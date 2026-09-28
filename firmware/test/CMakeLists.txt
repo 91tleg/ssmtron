@@ -34,6 +34,12 @@ target_include_directories(test_ble_log PRIVATE ../app ../hal)
 target_link_libraries(test_ble_log PRIVATE fmt)
 add_test(NAME ble_log COMMAND test_ble_log)
 
+add_executable(test_gauge test_gauge.c ../app/gauge.c)
+target_include_directories(test_gauge PRIVATE ../app ../hal ../lib/display
+                                               ../lib/ui)
+target_link_libraries(test_gauge PRIVATE fmt)
+add_test(NAME gauge COMMAND test_gauge)
+
 # Compile UI sources directly with a fake display; HAL has no host backend.
 add_executable(test_ui test_ui.c ../lib/ui/ui.c ../lib/ui/ui_font.c)
 target_include_directories(test_ui PRIVATE ../lib/ui ../lib/display ../hal)
