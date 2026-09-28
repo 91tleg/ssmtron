@@ -1,0 +1,171 @@
+/* Protocol-neutral ECU interface. Exactly one protocol library (lib/<name>)
+ * is linked per build. Pure: no IO, no HAL. The app pumps bytes and time in
+ * and out. Single instance. */
+#ifndef ECU_H
+#define ECU_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+typedef enum
+{
+    ECU_LINK_DOWN,
+    ECU_LINK_UP
+} ecu_link_t;
+
+typedef enum
+{
+    ECU_PARITY_NONE,
+    ECU_PARITY_EVEN,
+    ECU_PARITY_ODD
+} ecu_parity_t;
+
+/* Serial settings the protocol needs; the app applies them to the HAL. */
+typedef struct
+{
+    uint32_t baud;
+    uint8_t data_bits;
+    ecu_parity_t parity;
+    uint8_t stop_bits;
+} ecu_link_cfg_t;
+
+/* How a raw byte becomes a shown value. */
+typedef enum
+{
+    ECU_DEC_LINEAR, /* raw * num / den + offset */
+    ECU_DEC_SIGNED, /* (int8)raw * num / den + offset */
+    ECU_DEC_LOOKUP, /* lookup[raw] */
+    ECU_DEC_BOOST,  /* manifold pressure: psi >= 0, inHg below */
+    ECU_DEC_FLAGS   /* the raw byte itself; see flags[] */
+} ecu_decode_t;
+
+/* One labelled bit of a flags byte. Set when the masked bits are non-zero
+ * (active_high) or zero (!active_high). */
+typedef struct
+{
+    const char * name;
+    uint8_t mask;
+    bool active_high;
+} ecu_flag_t;
+
+/* Values are integers in units of 10^-decimals. */
+typedef struct
+{
+    const char * name;
+    const char * unit;
+    const char * unit_neg; /* unit while the value is negative; NULL = unit */
+    ecu_decode_t decode;
+    int32_t scale_num;
+    int32_t scale_den;
+    int32_t offset;
+    uint8_t decimals;
+    const int16_t * lookup;   /* 256 entries, ECU_DEC_LOOKUP */
+    const ecu_flag_t * flags; /* ECU_DEC_FLAGS */
+    uint8_t flag_count;
+    /* Every parameter's own warning/redline, in the same units
+     * ecu_get_value returns (not raw bytes). has_thresholds false (the
+     * default for every profile today) means no threshold: a display
+     * should never color-code a value it has no verified number for.
+     * See ssm1_params.c's own warning -- these are real-car-specific and
+     * must not be guessed at. */
+    bool has_thresholds;
+    int32_t warn_value;
+    int32_t redline_value;
+} ecu_param_info_t;
+
+static inline const char * ecu_unit(
+    const ecu_param_info_t * info,
+    int32_t value
+)
+{
+    return ( ( value < 0 ) && ( info->unit_neg != NULL ) ) ? info->unit_neg
+                                                           : info->unit;
+}
+
+static inline bool ecu_flag_set(
+    const ecu_flag_t * flag,
+    uint8_t raw
+)
+{
+    return ( ( raw & flag->mask ) != 0u ) == flag->active_high;
+}
+
+/* Higher is worse (redline is always an upper bound: rpm, temp, boost),
+ * matching what "redline" means everywhere else. A parameter with no
+ * verified thresholds (has_thresholds false) is always ECU_LEVEL_NORMAL.
+ */
+typedef enum
+{
+    ECU_LEVEL_NORMAL,
+    ECU_LEVEL_WARN,
+    ECU_LEVEL_REDLINE
+} ecu_level_t;
+
+static inline ecu_level_t ecu_level(
+    const ecu_param_info_t * info,
+    int32_t value
+)
+{
+    ecu_level_t level = ECU_LEVEL_NORMAL;
+
+    if ( info->has_thresholds && ( value >= info->warn_value ) )
+    {
+        level = ( value >= info->redline_value ) ? ECU_LEVEL_REDLINE
+                                                 : ECU_LEVEL_WARN;
+    }
+    return level;
+}
+
+typedef enum
+{
+    ECU_CLEAR_IDLE,
+    ECU_CLEAR_BUSY,
+    ECU_CLEAR_DONE, /* turn the ignition off, then on */
+    ECU_CLEAR_FAILED
+} ecu_clear_t;
+
+const ecu_link_cfg_t * ecu_link_config( void );
+
+void ecu_init( void );
+/* Call every loop, before feeding bytes: rx timing uses the last tick time.
+ */
+void ecu_tick( uint32_t now_ms );
+void ecu_feed( uint8_t byte );
+/* A received byte had a parity/framing error (its value is untrusted). */
+void ecu_feed_error( void );
+/* Copies at most max bytes of pending output; 0 = nothing (or max too
+ * small, in which case the output stays queued). */
+size_t ecu_next_tx(
+    uint8_t * buf,
+    size_t max
+);
+
+ecu_link_t ecu_link( void );
+
+/* The ECU is identified on its own after ecu_init. Until then the name is
+ * NULL and there are no parameters. An ECU that answers with an ID we do
+ * not know is named "Unknown" and has no parameters. */
+const char * ecu_name( void );
+/* ROM ID bytes as r0 | r1 << 8 | r2 << 16; 0 until identified. */
+uint32_t ecu_rom_id( void );
+
+size_t ecu_param_count( void );
+const ecu_param_info_t * ecu_param_info( size_t idx );
+/* Start monitoring a parameter. False if idx is out of range (so always
+ * false before the ECU is identified). */
+bool ecu_select_param( size_t idx );
+/* Latest value; false if never read or stale. For ECU_DEC_FLAGS the value
+ * is the raw byte. */
+bool ecu_get_value(
+    size_t idx,
+    int32_t * out
+);
+
+/* Clear the ECU's stored trouble codes. Interrupts monitoring, then goes
+ * back to the selected parameter. False if not identified, unsupported or
+ * already running. */
+bool ecu_clear_start( void );
+ecu_clear_t ecu_clear_state( void );
+
+#endif /* ECU_H */
