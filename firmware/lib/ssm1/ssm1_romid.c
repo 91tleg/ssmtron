@@ -37,7 +37,7 @@ static bool tally(
         }
         if ( slot == 2 ) /* new: replace the less-seen slot */
         {
-            slot          = ( p->seen[0] <= p->seen[1] ) ? 0u : 1u;
+            slot = ( uint8_t )( ( p->seen[0] <= p->seen[1] ) ? 0u : 1u );
             p->cand[slot] = cand;
             p->seen[slot] = 0;
         }

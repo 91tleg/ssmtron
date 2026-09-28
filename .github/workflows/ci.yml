@@ -31,16 +31,22 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install cppcheck
         run: sudo apt-get update && sudo apt-get install -y cppcheck
-      - name: Fetch pinned MISRA addon
+      - name: Fetch matching MISRA addon
         # Not relying on whatever addons apt's cppcheck package happens
-        # to bundle (inconsistent across distro versions) -- pinned to
-        # the same cppcheck release this was verified against locally.
+        # to bundle (inconsistent across distro versions), and not a
+        # hardcoded version either: misra.py's dump-file format has to
+        # match the cppcheck binary that runs it, or the addon crashes
+        # (ubuntu-latest's apt package is a specific, real version --
+        # e.g. 2.13.0 on noble -- not whatever upstream tag it's tempting
+        # to pin), so fetch the tag matching what apt actually installed.
         run: |
+          version="$(cppcheck --version | awk '{print $2}')"
+          echo "cppcheck version: $version"
           mkdir -p /tmp/cppcheck-addons
           curl -fsSL -o /tmp/cppcheck-addons/misra.py \
-            https://raw.githubusercontent.com/danmar/cppcheck/2.20.0/addons/misra.py
+            "https://raw.githubusercontent.com/danmar/cppcheck/$version/addons/misra.py"
           curl -fsSL -o /tmp/cppcheck-addons/cppcheckdata.py \
-            https://raw.githubusercontent.com/danmar/cppcheck/2.20.0/addons/cppcheckdata.py
+            "https://raw.githubusercontent.com/danmar/cppcheck/$version/addons/cppcheckdata.py"
       - name: MISRA check
         run: |
           cppcheck \
