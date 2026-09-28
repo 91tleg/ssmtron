@@ -88,7 +88,9 @@ static inline bool ecu_flag_set(
     uint8_t raw
 )
 {
-    return ( ( raw & flag->mask ) != 0u ) == flag->active_high;
+    bool masked = ( ( raw & flag->mask ) != 0u );
+
+    return masked == flag->active_high;
 }
 
 /* Higher is worse (redline is always an upper bound: rpm, temp, boost),

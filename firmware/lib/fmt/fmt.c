@@ -15,9 +15,10 @@ static void
 put( out_t * o,
      char c )
 {
-    if ( o->ok && ( o->len + 1u < o->max ) )
+    if ( o->ok && ( ( o->len + 1u ) < o->max ) )
     {
-        o->buf[o->len++] = c;
+        o->buf[o->len] = c;
+        o->len++;
     }
     else
     {
@@ -30,9 +31,11 @@ static void put_str(
     const char * s
 )
 {
-    for ( ; ( s != NULL ) && ( *s != '\0' ); s++ )
+    const char * p = s;
+
+    for ( ; ( p != NULL ) && ( *p != '\0' ); p++ )
     {
-        put( o, *s );
+        put( o, *p );
     }
 }
 
@@ -45,13 +48,15 @@ static void put_number(
 )
 {
     char rev[DIGITS_MAX];
-    size_t n = 0;
+    size_t n           = 0;
+    uint32_t remaining = v;
 
     do
     {
-        rev[n++] = ( char )( '0' + ( v % 10u ) );
-        v /= 10u;
-    } while ( ( v != 0u ) || ( n <= decimals ) );
+        rev[n] = ( char )( '0' + ( remaining % 10u ) );
+        n++;
+        remaining /= 10u;
+    } while ( ( remaining != 0u ) || ( n <= decimals ) );
 
     while ( n > 0u )
     {
@@ -98,7 +103,7 @@ static void put_value(
         put_number(
             o,
             mag,
-            ( info->decimals < DIGITS_MAX - 1u )
+            ( info->decimals < ( DIGITS_MAX - 1u ) )
                 ? info->decimals
                 : ( uint8_t )( DIGITS_MAX - 2u )
         );

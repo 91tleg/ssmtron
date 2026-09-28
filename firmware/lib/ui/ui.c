@@ -15,13 +15,12 @@
  * only display driver today. Bump this if a wider panel is ever added. */
 #define UI_MAX_ROW_PX 240u
 
-static uint16_t row_buf[UI_MAX_ROW_PX];
-
 static void draw_widget(
     const ui_widget_t * w,
     const char * text
 )
 {
+    static uint16_t row_buf[UI_MAX_ROW_PX];
     size_t text_len    = strlen( text );
     uint16_t cell_w    = ( uint16_t )( ( UI_FONT_W + 1u ) * w->scale );
     uint16_t glyph_px  = ( uint16_t )( UI_FONT_W * w->scale );

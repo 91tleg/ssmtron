@@ -26,23 +26,23 @@ static bool tally(
 
     if ( cand != ECHO_CAND )
     {
-        uint8_t slot = 2;
+        uint8_t slot = 2u;
 
-        for ( uint8_t i = 0; i < 2; i++ )
+        for ( uint8_t i = 0; i < 2u; i++ )
         {
-            if ( ( p->seen[i] != 0 ) && ( p->cand[i] == cand ) )
+            if ( ( p->seen[i] != 0u ) && ( p->cand[i] == cand ) )
             {
                 slot = i;
             }
         }
-        if ( slot == 2 ) /* new: replace the less-seen slot */
+        if ( slot == 2u ) /* new: replace the less-seen slot */
         {
             slot = ( uint8_t )( ( p->seen[0] <= p->seen[1] ) ? 0u : 1u );
             p->cand[slot] = cand;
             p->seen[slot] = 0;
         }
         p->seen[slot]++;
-        if ( p->seen[slot] >= 2 )
+        if ( p->seen[slot] >= 2u )
         {
             *id        = cand;
             confirmed  = true;
@@ -61,7 +61,8 @@ bool ssm1_romid_feed(
 {
     bool got = false;
 
-    p->win[p->len++] = byte;
+    p->win[p->len] = byte;
+    p->len++;
     if ( p->len == SSM1_ROMID_WIN )
     {
         /* r0 == 0xff is more likely the start of the next header */
