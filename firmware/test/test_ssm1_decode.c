@@ -94,9 +94,7 @@ static void test_boost( void )
 
     CHECK_EQ( ssm1_decode( i, 136 ), 48 ); /* just above atmosphere */
     CHECK( ssm1_decode( i, 135 ) < 0 );    /* just below */
-    CHECK_EQ(
-        ssm1_decode( i, 255 ), ( ( 25500 - 13568 ) * 15107 ) / 10000
-    );
+    CHECK_EQ( ssm1_decode( i, 255 ), ( ( 25500 - 13568 ) * 15107 ) / 10000 );
     CHECK_EQ( ssm1_decode( i, 0 ), -( ( 13568 * 30757 ) / 10000 ) );
     CHECK( ecu_unit( i, 1 ) == i->unit );
     CHECK( ecu_unit( i, -1 ) == i->unit_neg );

@@ -44,8 +44,8 @@ hal_status_t hal_nvm_save(
     if ( valid_key( key ) && ( data != NULL ) && ( len > 0u ) )
     {
 #if defined( CONFIG_SETTINGS )
-        status = ( settings_save_one( key, data, len ) == 0 ) ? HAL_OK
-                                                              : HAL_ERR_IO;
+        status =
+            ( settings_save_one( key, data, len ) == 0 ) ? HAL_OK : HAL_ERR_IO;
 #else
         status = HAL_ERR_UNSUPPORTED;
 #endif

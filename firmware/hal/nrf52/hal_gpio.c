@@ -5,10 +5,9 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
 
-#define USER_NODE      DT_PATH( zephyr_user )
-#define HAL_GPIO_COUNT DT_PROP_LEN( USER_NODE, hal_gpios )
-#define GPIO_SPEC( idx, _ )                                                \
-    GPIO_DT_SPEC_GET_BY_IDX( USER_NODE, hal_gpios, idx )
+#define USER_NODE           DT_PATH( zephyr_user )
+#define HAL_GPIO_COUNT      DT_PROP_LEN( USER_NODE, hal_gpios )
+#define GPIO_SPEC( idx, _ ) GPIO_DT_SPEC_GET_BY_IDX( USER_NODE, hal_gpios, idx )
 
 static const struct gpio_dt_spec gpios[] = {
     LISTIFY( HAL_GPIO_COUNT, GPIO_SPEC, (, ) )

@@ -19,8 +19,7 @@ static void feed(
     for ( size_t i = 0; i < n; i++ )
     {
         uint8_t d;
-        if ( ssm1_rx_feed( rx, b[i], &d )
-             && ( out->n < sizeof( out->data ) ) )
+        if ( ssm1_rx_feed( rx, b[i], &d ) && ( out->n < sizeof( out->data ) ) )
         {
             out->data[out->n++] = d;
         }
@@ -127,9 +126,7 @@ static void test_lost_byte_recovers( void )
             stream[n++] = ( uint8_t )( 0x40 + f );
         }
         /* drop one byte from frame 3 */
-        memmove(
-            &stream[9 + pos], &stream[9 + pos + 1], n - ( 9 + pos + 1 )
-        );
+        memmove( &stream[9 + pos], &stream[9 + pos + 1], n - ( 9 + pos + 1 ) );
         n--;
 
         ssm1_rx_init( &rx );
@@ -186,8 +183,7 @@ static void test_never_reports_a_wrong_value( void )
             {
                 wrong += ( o.data[i] < 0x40 ) || ( o.data[i] > 0x49 );
             }
-            starved +=
-                ( o.n < 5 ); /* must still deliver most of the stream */
+            starved += ( o.n < 5 ); /* must still deliver most of the stream */
             runs++;
         }
     }
@@ -269,9 +265,7 @@ static void test_other_address_ignored( void )
     ssm1_rx_expect( &rx, 0x1234 );
     for ( unsigned f = 0; f < 20; f++ )
     {
-        feed_frame(
-            &rx, 0x00, 0x08, ( uint8_t )f, &o
-        ); /* stale old stream */
+        feed_frame( &rx, 0x00, 0x08, ( uint8_t )f, &o ); /* stale old stream */
     }
     CHECK_EQ( o.n, 0 );
     /* and it locks onto the right one once that arrives */

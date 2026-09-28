@@ -11,10 +11,9 @@ typedef struct
     bool ok;
 } out_t;
 
-static void put(
-    out_t * o,
-    char c
-)
+static void
+put( out_t * o,
+     char c )
 {
     if ( o->ok && ( o->len + 1u < o->max ) )
     {

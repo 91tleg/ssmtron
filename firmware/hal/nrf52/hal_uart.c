@@ -15,24 +15,24 @@
 
 #include "uarte_baud.h"
 
-#if !defined( CONFIG_UART_INTERRUPT_DRIVEN )                               \
+#if !defined( CONFIG_UART_INTERRUPT_DRIVEN )                                   \
     || !defined( CONFIG_UART_USE_RUNTIME_CONFIGURE )
-#error                                                                     \
+#error                                                                         \
     "hal_uart needs CONFIG_UART_INTERRUPT_DRIVEN and CONFIG_UART_USE_RUNTIME_CONFIGURE"
 #endif
 
 #define USER_NODE        DT_PATH( zephyr_user )
 #define HAL_UART_COUNT   DT_PROP_LEN( USER_NODE, hal_uarts )
 #define UART_NODE( idx ) DT_PHANDLE_BY_IDX( USER_NODE, hal_uarts, idx )
-#define UART_INIT( idx, _ )                                                \
-    { .dev  = DEVICE_DT_GET( UART_NODE( idx ) ),                           \
+#define UART_INIT( idx, _ )                                                    \
+    { .dev  = DEVICE_DT_GET( UART_NODE( idx ) ),                               \
       .regs = ( NRF_UARTE_Type * )DT_REG_ADDR( UART_NODE( idx ) ) }
 
 /* The ring holds 2-byte entries: { byte, is_error }. */
 #define RX_ENTRIES  ( 64u )
 #define RX_BUF_SIZE ( RX_ENTRIES * 2u )
-#define STOCK_BAUD                                                         \
-    ( 9600u ) /* any rate Zephyr accepts; overwritten below                \
+#define STOCK_BAUD                                                             \
+    ( 9600u ) /* any rate Zephyr accepts; overwritten below                    \
                */
 
 struct uart_state

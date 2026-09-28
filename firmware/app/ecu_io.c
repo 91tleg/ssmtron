@@ -53,8 +53,7 @@ void ecu_io_poll( uint32_t now_ms )
     size_t n;
 
     ecu_tick( now_ms );
-    for ( unsigned i = 0; ( i < RX_BURST ) && ( rx != HAL_UART_RX_EMPTY );
-          i++ )
+    for ( unsigned i = 0; ( i < RX_BURST ) && ( rx != HAL_UART_RX_EMPTY ); i++ )
     {
         rx = hal_uart_read( uart_id, &byte );
         if ( rx == HAL_UART_RX_BYTE )

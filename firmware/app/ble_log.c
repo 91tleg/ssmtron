@@ -39,8 +39,7 @@ void ble_log_poll( uint32_t now_ms )
          && current_value( &info, &value ) )
     {
         char line[LINE_MAX];
-        size_t n =
-            fmt_log_line( line, sizeof( line ), now_ms, info, value );
+        size_t n = fmt_log_line( line, sizeof( line ), now_ms, info, value );
 
         if ( n > 0u )
         {

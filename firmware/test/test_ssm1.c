@@ -45,9 +45,7 @@ static uint8_t mem( uint16_t addr )
 
 static int32_t expected( size_t idx )
 {
-    return ssm1_decode(
-        prof->params[idx].info, mem( prof->params[idx].addr )
-    );
+    return ssm1_decode( prof->params[idx].info, mem( prof->params[idx].addr ) );
 }
 
 static void sim_rx( uint8_t b )
@@ -76,7 +74,7 @@ static void sim_rx( uint8_t b )
             else if ( sim.cmd[0] == 0x78 )
             {
                 sim.streaming = true;
-                sim.addr = ( uint16_t )( ( sim.cmd[1] << 8 ) | sim.cmd[2] );
+                sim.addr    = ( uint16_t )( ( sim.cmd[1] << 8 ) | sim.cmd[2] );
                 sim.phase   = 0;
                 sim.next_ms = now + BYTE_MS;
             }
@@ -243,9 +241,7 @@ static void test_initial_state( void )
     CHECK( ecu_link_config()->parity == ECU_PARITY_EVEN );
     CHECK_EQ( ecu_link_config()->data_bits, 8 );
     CHECK_EQ( ecu_link_config()->stop_bits, 1 );
-    CHECK_EQ(
-        ecu_next_tx( b, 8 ), 4
-    ); /* identification starts by itself */
+    CHECK_EQ( ecu_next_tx( b, 8 ), 4 ); /* identification starts by itself */
 }
 
 static void test_command_sequence( void )
@@ -258,9 +254,7 @@ static void test_command_sequence( void )
     CHECK(
         ( b[0] == 0x12 ) && ( b[1] == 0 ) && ( b[2] == 0 ) && ( b[3] == 0 )
     );
-    CHECK_EQ(
-        ecu_next_tx( b, 8 ), 0
-    ); /* nothing until the line is quiet */
+    CHECK_EQ( ecu_next_tx( b, 8 ), 0 ); /* nothing until the line is quiet */
 
     ecu_tick( 40 );
     CHECK_EQ( ecu_next_tx( b, 8 ), 0 );
@@ -285,9 +279,7 @@ static void test_command_sequence( void )
 
 static void test_identifies_all_six( void )
 {
-    const uint16_t ids[] = {
-        0x3671, 0x3672, 0x3170, 0x3270, 0x3272, 0x3273
-    };
+    const uint16_t ids[] = { 0x3671, 0x3672, 0x3170, 0x3270, 0x3272, 0x3273 };
 
     for ( size_t k = 0; k < 6; k++ )
     {
@@ -307,9 +299,7 @@ static void test_identifies_all_six( void )
 
 static void test_every_parameter_of_every_profile_reads( void )
 {
-    const uint16_t ids[] = {
-        0x3671, 0x3672, 0x3170, 0x3270, 0x3272, 0x3273
-    };
+    const uint16_t ids[] = { 0x3671, 0x3672, 0x3170, 0x3270, 0x3272, 0x3273 };
 
     for ( size_t k = 0; k < 6; k++ )
     {
@@ -591,9 +581,7 @@ static void check_clear_writes( void )
 
 static void test_clear_every_profile( void )
 {
-    const uint16_t ids[] = {
-        0x3671, 0x3672, 0x3170, 0x3270, 0x3272, 0x3273
-    };
+    const uint16_t ids[] = { 0x3671, 0x3672, 0x3170, 0x3270, 0x3272, 0x3273 };
 
     for ( size_t k = 0; k < 6; k++ )
     {

@@ -132,8 +132,7 @@ static void test_random_noise_never_reports( void )
     {
         x = x * 1103515245u + 12345u;
         /* never 0xFF: no header can form */
-        got +=
-            ssm1_romid_feed( &p, ( uint8_t )( ( x >> 16 ) % 255u ), &id );
+        got += ssm1_romid_feed( &p, ( uint8_t )( ( x >> 16 ) % 255u ), &id );
     }
     CHECK_EQ( got, 0 );
 }
