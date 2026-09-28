@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 #define UARTE_BASE_HZ ( 16000000ull )
-#define UARTE_BAUD_MAX_ERR_PCT                                             \
+#define UARTE_BAUD_MAX_ERR_PCT                                                 \
     ( 1u ) /* async tolerance is a few %; keep well inside */
 
 static inline bool uarte_baud_to_reg(
@@ -23,8 +23,7 @@ static inline bool uarte_baud_to_reg(
 
     if ( ok )
     {
-        v = ( ( ( uint64_t )baud << 32 ) + UARTE_BASE_HZ / 2 )
-            / UARTE_BASE_HZ;
+        v  = ( ( ( uint64_t )baud << 32 ) + UARTE_BASE_HZ / 2 ) / UARTE_BASE_HZ;
         v  = ( v + 0x800u ) & ~0xFFFull; /* hardware granularity */
         ok = v != 0 && v <= 0xFFFFFFFFull;
     }

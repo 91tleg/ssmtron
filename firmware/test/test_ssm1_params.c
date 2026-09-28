@@ -4,9 +4,7 @@
 
 static void test_six_profiles_found_by_rom_id( void )
 {
-    const uint16_t ids[] = {
-        0x3671, 0x3672, 0x3170, 0x3270, 0x3272, 0x3273
-    };
+    const uint16_t ids[] = { 0x3671, 0x3672, 0x3170, 0x3270, 0x3272, 0x3273 };
 
     CHECK_EQ( ssm1_profile_count(), 6 );
     for ( size_t i = 0; i < 6; i++ )

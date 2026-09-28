@@ -56,7 +56,7 @@ typedef struct
     uint32_t phase_start;
     uint32_t last_activity; /* last rx byte, or stop tx, while QUIET */
     uint32_t last_sample;
-    size_t want; /* slot being read; == profile count for the clear addr */
+    size_t want;   /* slot being read; == profile count for the clear addr */
     size_t resume; /* parameter to return to after a clear */
     uint8_t fails;
     bool ident; /* this cycle identifies the ECU */
@@ -373,8 +373,8 @@ size_t ecu_next_tx(
                 if ( s.ident )
                 {
                     ssm1_romid_init( &s.romid );
-                    n       = ssm1_cmd_read_ecu( SSM1_ADDR_ROMID, buf );
-                    s.phase = PH_ID_WAIT;
+                    n            = ssm1_cmd_read_ecu( SSM1_ADDR_ROMID, buf );
+                    s.phase      = PH_ID_WAIT;
                     s.id_cmd_due = true;
                     s.id_cmd_at  = s.now;
                 }

@@ -19,9 +19,7 @@ struct spi_state
     struct spi_config cfg;
 };
 
-static struct spi_state spis[] = {
-    LISTIFY( HAL_SPI_COUNT, SPI_INIT, (, ) )
-};
+static struct spi_state spis[] = { LISTIFY( HAL_SPI_COUNT, SPI_INIT, (, ) ) };
 
 static spi_operation_t mode_to_operation( hal_spi_mode_t mode )
 {
@@ -52,8 +50,7 @@ hal_status_t hal_spi_open(
 {
     hal_status_t status = HAL_ERR_INVALID;
 
-    if ( ( id < HAL_SPI_COUNT ) && ( cfg != NULL )
-         && ( cfg->freq_hz > 0u ) )
+    if ( ( id < HAL_SPI_COUNT ) && ( cfg != NULL ) && ( cfg->freq_hz > 0u ) )
     {
         struct spi_state * s = &spis[id];
 
@@ -92,15 +89,11 @@ hal_status_t hal_spi_transfer(
     if ( ( id < HAL_SPI_COUNT ) && ( len > 0u )
          && ( ( tx != NULL ) || ( rx != NULL ) ) )
     {
-        struct spi_state * s        = &spis[id];
-        const struct spi_buf tx_buf = { .buf = ( void * )tx, .len = len };
-        const struct spi_buf_set tx_set = {
-            .buffers = &tx_buf, .count = 1
-        };
+        struct spi_state * s            = &spis[id];
+        const struct spi_buf tx_buf     = { .buf = ( void * )tx, .len = len };
+        const struct spi_buf_set tx_set = { .buffers = &tx_buf, .count = 1 };
         const struct spi_buf rx_buf     = { .buf = rx, .len = len };
-        const struct spi_buf_set rx_set = {
-            .buffers = &rx_buf, .count = 1
-        };
+        const struct spi_buf_set rx_set = { .buffers = &rx_buf, .count = 1 };
 
         int rc = spi_transceive(
             s->dev,

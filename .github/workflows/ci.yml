@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  host-tests:
+    name: Host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S firmware/test -B firmware/build-test
+      - name: Build
+        run: cmake --build firmware/build-test
+      - name: Test
+        run: ctest --test-dir firmware/build-test --output-on-failure
+
+  misra:
+    # Direct source scan, no build required: every file here is plain
+    # C99 with zero Zephyr dependency except firmware/hal/nrf52/*.c and
+    # firmware/app/fw_info.c (both excluded below), which need real
+    # devicetree/Kconfig headers from an actual west build to
+    # type-check correctly. Run tools/check-misra.sh against a real
+    # firmware/build/compile_commands.json (see AGENTS.md) for those.
+    name: MISRA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: Fetch matching MISRA addon
+        # Not relying on whatever addons apt's cppcheck package happens
+        # to bundle (inconsistent across distro versions), and not a
+        # hardcoded version either: misra.py's dump-file format has to
+        # match the cppcheck binary that runs it, or the addon crashes
+        # (ubuntu-latest's apt package is a specific, real version --
+        # e.g. 2.13.0 on noble -- not whatever upstream tag it's tempting
+        # to pin), so fetch the tag matching what apt actually installed.
+        run: |
+          version="$(cppcheck --version | awk '{print $2}')"
+          echo "cppcheck version: $version"
+          mkdir -p /tmp/cppcheck-addons
+          curl -fsSL -o /tmp/cppcheck-addons/misra.py \
+            "https://raw.githubusercontent.com/danmar/cppcheck/$version/addons/misra.py"
+          curl -fsSL -o /tmp/cppcheck-addons/cppcheckdata.py \
+            "https://raw.githubusercontent.com/danmar/cppcheck/$version/addons/cppcheckdata.py"
+      - name: MISRA check
+        run: |
+          cppcheck \
+            --addon=/tmp/cppcheck-addons/misra.py \
+            --error-exitcode=1 \
+            --inline-suppr \
+            -I firmware/hal \
+            -I firmware/lib/ecu \
+            -I firmware/lib/ssm1 \
+            -I firmware/lib/fmt \
+            -I firmware/lib/ui \
+            -I firmware/lib/display \
+            -I firmware/app \
+            -I firmware/bsp/nrf52840dk \
+            -DPROVISION_PASSKEY=0 \
+            -i firmware/app/fw_info.c \
+            firmware/lib/ssm1 firmware/lib/fmt firmware/lib/ui \
+            firmware/lib/display firmware/app firmware/provision

@@ -18,7 +18,7 @@
 #include <zephyr/sys/ring_buffer.h>
 
 #if !defined( CONFIG_BT_APP_PASSKEY ) || !defined( CONFIG_BT_NUS_AUTHEN )
-#error                                                                     \
+#error                                                                         \
     "hal_ble needs CONFIG_BT_SMP, CONFIG_BT_APP_PASSKEY and CONFIG_BT_NUS_AUTHEN"
 #endif
 
@@ -264,8 +264,7 @@ hal_status_t hal_ble_open( const hal_ble_cfg_t * cfg )
 
         if ( ( bt_conn_auth_cb_register( &auth_callbacks ) != 0 )
              || ( bt_enable( NULL ) != 0 )
-             || ( IS_ENABLED( CONFIG_BT_SETTINGS )
-                  && ( settings_load() != 0 ) )
+             || ( IS_ENABLED( CONFIG_BT_SETTINGS ) && ( settings_load() != 0 ) )
              || ( bt_set_name( cfg->name ) != 0 )
              || ( bt_nus_init( &nus_callbacks ) != 0 ) )
         {

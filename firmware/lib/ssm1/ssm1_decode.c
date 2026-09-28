@@ -39,8 +39,7 @@ int32_t ssm1_decode(
             break;
         case ECU_DEC_SIGNED:
         {
-            int32_t x =
-                ( raw < 128u ) ? ( int32_t )raw : ( int32_t )raw - 256;
+            int32_t x = ( raw < 128u ) ? ( int32_t )raw : ( int32_t )raw - 256;
 
             v = ( x * info->scale_num ) / info->scale_den + info->offset;
             break;
