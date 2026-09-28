@@ -29,10 +29,22 @@ size_t ecu_param_count( void )
 
 const ecu_param_info_t * ecu_param_info( size_t idx )
 {
-    static const ecu_param_info_t info = { "RPM", "rpm", NULL, ECU_DEC_LINEAR,
-                                            1,     1,     0,    0,
-                                            NULL,  NULL,  0,    false,
-                                            0,     0 };
+    static const ecu_param_info_t info = {
+        "RPM",
+        "rpm",
+        NULL,
+        ECU_DEC_LINEAR,
+        1,
+        1,
+        0,
+        0,
+        NULL,
+        NULL,
+        0,
+        false,
+        0,
+        0
+    };
 
     return ( idx == 0u ) ? &info : NULL;
 }
@@ -161,8 +173,8 @@ static void test_brief_press_below_debounce_does_nothing( void )
 static void test_release_before_threshold_cancels( void )
 {
     action_pressed = true;
-    tick( 1 );  /* raw settles, debounce window starts */
-    tick( 35 ); /* past debounce: enters HOLDING */
+    tick( 1 );   /* raw settles, debounce window starts */
+    tick( 35 );  /* past debounce: enters HOLDING */
     tick( 500 ); /* still short of the 2 s hold */
     action_pressed = false;
     tick( 1 );    /* released early: back to idle, no clear */

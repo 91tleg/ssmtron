@@ -44,7 +44,7 @@ static uint32_t ble_passkey( void )
 
 int main( void )
 {
-    const hal_ble_cfg_t ble           = { BLE_NAME, ble_passkey() };
+    const hal_ble_cfg_t ble = { BLE_NAME, ble_passkey() };
 
     /* No backlight line wired yet (see bsp.h); backlight is left at its
      * default id and unused because has_backlight is false. */
@@ -96,8 +96,10 @@ int main( void )
         {
             status = hal_dfu_confirm();
 
-            /* Retry failures; builds without a bootloader need no confirmation. */
-            confirmed = ( status == HAL_OK ) || ( status == HAL_ERR_UNSUPPORTED );
+            /* Retry failures; builds without a bootloader need no confirmation.
+             */
+            confirmed =
+                ( status == HAL_OK ) || ( status == HAL_ERR_UNSUPPORTED );
         }
 
         hal_wdt_feed();
