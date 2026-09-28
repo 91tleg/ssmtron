@@ -1,34 +1,25 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Verification
 
-`firmware/app/` contains the Zephyr entry point and ECU I/O loop. `firmware/lib/ecu/` defines the ECU-facing API; `firmware/lib/ssm1/` implements the SSM1 session, commands, parsers, profiles, and value decoding. `firmware/hal/` holds hardware interfaces and the nRF52 implementation. Board wiring and the devicetree overlay live in `firmware/bsp/nrf52840dk/`. Host tests are in `firmware/test/`. `docs/ref.asm` is the legacy scan-tool reference for protocol bytes, ECU addresses, and conversions; check it when changing SSM1 behavior.
-
-## Build, Test, and Development Commands
-
-From the repository root:
+Run tests or a firmware build when a change is significant or a specific concern needs checking. Do not run them after every small edit. When a device build is needed in this workspace, use the Nordic toolchain environment:
 
 ```sh
-cmake -S firmware/test -B firmware/build-test
-cmake --build firmware/build-test
-ctest --test-dir firmware/build-test --output-on-failure
-
-cd /opt/nordic/ncs/v3.2.4 && nrfutil sdk-manager toolchain launch --ncs-version v3.2.4 -- \
-  west build -b nrf52840dk/nrf52840 /Users/maxchou/Desktop/ssmtron/firmware/app -d /Users/maxchou/Desktop/ssmtron/firmware/build --pristine
-
+cd /opt/nordic/ncs/v3.2.4
+nrfutil sdk-manager toolchain launch --ncs-version v3.2.4 -- \
+  west build -b nrf52840dk/nrf52840 \
+  /Users/maxchou/Desktop/ssmtron/firmware/app \
+  -d /Users/maxchou/Desktop/ssmtron/firmware/build --pristine
 ```
 
-do not run tests or build unconditionally. only do when significant changes are made, or testing catches bugs.
-Add comment to where it would help, do not use me dahs anywhere.
+## Code Changes
 
-## Coding Style & Naming Conventions
+Follow applicable MISRA C guidance. Wrap integer macro values with spaced parentheses, for example `#define RETRY_MS ( 500u )`. Add comments where they explain a decision, invariant, or non-obvious behavior. Use plain punctuation and avoid em dashes in documentation and messages.
 
-Use C99, four-space indentation, and braces on separate lines. Follow `firmware/.clang-format`. Use `snake_case` for functions and variables, `UPPER_CASE` for macros, and module prefixes such as `ssm1_`, `ecu_`, and `hal_` for public APIs. Keep protocol parsing and decoding in `firmware/lib/ssm1/`; keep chip-specific code in `firmware/hal/nrf52/`. Host tests compile with `-Wall -Wextra -Werror -Wconversion -Wshadow -pedantic` and address/undefined-behavior sanitizers. all integer macro should be in parenthese. 
+## Commits and Pull Requests
 
-## Testing Guidelines
+Create a new branch from `main` for each feature. Use
+`<type>/<short-kebab-case-description>` for branch names, such as
+`feat/ble-status-display`, `fix/uart-overflow`, or `chore/update-toolchain`.
 
-Tests use the local `minitest.h` harness and CTest. Name new test files `test_<module>.c` and add them to `firmware/test/CMakeLists.txt`.
-
-## Commit & Pull Request Guidelines
-
-conventional commit. follow 50/72 rule. use bullets for body. should only subjectively mention what changed, do not use the prompt in commit. do not add yourself as co-author. do not use em dashes. do not reference uncommitted files, instructions, or what was not done; describe only what was done.
+Use Conventional Commits. Keep the subject within 50 characters and body lines within 72 characters. Use bullets in the body when details are needed. Describe the changes made and their effect. Do not copy the request into the commit message, add yourself as a co-author, or refer to uncommitted files or internal instructions.
