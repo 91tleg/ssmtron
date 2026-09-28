@@ -1,19 +1,11 @@
-/* SSM1 session: implements ecu.h.
- *
- * The ECU streams one address until told to stop, so there is no polling.
- * Every target runs one cycle:
+/* SSM1 session. The ECU streams one address until stopped. Each target
+ * follows this cycle:
  *
  *   STOP_PENDING -> QUIET -> READ_PENDING -> WAIT_DATA -> STREAM
  *
- * After ecu_init the target is address 0xFFFE plus a ROM ID command
- * (READ_PENDING -> ID_WAIT); the ROM ID picks the profile. Then the
- * selected parameter runs the same cycle. Clearing trouble codes streams
- * the profile's clear address and writes to it four times.
- *
- * Every failure (line never goes quiet, no confirmed sample, stream stalls)
- * restarts the cycle. After SSM1_MAX_TRIES failed cycles in a row we back
- * off before trying again, so an absent ECU is not hammered. All time
- * arithmetic is wrap-safe. */
+ * Identification reads 0xFFFE to select a profile. Failures restart the
+ * cycle; repeated failures pause before retrying. Time arithmetic handles
+ * counter wraparound. */
 #include "ecu.h"
 #include "ssm1_cmd.h"
 #include "ssm1_decode.h"

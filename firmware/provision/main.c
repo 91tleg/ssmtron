@@ -1,7 +1,4 @@
-/* One-time factory step: writes this unit's BLE pairing passkey into NVM
- * under the same key firmware/app/main.c reads at boot, then halts. Not
- * part of the gauge firmware and never updated over the air -- see
- * CMakeLists.txt for how to build it and its partition-manager caveat. */
+/* Factory app: store this unit's BLE passkey in NVM, then halt. */
 #include "hal_ble.h" /* HAL_BLE_PASSKEY_MAX only */
 #include "hal_log.h"
 #include "hal_nvm.h"
@@ -24,9 +21,7 @@ int main( void )
         }
     }
 
-    /* The passkey itself is already known to whoever ran this build (it
-     * was their -DPROVISION_PASSKEY); all the operator needs back is
-     * whether the write actually took. */
+    /* Report whether the passkey was stored. */
     hal_log_write(
         ( status == HAL_OK ) ? "Provisioned OK" : "Provisioning FAILED"
     );

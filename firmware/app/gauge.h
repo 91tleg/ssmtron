@@ -1,8 +1,4 @@
-/* The gauge screen: the one place that knows the ui widget engine, the
- * ECU, and the two physical buttons (matches ecu_io.c, the one place
- * that knows both hal_uart and the protocol). To change what the panel
- * shows, edit the widget table in gauge.c -- this header never changes
- * for that. */
+/* Gauge UI, ECU data, and button handling. See gauge.c for widgets. */
 #ifndef GAUGE_H
 #define GAUGE_H
 

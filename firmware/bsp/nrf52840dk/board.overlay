@@ -1,16 +1,8 @@
-/* nRF52840 DK. Keep the id order in step with bsp.h.
- *
- * ECU UART on UART1: TX P1.02, RX P1.01 (3.3 V here; the car side needs the
- * level shifter). NEXT is Button 1 (P0.11), ACTION is Button 2 (P0.12),
- * both the DK's own onboard buttons. UART0 stays the DK's console.
- *
- * Display SPI on SPI2 (the DK's default pins for it): SCK P0.19,
- * MOSI P0.20, MISO P0.21 (unused by a write-only panel, but the pinctrl
- * group needs it claimed). Display control lines are ordinary GPIOs,
- * P0.22 (CS), P0.23 (DC), P0.24 (RESET); no backlight control (tied on).
- * None of P0.19-24 are used elsewhere on this board. Plain (active-high)
- * polarity throughout: gc9a01.c encodes CS/reset polarity itself rather
- * than relying on a devicetree flag. */
+/* nRF52840 DK pin map. Keep device id order aligned with bsp.h.
+ * ECU UART1 uses P1.02/P1.01 through a car-side level shifter.
+ * UART0 remains the console. Buttons use P0.11/P0.12.
+ * Display SPI2 uses P0.19/P0.20/P0.21; CS/DC/RESET use P0.22/P0.23/P0.24.
+ * The display driver controls CS and reset polarity. */
 
 &pinctrl {
 	uart1_default: uart1_default {

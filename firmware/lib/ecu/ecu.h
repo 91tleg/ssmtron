@@ -1,6 +1,5 @@
-/* Protocol-neutral ECU interface. Exactly one protocol library (lib/<name>)
- * is linked per build. Pure: no IO, no HAL. The app pumps bytes and time in
- * and out. Single instance. */
+/* Single-instance ECU protocol interface. One protocol is linked per build;
+ * the app supplies bytes and time. */
 #ifndef ECU_H
 #define ECU_H
 
@@ -63,12 +62,8 @@ typedef struct
     const int16_t * lookup;   /* 256 entries, ECU_DEC_LOOKUP */
     const ecu_flag_t * flags; /* ECU_DEC_FLAGS */
     uint8_t flag_count;
-    /* Every parameter's own warning/redline, in the same units
-     * ecu_get_value returns (not raw bytes). has_thresholds false (the
-     * default for every profile today) means no threshold: a display
-     * should never color-code a value it has no verified number for.
-     * See ssm1_params.c's own warning -- these are real-car-specific and
-     * must not be guessed at. */
+    /* Thresholds use ecu_get_value units. Without verified thresholds,
+     * the display must not color-code a value. */
     bool has_thresholds;
     int32_t warn_value;
     int32_t redline_value;

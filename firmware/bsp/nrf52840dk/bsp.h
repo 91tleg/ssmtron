@@ -1,8 +1,4 @@
-/* Board support: what is wired where on this board. It names the HAL ids
- * (which index the lists in board.overlay, /zephyr,user) so that nothing
- * above it needs to know a pin or an instance number. One directory per
- * board, chosen by CMake (BSP_BOARD); every board provides a bsp.h with
- * the same names. */
+/* HAL ids index the devices declared in board.overlay. */
 #ifndef BSP_H
 #define BSP_H
 

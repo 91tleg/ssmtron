@@ -1,18 +1,6 @@
-/* GC9A01 driver for the common 1.28" 240x240 round SPI TFT. Implements
- * display.h directly against hal_spi/hal_gpio: unlike lib/ssm1, there is
- * no unreliable byte stream to parse here, so there is no separate
- * "pure logic + app-level IO glue" split to justify (see the header note
- * in display.h). Single instance, blocking.
- *
- * WARNING: the vendor init table below (init_steps) is the sequence
- * commonly published for this controller and used near-unchanged across
- * open-source GC9A01 drivers, transcribed from memory rather than a
- * datasheet in this repo. Verify it against your specific panel's own
- * sample code before trusting it on real hardware -- sellers sometimes
- * tweak gamma/voltage values per batch, and getting one of those wrong
- * risks a dim, wrongly-colored, or (worst case) damaged panel. The
- * command *framing* (CS/DC handling, window setting, blit) is not in
- * question, only the specific magic register bytes. */
+/* Blocking, single-instance GC9A01 SPI display driver.
+ * Verify init_steps against the panel vendor's values before use on
+ * hardware; gamma and voltage settings can vary between panels. */
 #include <stddef.h>
 
 #include "display.h"
@@ -21,8 +9,7 @@
 #define PANEL_W ( 240u )
 #define PANEL_H 240u
 
-/* Conservative default; the GC9A01 datasheet allows faster, raise this
- * once a real panel is on the bench and the wiring is short and clean. */
+/* Conservative speed until verified with the panel and wiring. */
 #define SPI_FREQ_HZ 8000000u
 
 #define CMD_SWRESET 0x01u
@@ -290,11 +277,7 @@ uint16_t display_height( void )
     return ( uint16_t )PANEL_H;
 }
 
-/* RGB565 is sent big-endian on the wire; on a little-endian MCU this
- * cannot be handed to hal_spi as a raw uint16_t buffer, so every pixel is
- * byte-swapped into this scratch buffer first. One row at a time (rather
- * than one hal_spi_transfer per pixel) keeps the per-call driver overhead
- * from dominating a full-screen update. */
+/* Convert RGB565 to wire byte order one row at a time. */
 #define ROW_BUF_PIXELS PANEL_W
 
 static void write_pixel_row(
@@ -304,9 +287,7 @@ static void write_pixel_row(
 {
     uint8_t row[ROW_BUF_PIXELS * 2u];
 
-    /* count is never actually 0 from either caller below, but making
-     * that explicit (rather than relying on hal_spi_transfer's own
-     * len == 0 rejection) means row is never handed off unwritten. */
+    /* Guard against sending an unwritten row. */
     if ( count > 0u )
     {
         for ( uint16_t i = 0; i < count; i++ )

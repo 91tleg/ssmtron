@@ -1,8 +1,4 @@
-/* SPI buses come from the board's devicetree: /zephyr,user { hal-spis =
- * <&spi2>; }. Zephyr's driver model covers both the SPI and SPIM
- * peripherals transparently, so this just uses the generic API; unlike
- * hal_uart there is no odd baud rate to fight, so no register-level work
- * is needed here. */
+/* SPI buses come from the board's /zephyr,user hal-spis property. */
 #include "hal_spi.h"
 
 #include <zephyr/devicetree.h>
@@ -60,12 +56,7 @@ hal_status_t hal_spi_open(
         }
         else
         {
-            /* cs left zero-initialized: no automatic chip select. The
-             * config is otherwise built fresh per transfer, so there is
-             * nothing else to validate against the hardware up front;
-             * an unsupportable frequency/mode would only show up as a
-             * failed transfer, same as hal_uart_write's blocking calls
-             * that cannot report per-call failure either. */
+            /* Leave cs unset; the device driver controls chip select. */
             s->cfg = ( struct spi_config ){
                 .frequency = cfg->freq_hz,
                 .operation = mode_to_operation( cfg->mode ),

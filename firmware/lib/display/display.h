@@ -1,8 +1,5 @@
-/* Neutral display interface. Exactly one concrete driver (lib/<name>) is
- * linked per build, selected by CMake, the same way lib/ecu selects a
- * protocol. Single instance. Colors are RGB565, the common native format
- * for small SPI TFTs, so callers do the conversion once instead of every
- * driver doing it differently. */
+/* Single-instance display interface. One driver is linked per build;
+ * callers provide RGB565 colors. */
 #ifndef DISPLAY_H
 #define DISPLAY_H
 

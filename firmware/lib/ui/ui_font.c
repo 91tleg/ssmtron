@@ -1,8 +1,4 @@
-/* See ui_font.h. Glyphs are indexed 0x20..0x5F (space through '_'); the
- * table below was generated from a small script that printed each glyph
- * as ASCII art for a by-eye check before being encoded here (see the
- * commit that added this file for that preview), not transcribed by hand
- * from a reference. */
+/* Glyphs are indexed from 0x20 through 0x5F. */
 #include "ui_font.h"
 
 #define FIRST_CODE ( 0x20u )

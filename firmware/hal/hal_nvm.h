@@ -1,9 +1,5 @@
-/* A small persistent key/value store in on-chip flash, for the handful of
- * settings the app wants to survive a power cycle (e.g. which parameter is
- * selected). Not a filesystem: no directories, no large blobs, and no
- * guarantee beyond what the backend gives about write-cycle limits, so the
- * app should not write on every button press. HAL_ERR_UNSUPPORTED if no
- * storage is configured for this build. */
+/* Persistent key/value storage in flash. Avoid frequent writes.
+ * Returns HAL_ERR_UNSUPPORTED when storage is unavailable. */
 #ifndef HAL_NVM_H
 #define HAL_NVM_H
 
@@ -25,11 +21,8 @@ hal_status_t hal_nvm_save(
     size_t len
 );
 
-/* Reads the value stored under key into data (up to max bytes) and reports
- * its real length in *len. HAL_ERR_INVALID for a bad key/pointer, or if
- * nothing has ever been saved under it. If the stored value is larger than
- * max, *len still reports the real size but data holds only the first max
- * bytes, so the caller can tell it was truncated. */
+/* Reads up to max bytes. *len reports the stored length even if truncated.
+ * Returns HAL_ERR_INVALID for invalid input or a missing key. */
 hal_status_t hal_nvm_load(
     const char * key,
     void * data,
