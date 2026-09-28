@@ -5,8 +5,11 @@
  *
  * Display SPI on SPI2 (the DK's default pins for it): SCK P0.19,
  * MOSI P0.20, MISO P0.21 (unused by a write-only panel, but the pinctrl
- * group needs it claimed). No panel is wired to bsp.h yet; this only
- * satisfies hal_spi.c's devicetree property so hal_nrf52 builds. */
+ * group needs it claimed). Display control lines are ordinary GPIOs,
+ * P0.22 (CS), P0.23 (DC), P0.24 (RESET); no backlight control (tied on).
+ * None of P0.19-24 are used elsewhere on this board. Plain (active-high)
+ * polarity throughout: gc9a01.c encodes CS/reset polarity itself rather
+ * than relying on a devicetree flag. */
 
 &pinctrl {
 	uart1_default: uart1_default {
@@ -45,7 +48,10 @@
 
 / {
 	zephyr,user {
-		hal-gpios = <&gpio0 11 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		hal-gpios = <&gpio0 11 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+			    <&gpio0 22 GPIO_ACTIVE_HIGH>,
+			    <&gpio0 23 GPIO_ACTIVE_HIGH>,
+			    <&gpio0 24 GPIO_ACTIVE_HIGH>;
 		hal-uarts = <&uart1>;
 		hal-spis = <&spi2>;
 	};
