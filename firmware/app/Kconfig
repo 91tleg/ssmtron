@@ -1,0 +1,10 @@
+source "Kconfig.zephyr"
+
+config APP_HIL_TEST
+	bool "Hardware-in-the-loop test hooks"
+	help
+	  Watches the console for a command byte that forces the main loop
+	  to hang, so a bench HIL rig can verify the watchdog actually
+	  resets and recovers the unit -- something no host test can fake.
+	  Only ever selected by firmware/hil/prj_hil.conf; must never be
+	  enabled in a production build.

@@ -26,3 +26,9 @@ add_subdirectory(../lib/ui ui)
 
 target_sources(app PRIVATE main.c ecu_io.c ble_log.c fw_info.c gauge.c)
 target_link_libraries(app PRIVATE bsp fmt gc9a01 hal ssm1 ui)
+
+# See firmware/hil/: this file is absent from every normal build, not just
+# inert, so a production image cannot contain the hang hook by accident.
+if(CONFIG_APP_HIL_TEST)
+  target_sources(app PRIVATE hil_test.c)
+endif()

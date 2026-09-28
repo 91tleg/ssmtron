@@ -239,8 +239,10 @@ hal_status_t hal_ble_open( const hal_ble_cfg_t * cfg )
     size_t name_len =
         ( cfg != NULL && cfg->name != NULL ) ? strlen( cfg->name ) : 0u;
 
-    if ( !opened && ( name_len > 0u ) && ( name_len <= HAL_BLE_NAME_MAX ) )
+    if ( !opened && ( name_len > 0u ) && ( name_len <= HAL_BLE_NAME_MAX )
+         && ( cfg->passkey <= HAL_BLE_PASSKEY_MAX ) )
     {
+        passkey = cfg->passkey;
         k_work_init( &tx_work, tx_handler );
         k_work_init_delayable( &adv_retry_work, adv_retry_handler );
         adv[0] = ( struct bt_data )BT_DATA_BYTES(
