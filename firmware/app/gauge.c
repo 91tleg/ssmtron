@@ -4,10 +4,52 @@
 
 #include "ecu.h"
 #include "fmt.h"
+#include "hal_nvm.h"
 #include "ui.h"
 
 #define FG ( 0xFFFFu ) /* white */
 #define BG ( 0x0000u ) /* black */
+
+/* Mechanical switch settle time: a press/release edge must be stable
+ * this long before it counts. */
+#define DEBOUNCE_MS ( 30u )
+/* How long ACTION must be held before it fires. A tap does nothing --
+ * this is a minimum-hold gate, not a tap-vs-hold gesture: unlike
+ * disambiguating what a press *means* by its timing, "did it clear the
+ * bar or not" has no failure mode where the wrong action fires. */
+#define ACTION_HOLD_MS ( 2000u )
+
+#define PARAM_IDX_KEY "param_idx"
+
+/* ACTION's own on-screen state machine; separate from ecu_clear_t
+ * (ecu.h) because HOLDING has no equivalent there -- the ECU has not
+ * been told to do anything yet at that point. */
+typedef enum
+{
+    CLEAR_UI_IDLE,
+    CLEAR_UI_HOLDING,
+    CLEAR_UI_ACTIVE,
+    CLEAR_UI_RESULT
+} clear_ui_t;
+
+static hal_gpio_id_t next_btn_id;
+static hal_gpio_id_t action_btn_id;
+
+static bool next_raw_prev;
+static uint32_t next_stable_since;
+static bool next_latched; /* true while held, so one press = one advance */
+
+static bool action_raw_prev;
+static uint32_t action_stable_since;
+static uint32_t action_hold_start;
+static bool action_released_since_result;
+static clear_ui_t clear_ui = CLEAR_UI_IDLE;
+
+/* The parameter NEXT last selected. ecu.h has no "what is currently
+ * selected" query, only the ecu_select_param setter, so this mirrors it
+ * -- valid because gauge.c is the only caller of ecu_select_param. */
+static size_t selected_idx;
+static bool selection_restored;
 
 /* The first parameter with a fresh value: the ECU only streams one at a
  * time (see ble_log.c, which does the same lookup for the same reason --
@@ -48,12 +90,146 @@ static void copy_capped(
     buf[n] = '\0';
 }
 
+static void save_selected_idx( size_t idx )
+{
+    uint32_t v = ( uint32_t )idx;
+
+    ( void )hal_nvm_save( PARAM_IDX_KEY, &v, sizeof( v ) );
+}
+
+/* One-shot, called the first time the ECU reports any parameters at all
+ * (idx persisted from an earlier power cycle is meaningless before
+ * that: ecu_param_count() is 0 until the ECU is identified). */
+static void restore_selected_idx( void )
+{
+    uint32_t v;
+    size_t len;
+
+    if ( ( hal_nvm_load( PARAM_IDX_KEY, &v, sizeof( v ), &len ) == HAL_OK )
+         && ( len == sizeof( v ) ) && ( ( size_t )v < ecu_param_count() ) )
+    {
+        selected_idx = ( size_t )v;
+    }
+    ( void )ecu_select_param( selected_idx );
+}
+
+static void poll_next( uint32_t now )
+{
+    bool raw = hal_gpio_read( next_btn_id );
+
+    if ( raw != next_raw_prev )
+    {
+        next_stable_since = now;
+        next_raw_prev     = raw;
+    }
+    if ( ( now - next_stable_since ) >= DEBOUNCE_MS )
+    {
+        if ( raw && !next_latched && ( clear_ui == CLEAR_UI_IDLE )
+             && ( ecu_param_count() > 0u ) )
+        {
+            selected_idx = ( selected_idx + 1u ) % ecu_param_count();
+            ( void )ecu_select_param( selected_idx );
+            save_selected_idx( selected_idx );
+            next_latched = true;
+        }
+        else if ( !raw )
+        {
+            next_latched = false;
+        }
+    }
+}
+
+static void poll_action( uint32_t now )
+{
+    bool raw = hal_gpio_read( action_btn_id );
+
+    if ( raw != action_raw_prev )
+    {
+        action_stable_since = now;
+        action_raw_prev     = raw;
+    }
+
+    switch ( clear_ui )
+    {
+        case CLEAR_UI_IDLE:
+            if ( raw && ( ( now - action_stable_since ) >= DEBOUNCE_MS ) )
+            {
+                action_hold_start = action_stable_since;
+                clear_ui          = CLEAR_UI_HOLDING;
+            }
+            break;
+
+        case CLEAR_UI_HOLDING:
+            if ( !raw )
+            {
+                clear_ui = CLEAR_UI_IDLE; /* let go before the bar */
+            }
+            else if ( ( now - action_hold_start ) >= ACTION_HOLD_MS )
+            {
+                ( void )ecu_clear_start();
+                clear_ui = CLEAR_UI_ACTIVE;
+            }
+            break;
+
+        case CLEAR_UI_ACTIVE:
+            if ( ecu_clear_state() != ECU_CLEAR_BUSY )
+            {
+                clear_ui                     = CLEAR_UI_RESULT;
+                action_released_since_result = false;
+            }
+            break;
+
+        case CLEAR_UI_RESULT:
+        default:
+            /* A fresh tap dismisses back to the normal screen; it must
+             * not re-trigger a clear, so a press only counts once the
+             * button has been seen released since the result appeared
+             * (it may still be held from the original 2 s press). */
+            if ( !raw )
+            {
+                action_released_since_result = true;
+            }
+            else if ( action_released_since_result
+                      && ( ( now - action_stable_since ) >= DEBOUNCE_MS ) )
+            {
+                clear_ui = CLEAR_UI_IDLE;
+            }
+            break;
+    }
+}
+
 static void name_text( char * buf )
 {
-    const ecu_param_info_t * info = NULL;
-    int32_t value                 = 0;
+    switch ( clear_ui )
+    {
+        case CLEAR_UI_HOLDING:
+            copy_capped( buf, "HOLD TO CLEAR" );
+            break;
 
-    copy_capped( buf, current_value( &info, &value ) ? info->name : "NO ECU" );
+        case CLEAR_UI_ACTIVE:
+            copy_capped( buf, "CLEARING..." );
+            break;
+
+        case CLEAR_UI_RESULT:
+            copy_capped(
+                buf,
+                ( ecu_clear_state() == ECU_CLEAR_DONE ) ? "CLEARED - IGNITION"
+                                                        : "CLEAR FAILED"
+            );
+            break;
+
+        case CLEAR_UI_IDLE:
+        default:
+        {
+            const ecu_param_info_t * info = NULL;
+            int32_t value                 = 0;
+
+            copy_capped(
+                buf, current_value( &info, &value ) ? info->name : "NO ECU"
+            );
+            break;
+        }
+    }
 }
 
 static void value_text( char * buf )
@@ -98,9 +274,20 @@ static ui_widget_t screen[] = {
 };
 #define SCREEN_COUNT ( sizeof( screen ) / sizeof( screen[0] ) )
 
-hal_status_t gauge_init( const display_pins_t * pins )
+hal_status_t gauge_init(
+    const display_pins_t * pins,
+    hal_gpio_id_t next_btn,
+    hal_gpio_id_t action_btn
+)
 {
     hal_status_t status = display_init( pins );
+
+    next_btn_id   = next_btn;
+    action_btn_id = action_btn;
+    /* Not fatal if either fails to open: the buttons just would not
+     * respond, same tolerance main.c already gives the display/BLE. */
+    ( void )hal_gpio_open( next_btn_id, HAL_GPIO_INPUT );
+    ( void )hal_gpio_open( action_btn_id, HAL_GPIO_INPUT );
 
     if ( status == HAL_OK )
     {
@@ -109,7 +296,14 @@ hal_status_t gauge_init( const display_pins_t * pins )
     return status;
 }
 
-void gauge_poll( void )
+void gauge_poll( uint32_t now_ms )
 {
+    if ( !selection_restored && ( ecu_param_count() > 0u ) )
+    {
+        restore_selected_idx();
+        selection_restored = true;
+    }
+    poll_next( now_ms );
+    poll_action( now_ms );
     ui_poll( screen, SCREEN_COUNT );
 }

@@ -10,7 +10,7 @@
 
 static int32_t boost( uint8_t raw )
 {
-    int32_t t = ( int32_t )raw * 100 - BOOST_ZERO;
+    int32_t t = ( ( int32_t )raw * 100 ) - BOOST_ZERO;
     int32_t v = 0;
 
     if ( t >= 0 )
@@ -34,14 +34,15 @@ int32_t ssm1_decode(
     switch ( info->decode )
     {
         case ECU_DEC_LINEAR:
-            v = ( ( int32_t )raw * info->scale_num ) / info->scale_den
+            v = ( ( ( int32_t )raw * info->scale_num ) / info->scale_den )
                 + info->offset;
             break;
         case ECU_DEC_SIGNED:
         {
-            int32_t x = ( raw < 128u ) ? ( int32_t )raw : ( int32_t )raw - 256;
+            int32_t x =
+                ( raw < 128u ) ? ( int32_t )raw : ( ( int32_t )raw - 256 );
 
-            v = ( x * info->scale_num ) / info->scale_den + info->offset;
+            v = ( ( x * info->scale_num ) / info->scale_den ) + info->offset;
             break;
         }
         case ECU_DEC_LOOKUP:
@@ -52,6 +53,8 @@ int32_t ssm1_decode(
             break;
         case ECU_DEC_FLAGS:
             v = raw;
+            break;
+        default:
             break;
     }
     return v;

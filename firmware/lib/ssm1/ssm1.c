@@ -81,8 +81,6 @@ typedef struct
 
 static session_t s;
 
-static const ecu_link_cfg_t link_cfg = { 1953u, 8u, ECU_PARITY_EVEN, 1u };
-
 static uint32_t since( uint32_t t )
 {
     return s.now - t;
@@ -198,11 +196,17 @@ static void clear_tick( void )
         {
             finish_clear( ECU_CLEAR_DONE );
         }
+        else
+        {
+            /* still within CLEAR_LIMIT_MS, not yet enough writes */
+        }
     }
 }
 
 const ecu_link_cfg_t * ecu_link_config( void )
 {
+    static const ecu_link_cfg_t link_cfg = { 1953u, 8u, ECU_PARITY_EVEN, 1u };
+
     return &link_cfg;
 }
 
@@ -231,6 +235,10 @@ void ecu_tick( uint32_t now_ms )
             {
                 fail_cycle();
             }
+            else
+            {
+                /* still quiet, still within STOP_SETTLE_MS */
+            }
             break;
         case PH_WAIT_DATA:
             if ( since( s.phase_start ) >= FIRST_DATA_MS )
@@ -246,6 +254,10 @@ void ecu_tick( uint32_t now_ms )
             else if ( since( s.id_cmd_at ) >= ID_RESEND_MS )
             {
                 s.id_cmd_due = true;
+            }
+            else
+            {
+                /* still waiting, not yet due for a resend */
             }
             break;
         case PH_STREAM:
@@ -263,6 +275,8 @@ void ecu_tick( uint32_t now_ms )
         case PH_IDLE:
         case PH_STOP_PENDING:
         case PH_READ_PENDING:
+            break;
+        default:
             break;
     }
     clear_tick();
@@ -296,6 +310,8 @@ void ecu_feed( uint8_t byte )
         case PH_READ_PENDING:
         case PH_BACKOFF:
             break; /* stray bytes before/between cycles */
+        default:
+            break;
     }
 }
 
@@ -318,6 +334,8 @@ void ecu_feed_error( void )
         case PH_READ_PENDING:
         case PH_BACKOFF:
             break;
+        default:
+            break;
     }
 }
 
@@ -330,10 +348,17 @@ static size_t clear_write( uint8_t * buf )
     if ( ( s.clear == ECU_CLEAR_BUSY ) && ( s.want == slot_count() )
          && ( s.clear_writes < CLEAR_WRITES ) )
     {
-        bool first = ( s.clear_writes == 0 );
-        bool due   = first ? ( s.have[s.want]
-                             && ( since( s.stamp[s.want] ) < FRESH_MS ) )
-                           : ( since( s.clear_last ) >= CLEAR_GAP_MS );
+        bool first = ( s.clear_writes == 0u );
+        bool due;
+
+        if ( first )
+        {
+            due = s.have[s.want] && ( since( s.stamp[s.want] ) < FRESH_MS );
+        }
+        else
+        {
+            due = ( since( s.clear_last ) >= CLEAR_GAP_MS );
+        }
 
         if ( due )
         {
@@ -403,6 +428,8 @@ size_t ecu_next_tx(
             case PH_WAIT_DATA:
             case PH_BACKOFF:
                 break;
+            default:
+                break;
         }
     }
     return n;
@@ -415,6 +442,8 @@ ecu_link_t ecu_link( void )
     return up ? ECU_LINK_UP : ECU_LINK_DOWN;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 ; public API (ecu.h), called from
+ * test_ssm1.c, which this scoped MISRA scan does not cover. */
 const char * ecu_name( void )
 {
     const char * name = NULL;
@@ -426,6 +455,8 @@ const char * ecu_name( void )
     return name;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 ; public API (ecu.h), called from
+ * test_ssm1.c, which this scoped MISRA scan does not cover. */
 uint32_t ecu_rom_id( void )
 {
     return s.identified ? s.rom_id : 0u;

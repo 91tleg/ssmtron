@@ -3,40 +3,28 @@
 /* Addresses and scalings are for the 1990-94 Legacy ECUs. Verify against a
  * real car before shipping. */
 
-/* No threshold by default: only LIN_R names one explicitly, and only
- * once it has been checked against a real car (see the warning above). */
+/* No threshold by default. There is deliberately no LIN_R-style variant
+ * for naming one yet: it would be unused until a real car has actually
+ * verified a value (see the warning above), and an unused, never-called
+ * macro is exactly the kind of latent, unverified surface this codebase
+ * avoids -- add it back, used, once a real threshold exists. */
 #define LIN( n, u, num, den, off, dec )                                        \
-    { n,                                                                       \
-      u,                                                                       \
+    { ( n ),                                                                   \
+      ( u ),                                                                   \
       NULL,                                                                    \
       ECU_DEC_LINEAR,                                                          \
-      num,                                                                     \
-      den,                                                                     \
-      off,                                                                     \
-      dec,                                                                     \
+      ( num ),                                                                 \
+      ( den ),                                                                 \
+      ( off ),                                                                 \
+      ( dec ),                                                                 \
       NULL,                                                                    \
       NULL,                                                                    \
       0,                                                                       \
       false,                                                                   \
       0,                                                                       \
       0 }
-#define LIN_R( n, u, num, den, off, dec, warn, redline )                       \
-    { n,                                                                       \
-      u,                                                                       \
-      NULL,                                                                    \
-      ECU_DEC_LINEAR,                                                          \
-      num,                                                                     \
-      den,                                                                     \
-      off,                                                                     \
-      dec,                                                                     \
-      NULL,                                                                    \
-      NULL,                                                                    \
-      0,                                                                       \
-      true,                                                                    \
-      warn,                                                                    \
-      redline }
 #define FLAGS( n, arr )                                                        \
-    { n,                                                                       \
+    { ( n ),                                                                   \
       "",                                                                      \
       NULL,                                                                    \
       ECU_DEC_FLAGS,                                                           \
@@ -45,8 +33,8 @@
       0,                                                                       \
       0,                                                                       \
       NULL,                                                                    \
-      arr,                                                                     \
-      ( uint8_t )( sizeof( arr ) / sizeof( arr[0] ) ),                         \
+      ( arr ),                                                                 \
+      ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),                     \
       false,                                                                   \
       0,                                                                       \
       0 }
@@ -360,9 +348,9 @@ static const ssm1_param_t jecs3[] = {
     { &M1, 0x134Bu },     { &M2, 0x134Au },     { &M3_J, 0x1349u },
 };
 
-#define COUNT( a ) ( sizeof( a ) / sizeof( a[0] ) )
+#define COUNT( a ) ( sizeof( a ) / sizeof( ( a )[0] ) )
 #define PROFILE( id, nm, arr, clr, mode )                                      \
-    { id, nm, arr, COUNT( arr ), clr, mode }
+    { ( id ), ( nm ), ( arr ), COUNT( arr ), ( clr ), ( mode ) }
 
 static const ssm1_profile_t profiles[] = {
     PROFILE( 0x3671u, "91 Turbo", turbo_early, 0x15F0u, SSM1_CLEAR_INVERT ),
@@ -375,15 +363,28 @@ static const ssm1_profile_t profiles[] = {
 
 #define PROFILE_COUNT COUNT( profiles )
 
-/* Compile error if a profile outgrows the state arrays in ssm1.c. */
-#define FITS( arr )                                                            \
-    typedef char fit_##arr[( COUNT( arr ) <= SSM1_PARAM_MAX ) ? 1 : -1]
-FITS( turbo );
-FITS( turbo_early );
-FITS( hitachi_na );
-FITS( jecs1 );
-FITS( jecs2 );
-FITS( jecs3 );
+/* Compile error if a profile outgrows the state arrays in ssm1.c: each
+ * fit_* typedef is otherwise unused, its only job is a negative array
+ * size (SSM1_PARAM_MAX < the real count) failing to compile. Written
+ * out by hand rather than by a ##-pasting macro, which would still need
+ * the same per-array suppression below and would additionally need
+ * MISRA 20.7/20.10/20.12 deviations for the token-pasted name and the
+ * unparenthesized macro parameter that name requires -- this is the
+ * fewer, more directly justified deviation. No _Static_assert (C11):
+ * this codebase targets C99. */
+/* cppcheck-suppress misra-c2012-2.3 */
+typedef char fit_turbo[( COUNT( turbo ) <= SSM1_PARAM_MAX ) ? 1 : -1];
+/* cppcheck-suppress misra-c2012-2.3 */
+typedef char
+    fit_turbo_early[( COUNT( turbo_early ) <= SSM1_PARAM_MAX ) ? 1 : -1];
+/* cppcheck-suppress misra-c2012-2.3 */
+typedef char fit_hitachi_na[( COUNT( hitachi_na ) <= SSM1_PARAM_MAX ) ? 1 : -1];
+/* cppcheck-suppress misra-c2012-2.3 */
+typedef char fit_jecs1[( COUNT( jecs1 ) <= SSM1_PARAM_MAX ) ? 1 : -1];
+/* cppcheck-suppress misra-c2012-2.3 */
+typedef char fit_jecs2[( COUNT( jecs2 ) <= SSM1_PARAM_MAX ) ? 1 : -1];
+/* cppcheck-suppress misra-c2012-2.3 */
+typedef char fit_jecs3[( COUNT( jecs3 ) <= SSM1_PARAM_MAX ) ? 1 : -1];
 
 const ssm1_profile_t * ssm1_profile_find( uint16_t rom_id )
 {
@@ -399,11 +400,17 @@ const ssm1_profile_t * ssm1_profile_find( uint16_t rom_id )
     return found;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 ; public API (ssm1_params.h), called
+ * from test_ssm1_params.c, which this scoped MISRA scan does not cover.
+ */
 size_t ssm1_profile_count( void )
 {
     return PROFILE_COUNT;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 ; public API (ssm1_params.h), called
+ * from test_ssm1_params.c, which this scoped MISRA scan does not cover.
+ */
 const ssm1_profile_t * ssm1_profile( size_t idx )
 {
     return ( idx < PROFILE_COUNT ) ? &profiles[idx] : NULL;

@@ -22,6 +22,8 @@ static hal_uart_parity_t to_hal_parity( ecu_parity_t p )
         case ECU_PARITY_ODD:
             hp = HAL_UART_PARITY_ODD;
             break;
+        default:
+            break;
     }
     return hp;
 }
@@ -64,11 +66,18 @@ void ecu_io_poll( uint32_t now_ms )
         {
             ecu_feed_error();
         }
+        else
+        {
+            /* HAL_UART_RX_EMPTY: nothing to do, the loop condition ends
+             * it. */
+        }
     }
 
     n = ecu_next_tx( tx, sizeof( tx ) );
     if ( n > 0u )
     {
-        hal_uart_write( uart_id, tx, n );
+        /* Nothing to retry on: the next poll's ecu_next_tx call is the
+         * retry, same as every other tx path in this file. */
+        ( void )hal_uart_write( uart_id, tx, n );
     }
 }
