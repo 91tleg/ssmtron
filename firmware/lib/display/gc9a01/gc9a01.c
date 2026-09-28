@@ -304,12 +304,18 @@ static void write_pixel_row(
 {
     uint8_t row[ROW_BUF_PIXELS * 2u];
 
-    for ( uint16_t i = 0; i < count; i++ )
+    /* count is never actually 0 from either caller below, but making
+     * that explicit (rather than relying on hal_spi_transfer's own
+     * len == 0 rejection) means row is never handed off unwritten. */
+    if ( count > 0u )
     {
-        row[( 2u * i )]      = ( uint8_t )( src[i] >> 8 );
-        row[( 2u * i ) + 1u] = ( uint8_t )src[i];
+        for ( uint16_t i = 0; i < count; i++ )
+        {
+            row[( 2u * i )]      = ( uint8_t )( src[i] >> 8 );
+            row[( 2u * i ) + 1u] = ( uint8_t )src[i];
+        }
+        ( void )hal_spi_transfer( pins.spi, row, NULL, ( size_t )count * 2u );
     }
-    ( void )hal_spi_transfer( pins.spi, row, NULL, ( size_t )count * 2u );
 }
 
 hal_status_t display_blit(

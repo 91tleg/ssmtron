@@ -1,7 +1,8 @@
 /* nRF52840 DK. Keep the id order in step with bsp.h.
  *
  * ECU UART on UART1: TX P1.02, RX P1.01 (3.3 V here; the car side needs the
- * level shifter). Button 1 on P0.11. UART0 stays the DK's console.
+ * level shifter). NEXT is Button 1 (P0.11), ACTION is Button 2 (P0.12),
+ * both the DK's own onboard buttons. UART0 stays the DK's console.
  *
  * Display SPI on SPI2 (the DK's default pins for it): SCK P0.19,
  * MOSI P0.20, MISO P0.21 (unused by a write-only panel, but the pinctrl
@@ -51,7 +52,8 @@
 		hal-gpios = <&gpio0 11 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
 			    <&gpio0 22 GPIO_ACTIVE_HIGH>,
 			    <&gpio0 23 GPIO_ACTIVE_HIGH>,
-			    <&gpio0 24 GPIO_ACTIVE_HIGH>;
+			    <&gpio0 24 GPIO_ACTIVE_HIGH>,
+			    <&gpio0 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
 		hal-uarts = <&uart1>;
 		hal-spis = <&spi2>;
 	};

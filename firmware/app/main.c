@@ -91,7 +91,7 @@ int main( void )
     }
     /* The panel showing nothing is not fatal either: the ECU link still
      * works without it. */
-    ( void )gauge_init( &display_pins );
+    ( void )gauge_init( &display_pins, BSP_GPIO_NEXT, BSP_GPIO_ACTION );
     hal_wdt_feed();
 
     for ( ;; )
@@ -99,7 +99,7 @@ int main( void )
         uint32_t now = hal_millis();
 
         ecu_io_poll( now );
-        gauge_poll();
+        gauge_poll( now );
         if ( !confirmed && ( now >= CONFIRM_AFTER_MS ) )
         {
             status    = hal_dfu_confirm();

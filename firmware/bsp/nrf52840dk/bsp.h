@@ -16,13 +16,16 @@
                              */
 
 /* hal-gpios = < ... > */
-#define BSP_GPIO_BUTTON ( ( hal_gpio_id_t )0u ) /* the gauge's one button */
+#define BSP_GPIO_NEXT ( ( hal_gpio_id_t )0u ) /* cycles the shown parameter */
 
 /* No panel is on the bench yet: pin numbers only, nothing to verify
  * against real hardware until then. */
 #define BSP_GPIO_DISPLAY_CS    ( ( hal_gpio_id_t )1u )
 #define BSP_GPIO_DISPLAY_DC    ( ( hal_gpio_id_t )2u )
 #define BSP_GPIO_DISPLAY_RESET ( ( hal_gpio_id_t )3u )
+
+/* Hold to clear trouble codes; a tap does nothing (see gauge.c). */
+#define BSP_GPIO_ACTION ( ( hal_gpio_id_t )4u )
 
 /* hal-spis = < ... > */
 #define BSP_SPI_DISPLAY ( ( hal_spi_id_t )0u )
