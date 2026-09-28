@@ -1,8 +1,5 @@
-/* Backed by Zephyr's Settings subsystem, the same one hal_ble.c relies on
- * for pairing data. Built unconditionally; HAL_ERR_UNSUPPORTED when
- * CONFIG_SETTINGS is off, matching hal_dfu.c's pattern for an optional
- * subsystem. Needs a real storage backend selected (e.g.
- * CONFIG_SETTINGS_NVS) or nothing is actually written to flash. */
+/* Zephyr Settings backend. Requires CONFIG_SETTINGS and persistent storage
+ * such as CONFIG_SETTINGS_NVS. */
 #include "hal_nvm.h"
 
 #include <stdbool.h>

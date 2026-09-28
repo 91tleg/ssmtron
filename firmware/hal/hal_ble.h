@@ -1,8 +1,5 @@
-/* A byte pipe to one Bluetooth LE peer (a phone or laptop). The HAL owns
- * advertising, connections and the transport service; it knows nothing
- * about what the bytes mean. Single instance, non-blocking, no callbacks:
- * poll for events like the other HAL peripherals. Device firmware update
- * is not part of this pipe. */
+/* Non-blocking byte pipe to one BLE peer. Poll for connection events.
+ * Firmware updates use a separate transport. */
 #ifndef HAL_BLE_H
 #define HAL_BLE_H
 

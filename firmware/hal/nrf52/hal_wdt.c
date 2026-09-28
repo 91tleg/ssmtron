@@ -1,6 +1,4 @@
-/* The nRF52840's watchdog, single channel, reset-the-whole-SoC on expiry
- * (WDT_FLAG_RESET_SOC): a hang anywhere -- not just in this app's own
- * loop -- gets the unit running again with no one physically present. */
+/* Single-channel watchdog resets the SoC on expiry. */
 #include "hal_wdt.h"
 
 #include <zephyr/device.h>
@@ -26,9 +24,7 @@ hal_status_t hal_wdt_start( uint32_t timeout_ms )
         wdt_channel = wdt_install_timeout( wdt_dev, &cfg );
         if ( wdt_channel >= 0 )
         {
-            /* Paused while a debugger has the core halted (a breakpoint
-             * stop is not a hang); never paused in sleep, since a hang
-             * there still needs recovering from. */
+            /* Pause for breakpoints, but keep running during sleep. */
             status = ( wdt_setup( wdt_dev, WDT_OPT_PAUSE_HALTED_BY_DBG ) == 0 )
                          ? HAL_OK
                          : HAL_ERR_IO;

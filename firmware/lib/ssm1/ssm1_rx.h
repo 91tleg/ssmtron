@@ -1,16 +1,7 @@
-/* SSM1 reply parser. Replies are [msb][lsb][data] frames with no checksum
- * and no start marker. We know which address we asked for, so the two
- * address bytes act as the sync marker: a sliding 3-byte window discards
- * one byte at a time until it lines up, which also absorbs lost bytes,
- * inserted bytes, an echo of our own command, and leftovers from an earlier
- * address.
- *
- * A frame's data is only reported once the NEXT frame also starts with the
- * expected address. A frame assembled from misaligned bytes (a lost or
- * inserted byte can slide the next msb into the data slot) is followed by
- * garbage, so it is never reported. Cost: one frame (~17 ms at 1953 baud)
- * of latency. Known limit: if msb == lsb and a data byte equals them, a
- * misaligned window can look like two valid frames. Pure: no IO. */
+/* SSM1 replies are [msb][lsb][data] with no start marker or checksum.
+ * A sliding window finds the requested address. Data is reported only
+ * after the next frame confirms alignment, adding one frame of latency.
+ * Equal address and data bytes can still mimic aligned frames. */
 #ifndef SSM1_RX_H
 #define SSM1_RX_H
 

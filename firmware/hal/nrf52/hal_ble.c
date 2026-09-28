@@ -1,11 +1,5 @@
-/* Built only when the app enables CONFIG_BT_NUS (see CMakeLists.txt). Also
- * needs CONFIG_BT, CONFIG_BT_PERIPHERAL, CONFIG_BT_MAX_CONN=1 and
- * CONFIG_BT_DEVICE_NAME_DYNAMIC.
- *
- * The pipe is the Nordic UART Service: bytes from the peer are written to
- * its RX characteristic, bytes to the peer go out as notifications on TX.
- * The stack calls us from its own threads, so everything shared goes
- * through ring buffers (one producer, one consumer each) and atomics. */
+/* Nordic UART Service transport. Stack callbacks share ring buffers and
+ * atomics with the app thread. Built when CONFIG_BT_NUS is enabled. */
 #include "hal_ble.h"
 
 #include <string.h>
@@ -56,8 +50,7 @@ static void push_event( hal_ble_evt_t evt )
 {
     const uint8_t e = ( uint8_t )evt;
 
-    /* A dropped event means the app has stopped polling for many
-     * connect/disconnect cycles; there is no useful recovery here. */
+    /* Event loss means the app has not polled for several connection cycles. */
     ( void )ring_buf_put( &evt_ring, &e, 1 );
 }
 
@@ -65,12 +58,7 @@ static void push_event( hal_ble_evt_t evt )
 
 static void advertise( void )
 {
-    /* Can fail if the controller is briefly out of resources; retrying is
-     * the only sane response, since there is no caller here to report a
-     * status to (this runs from a connection callback or from .recycled).
-     * A permanent failure (e.g. the stack was never enabled) would retry
-     * forever, but hal_ble_open already guarantees the stack is up before
-     * anything can call this. */
+    /* Retry when the controller temporarily lacks resources. */
     if ( bt_le_adv_start(
              BT_LE_ADV_CONN_FAST_2,
              adv,

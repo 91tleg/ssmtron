@@ -1,6 +1,4 @@
-/* Glue between the HAL's UART and the ECU protocol library. This is the one
- * place that knows both: the HAL knows nothing about protocols, the ECU
- * library nothing about hardware. */
+/* Connects the HAL UART to the ECU protocol library. */
 #ifndef ECU_IO_H
 #define ECU_IO_H
 

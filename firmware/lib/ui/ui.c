@@ -1,8 +1,4 @@
-/* See ui.h. Renders one pixel row at a time into a small static scratch
- * buffer and blits just that row, so a widget never needs a buffer sized
- * to its whole rectangle -- only to the panel's width -- and a redraw
- * costs exactly one display_blit call per pixel row of that widget, not
- * one for the whole panel. */
+/* Render one pixel row at a time to keep the scratch buffer small. */
 #include "ui.h"
 
 #include <stdbool.h>

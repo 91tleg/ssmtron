@@ -13,17 +13,12 @@
 /* Mechanical switch settle time: a press/release edge must be stable
  * this long before it counts. */
 #define DEBOUNCE_MS ( 30u )
-/* How long ACTION must be held before it fires. A tap does nothing --
- * this is a minimum-hold gate, not a tap-vs-hold gesture: unlike
- * disambiguating what a press *means* by its timing, "did it clear the
- * bar or not" has no failure mode where the wrong action fires. */
+/* ACTION requires a sustained press; taps do nothing. */
 #define ACTION_HOLD_MS ( 2000u )
 
 #define PARAM_IDX_KEY "param_idx"
 
-/* ACTION's own on-screen state machine; separate from ecu_clear_t
- * (ecu.h) because HOLDING has no equivalent there -- the ECU has not
- * been told to do anything yet at that point. */
+/* UI state includes HOLDING before any ECU clear request starts. */
 typedef enum
 {
     CLEAR_UI_IDLE,
@@ -45,15 +40,11 @@ static uint32_t action_hold_start;
 static bool action_released_since_result;
 static clear_ui_t clear_ui = CLEAR_UI_IDLE;
 
-/* The parameter NEXT last selected. ecu.h has no "what is currently
- * selected" query, only the ecu_select_param setter, so this mirrors it
- * -- valid because gauge.c is the only caller of ecu_select_param. */
+/* Mirror the selected parameter; gauge.c alone calls ecu_select_param. */
 static size_t selected_idx;
 static bool selection_restored;
 
-/* The first parameter with a fresh value: the ECU only streams one at a
- * time (see ble_log.c, which does the same lookup for the same reason --
- * this is app-level glue, not protocol logic, so it is not shared). */
+/* Find the fresh value from the ECU's single active stream. */
 static bool current_value(
     const ecu_param_info_t ** info,
     int32_t * value
@@ -72,9 +63,7 @@ static bool current_value(
     return found;
 }
 
-/* Copies at most UI_TEXT_MAX bytes of s into buf and NUL-terminates;
- * silently truncates a name too long for its widget's rect rather than
- * overrunning it (the round panel's edge would clip it anyway). */
+/* Copy and terminate up to UI_TEXT_MAX bytes. */
 static void copy_capped(
     char * buf,
     const char * s
@@ -97,9 +86,7 @@ static void save_selected_idx( size_t idx )
     ( void )hal_nvm_save( PARAM_IDX_KEY, &v, sizeof( v ) );
 }
 
-/* One-shot, called the first time the ECU reports any parameters at all
- * (idx persisted from an earlier power cycle is meaningless before
- * that: ecu_param_count() is 0 until the ECU is identified). */
+/* Restore selection once ECU identification provides the parameter count. */
 static void restore_selected_idx( void )
 {
     uint32_t v;

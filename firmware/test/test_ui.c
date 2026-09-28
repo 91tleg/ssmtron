@@ -1,7 +1,4 @@
-/* The widget engine, with a fake display.h: the property under test is
- * that a widget whose text has not changed since the last poll is never
- * blitted (the "dirty bit"), and one whose text changed is redrawn in
- * full so stale, now-shorter text is erased. */
+/* Verify that unchanged text skips blits and changed text redraws fully. */
 #include <string.h>
 
 #include "display.h"

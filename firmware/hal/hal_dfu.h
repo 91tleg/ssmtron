@@ -1,7 +1,4 @@
-/* Firmware update support. The image itself arrives over Bluetooth through
- * the bootloader's own protocol; the application's part is to confirm a new
- * image once it has proven itself, otherwise the bootloader reverts to the
- * old one at the next reset. */
+/* Confirm a new Bluetooth-delivered image so the bootloader keeps it. */
 #ifndef HAL_DFU_H
 #define HAL_DFU_H
 

@@ -11,16 +11,11 @@
 
 #define BLE_NAME "SSM1 Gauge"
 
-/* Bench-only fallback for a unit nothing has provisioned yet (see
- * firmware/provision/). The same passkey in every unit is only good
- * enough for the bench; a real unit's passkey lives in NVM instead,
- * under this key, written once at manufacture time. */
+/* Bench fallback. Production passkeys are provisioned in NVM. */
 #define BLE_PASSKEY_DEFAULT ( 123456u )
 #define BLE_PASSKEY_KEY     "ble_passkey"
 
-/* HAL_ERR_UNSUPPORTED/HAL_ERR_IO (no storage, or never provisioned) both
- * fall back to the bench default; only a short, valid stored value is
- * trusted. */
+/* Use the bench passkey when no valid stored passkey is available. */
 static uint32_t ble_passkey( void )
 {
     uint32_t passkey = BLE_PASSKEY_DEFAULT;
@@ -40,16 +35,10 @@ static uint32_t ble_passkey( void )
  * crashes sooner the bootloader goes back to the old one. */
 #define CONFIRM_AFTER_MS ( 10000u )
 
-/* Generous margin over today's worst-case boot path (ECU UART open, BT
- * stack bring-up, one display_init attempt): comfortably covers that
- * with room to grow if display bring-up later gets bounded retries,
- * without this needing to change. Not sized to steady-state loop
- * timing -- once past boot, hal_wdt_feed runs every ~1 ms iteration. */
+/* Allow for ECU, Bluetooth, and display startup before the first feed. */
 #define WDT_TIMEOUT_MS ( 4000u )
 
-/* The loop has nothing blocking in it, so without a yield it would spin at
- * 100% CPU. This is well under one byte time (~5.6 ms at 1953 baud), so
- * it costs no responsiveness. */
+/* Yield without delaying a 1953 baud byte. */
 #define LOOP_DELAY_MS ( 1u )
 
 int main( void )
@@ -66,16 +55,13 @@ int main( void )
     hal_status_t status;
     bool confirmed = false;
 
-    /* Armed before anything that could hang, including the boot log line
-     * itself. A field unit has no other way back from a wedged HAL call.
-     */
+    /* Arm before any HAL call that could hang. */
     if ( hal_wdt_start( WDT_TIMEOUT_MS ) != HAL_OK )
     {
         hal_log_write( "wdt not armed" );
     }
 
-    /* First thing printed, always: whatever else does or doesn't work
-     * below, whoever is looking at the console knows what is running. */
+    /* Print the version before initializing peripherals. */
     hal_log_write( fw_info.version );
 
     status = ecu_io_init( BSP_UART_ECU );
@@ -89,8 +75,7 @@ int main( void )
          * failure here is not fatal either way. */
         status = hal_ble_open( &ble );
     }
-    /* The panel showing nothing is not fatal either: the ECU link still
-     * works without it. */
+    /* The ECU link can run without a display. */
     ( void )gauge_init( &display_pins, BSP_GPIO_NEXT, BSP_GPIO_ACTION );
     hal_wdt_feed();
 

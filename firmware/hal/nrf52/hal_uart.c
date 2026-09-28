@@ -1,10 +1,6 @@
-/* UARTs come from the board's devicetree: /zephyr,user { hal-uarts =
- * <&uart1>; } Needs CONFIG_SERIAL, CONFIG_UART_INTERRUPT_DRIVEN,
- * CONFIG_UART_USE_RUNTIME_CONFIGURE.
- *
- * Baud: Zephyr's UARTE driver rejects rates outside its table (e.g. 1953),
- * so we configure at a stock rate and then write the BAUDRATE register
- * directly. */
+/* UARTs come from the board's /zephyr,user hal-uarts property.
+ * Zephyr rejects nonstandard rates such as 1953 baud, so configure a
+ * supported rate first, then set BAUDRATE directly. */
 #include "hal_uart.h"
 
 #include <hal/nrf_uarte.h>

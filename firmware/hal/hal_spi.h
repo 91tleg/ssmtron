@@ -1,8 +1,4 @@
-/* Ids index the SPI buses the board declares; pin routing is the board's
- * job. Chip select is deliberately not handled here: it is an ordinary
- * GPIO the device driver toggles itself (see hal_gpio.h), so one bus can
- * be shared by several devices without the HAL knowing any of them exist.
- */
+/* Ids index board SPI buses. Device drivers control chip select by GPIO. */
 #ifndef HAL_SPI_H
 #define HAL_SPI_H
 

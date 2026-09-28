@@ -1,13 +1,5 @@
-/* A tiny, hardware-neutral widget engine over display.h. Each widget owns
- * a fixed rectangle and a callback that produces its current text; a
- * widget is only re-rendered -- and only its own rectangle blitted --
- * when that text has actually changed since the last poll (the "dirty
- * bit"), so a screen that is not changing costs no SPI traffic at all.
- *
- * The widget table is the only thing that changes to change what is on
- * screen: adding, moving, resizing or restyling a field is one line in
- * that table, never a change to this engine. See firmware/app/gauge.c
- * for the actual screen. */
+/* Widget engine over display.h. Each widget has a rectangle and text
+ * callback. Only changed text triggers a redraw of that rectangle. */
 #ifndef UI_H
 #define UI_H
 

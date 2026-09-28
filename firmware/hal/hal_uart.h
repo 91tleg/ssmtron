@@ -45,11 +45,8 @@ typedef enum
     HAL_UART_RX_ERROR  /* see below; *byte is untouched */
 } hal_uart_rx_t;
 
-/* Non-blocking. Received bytes and receive errors come out in the order
- * they happened, so the caller can tell where the stream is suspect.
- * HAL_UART_RX_ERROR means a parity, framing or overrun error was detected,
- * or the driver had to drop bytes, at this point in the stream. It stands
- * for "the bytes around here cannot be trusted", not for one exact byte. */
+/* Non-blocking. Bytes and errors retain their stream order.
+ * HAL_UART_RX_ERROR marks a suspect region, not one exact byte. */
 hal_uart_rx_t hal_uart_read(
     hal_uart_id_t id,
     uint8_t * byte

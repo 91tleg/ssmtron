@@ -1,6 +1,4 @@
-/* SSM1 ECU profiles: which addresses to read and how to decode them, one
- * profile per ROM ID. The ECU is picked at runtime by its ROM ID, so this
- * is const data, not code. */
+/* Read addresses and decoders for each ECU ROM ID. */
 #ifndef SSM1_PARAMS_H
 #define SSM1_PARAMS_H
 

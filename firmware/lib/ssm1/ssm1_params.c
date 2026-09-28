@@ -3,11 +3,7 @@
 /* Addresses and scalings are for the 1990-94 Legacy ECUs. Verify against a
  * real car before shipping. */
 
-/* No threshold by default. There is deliberately no LIN_R-style variant
- * for naming one yet: it would be unused until a real car has actually
- * verified a value (see the warning above), and an unused, never-called
- * macro is exactly the kind of latent, unverified surface this codebase
- * avoids -- add it back, used, once a real threshold exists. */
+/* Leave thresholds unset until values are verified on a real car. */
 #define LIN( n, u, num, den, off, dec )                                        \
     { ( n ),                                                                   \
       ( u ),                                                                   \
@@ -363,15 +359,8 @@ static const ssm1_profile_t profiles[] = {
 
 #define PROFILE_COUNT COUNT( profiles )
 
-/* Compile error if a profile outgrows the state arrays in ssm1.c: each
- * fit_* typedef is otherwise unused, its only job is a negative array
- * size (SSM1_PARAM_MAX < the real count) failing to compile. Written
- * out by hand rather than by a ##-pasting macro, which would still need
- * the same per-array suppression below and would additionally need
- * MISRA 20.7/20.10/20.12 deviations for the token-pasted name and the
- * unparenthesized macro parameter that name requires -- this is the
- * fewer, more directly justified deviation. No _Static_assert (C11):
- * this codebase targets C99. */
+/* Negative array sizes catch profiles larger than SSM1_PARAM_MAX at
+ * compile time. Explicit typedefs avoid token-pasting MISRA deviations. */
 /* cppcheck-suppress misra-c2012-2.3 */
 typedef char fit_turbo[( COUNT( turbo ) <= SSM1_PARAM_MAX ) ? 1 : -1];
 /* cppcheck-suppress misra-c2012-2.3 */
