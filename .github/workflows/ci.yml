@@ -39,6 +39,43 @@ jobs:
       - name: Test
         run: ctest --test-dir firmware/build-test --output-on-failure
 
+  firmware-build:
+    # Uses Nordic's own prebuilt toolchain image, pinned to the same NCS
+    # revision AGENTS.md uses locally (/opt/nordic/ncs/v3.2.4), so this
+    # exercises the identical compiler/SDK version. There is no west.yml
+    # in this repo (firmware/app is a freestanding application), so the
+    # workspace is initialized from the sdk-nrf manifest at that tag; the
+    # resulting ncs/ checkout (zephyr, nrf, and all west modules) is
+    # cached since it does not change unless NCS_VERSION below does.
+    name: Firmware build (nrf52840dk)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.2.4
+    env:
+      NCS_VERSION: v3.2.4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app-repo
+      - name: Cache NCS workspace
+        uses: actions/cache@v4
+        with:
+          path: ncs
+          key: ncs-${{ env.NCS_VERSION }}
+      - name: Set up west workspace
+        run: |
+          git config --global --add safe.directory '*'
+          if [ ! -d ncs/.west ]; then
+            west init -m https://github.com/nrfconnect/sdk-nrf --mr "$NCS_VERSION" ncs
+          fi
+          cd ncs && west update --narrow -o=--depth=1
+      - name: Build firmware
+        working-directory: ncs
+        run: |
+          west build -b nrf52840dk/nrf52840 \
+            "$GITHUB_WORKSPACE/app-repo/firmware/app" \
+            -d "$GITHUB_WORKSPACE/app-repo/firmware/build" --pristine
+
   misra:
     # Direct source scan, no build required: every file here is plain
     # C99 with zero Zephyr dependency except firmware/hal/nrf52/*.c and
