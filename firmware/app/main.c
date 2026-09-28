@@ -8,6 +8,7 @@
 #include "hal_nvm.h"
 #include "hal_time.h"
 #include "hal_wdt.h"
+#include "hil_test.h"
 
 #define BLE_NAME "SSM1 Gauge"
 
@@ -44,15 +45,19 @@ static uint32_t ble_passkey( void )
 int main( void )
 {
     const hal_ble_cfg_t ble           = { BLE_NAME, ble_passkey() };
+
+    /* No backlight line wired yet (see bsp.h); backlight is left at its
+     * default id and unused because has_backlight is false. */
     const display_pins_t display_pins = {
-        BSP_SPI_DISPLAY,
-        BSP_GPIO_DISPLAY_CS,
-        BSP_GPIO_DISPLAY_DC,
-        BSP_GPIO_DISPLAY_RESET,
-        0u,
-        false
+        .spi           = BSP_SPI_DISPLAY,
+        .cs            = BSP_GPIO_DISPLAY_CS,
+        .dc            = BSP_GPIO_DISPLAY_DC,
+        .reset         = BSP_GPIO_DISPLAY_RESET,
+        .backlight     = ( hal_gpio_id_t )0u,
+        .has_backlight = false
     };
     hal_status_t status;
+    hal_status_t ecu_status;
     bool confirmed = false;
 
     /* Arm before any HAL call that could hang. */
@@ -64,31 +69,35 @@ int main( void )
     /* Print the version before initializing peripherals. */
     hal_log_write( fw_info.version );
 
-    status = ecu_io_init( BSP_UART_ECU );
-    if ( status == HAL_OK )
-    {
-        /* v1: BLE is for firmware updates only, never app data -- see
-         * hal_dfu_confirm below and mcumgr's own BT transport, which
-         * registers itself independently of anything here. hal_ble_open
-         * still brings up pairing/advertising (DFU needs a live,
-         * connectable link), but nothing ever calls hal_ble_write; a
-         * failure here is not fatal either way. */
-        status = hal_ble_open( &ble );
-    }
+    /* ECU failure must not block firmware updates over BLE. */
+    ecu_status = ecu_io_init( BSP_UART_ECU );
+
+    /* BLE provides a connectable link for firmware updates. */
+    ( void )hal_ble_open( &ble );
+
     /* The ECU link can run without a display. */
     ( void )gauge_init( &display_pins, BSP_GPIO_NEXT, BSP_GPIO_ACTION );
+
     hal_wdt_feed();
 
     for ( ;; )
     {
         uint32_t now = hal_millis();
 
-        ecu_io_poll( now );
+        if ( ecu_status == HAL_OK )
+        {
+            ecu_io_poll( now );
+        }
+
         gauge_poll( now );
+        hil_test_poll();
+
         if ( !confirmed && ( now >= CONFIRM_AFTER_MS ) )
         {
-            status    = hal_dfu_confirm();
-            confirmed = true;
+            status = hal_dfu_confirm();
+
+            /* Retry failures; builds without a bootloader need no confirmation. */
+            confirmed = ( status == HAL_OK ) || ( status == HAL_ERR_UNSUPPORTED );
         }
 
         hal_wdt_feed();
