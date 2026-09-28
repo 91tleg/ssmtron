@@ -53,6 +53,12 @@ jobs:
       image: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.2.4
     env:
       NCS_VERSION: v3.2.4
+    defaults:
+      run:
+        # Container jobs default to `sh`, which never sees west or the
+        # rest of the toolchain PATH: the image only activates those via
+        # BASH_ENV, a bash-only mechanism sh silently ignores.
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
