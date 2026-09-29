@@ -4,6 +4,7 @@
 
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 
 #define USER_NODE           DT_PATH( zephyr_user )
 #define HAL_GPIO_COUNT      DT_PROP_LEN( USER_NODE, hal_gpios )
@@ -12,6 +13,16 @@
 static const struct gpio_dt_spec gpios[] = {
     LISTIFY( HAL_GPIO_COUNT, GPIO_SPEC, (, ) )
 };
+
+typedef struct
+{
+    struct gpio_callback cb;
+    volatile bool level;
+    volatile bool pending;
+    volatile uint32_t timestamp_ms;
+} watch_t;
+
+static watch_t watches[HAL_GPIO_COUNT];
 
 hal_status_t hal_gpio_open(
     hal_gpio_id_t id,
@@ -22,9 +33,6 @@ hal_status_t hal_gpio_open(
 
     if ( id < HAL_GPIO_COUNT )
     {
-        /* Matches hal_uart_open: a bad id is the caller's mistake
-         * (HAL_ERR_INVALID); a device that is not ready is the
-         * hardware's (HAL_ERR_IO). */
         if ( !gpio_is_ready_dt( &gpios[id] ) )
         {
             status = HAL_ERR_IO;
@@ -57,4 +65,70 @@ void hal_gpio_write(
          * nowhere to go. */
         ( void )gpio_pin_set_dt( &gpios[id], asserted );
     }
+}
+
+/* Each callback watches one pin, so the pin mask needs no check. */
+static void on_gpio_interrupt(
+    const struct device * port,
+    struct gpio_callback * cb,
+    uint32_t pins
+)
+{
+    ( void )port;
+    ( void )pins;
+    for ( hal_gpio_id_t id = 0; id < HAL_GPIO_COUNT; id++ )
+    {
+        if ( &watches[id].cb == cb )
+        {
+            watches[id].level        = gpio_pin_get_dt( &gpios[id] ) > 0;
+            watches[id].timestamp_ms = k_uptime_get_32();
+            watches[id].pending      = true;
+            break;
+        }
+    }
+}
+
+hal_status_t hal_gpio_watch( hal_gpio_id_t id )
+{
+    hal_status_t status = HAL_ERR_INVALID;
+
+    if ( id < HAL_GPIO_COUNT )
+    {
+        gpio_init_callback(
+            &watches[id].cb, on_gpio_interrupt, BIT( gpios[id].pin )
+        );
+        status = ( ( gpio_add_callback( gpios[id].port, &watches[id].cb ) == 0 )
+                   && ( gpio_pin_interrupt_configure_dt(
+                            &gpios[id], GPIO_INT_EDGE_BOTH
+                        )
+                        == 0 ) )
+                     ? HAL_OK
+                     : HAL_ERR_IO;
+    }
+    return status;
+}
+
+bool hal_gpio_take_edge(
+    hal_gpio_id_t id,
+    bool * level,
+    uint32_t * timestamp_ms
+)
+{
+    bool had_edge = false;
+
+    if ( id < HAL_GPIO_COUNT )
+    {
+        /* Read and clear the latch atomically with respect to the ISR. */
+        unsigned int key = irq_lock();
+
+        if ( watches[id].pending )
+        {
+            *level              = watches[id].level;
+            *timestamp_ms       = watches[id].timestamp_ms;
+            watches[id].pending = false;
+            had_edge            = true;
+        }
+        irq_unlock( key );
+    }
+    return had_edge;
 }
