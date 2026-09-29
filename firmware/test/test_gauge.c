@@ -1,30 +1,26 @@
-/* gauge.c's ACTION-button state machine (hold-to-clear), tested against
- * fake ECU/HAL/NVM. ui_init/ui_poll are no-ops here: only the button and
- * clear-trigger logic is under test, not rendering.
- *
- * gauge_init runs once, as in production; it does not reset the
- * debounce/hold state (there is nothing to reset it for at boot), so this
- * is one continuous timeline rather than independently-reset test cases,
- * each phase picking up in the state the previous one actually left. */
+/* Test the button state machines against fake ECU, HAL, and NVM calls.
+ * Each test phase continues from the previous phase's state. */
+#include <string.h>
+
+#include "dial.h"
 #include "ecu.h"
 #include "gauge.h"
 #include "hal_gpio.h"
 #include "hal_log.h"
 #include "hal_nvm.h"
 #include "minitest.h"
-#include "ui.h"
+#include "text.h"
 
 #define NEXT_ID   ( ( hal_gpio_id_t )1u )
 #define ACTION_ID ( ( hal_gpio_id_t )2u )
 
-static bool next_pressed;
-static bool action_pressed;
 static bool clear_started;
 static ecu_clear_t clear_result = ECU_CLEAR_BUSY;
+static size_t last_selected_idx = 999u; /* sentinel: no selection observed */
 
 size_t ecu_param_count( void )
 {
-    return 1u;
+    return 3u;
 }
 
 const ecu_param_info_t * ecu_param_info( size_t idx )
@@ -51,7 +47,7 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
 
 bool ecu_select_param( size_t idx )
 {
-    ( void )idx;
+    last_selected_idx = idx;
     return true;
 }
 
@@ -86,6 +82,9 @@ void hal_log_write( const char * text )
     ( void )text;
 }
 
+static bool nvm_save_called;
+static uint32_t nvm_saved_value;
+
 hal_status_t hal_nvm_save(
     const char * key,
     const void * data,
@@ -93,10 +92,17 @@ hal_status_t hal_nvm_save(
 )
 {
     ( void )key;
-    ( void )data;
-    ( void )len;
+    nvm_save_called = true;
+    if ( len == sizeof( nvm_saved_value ) )
+    {
+        ( void )memcpy( &nvm_saved_value, data, len );
+    }
     return HAL_OK;
 }
+
+/* Tests can provide a stored selection before the first poll. */
+static bool nvm_load_ok;
+static uint32_t nvm_load_value;
 
 hal_status_t hal_nvm_load(
     const char * key,
@@ -105,11 +111,16 @@ hal_status_t hal_nvm_load(
     size_t * len
 )
 {
+    hal_status_t status = HAL_ERR_INVALID;
+
     ( void )key;
-    ( void )data;
-    ( void )max;
-    ( void )len;
-    return HAL_ERR_INVALID; /* nothing stored: parameter 0 stays selected */
+    if ( nvm_load_ok && ( max >= sizeof( nvm_load_value ) ) )
+    {
+        ( void )memcpy( data, &nvm_load_value, sizeof( nvm_load_value ) );
+        *len   = sizeof( nvm_load_value );
+        status = HAL_OK;
+    }
+    return status;
 }
 
 hal_status_t hal_gpio_open(
@@ -122,9 +133,39 @@ hal_status_t hal_gpio_open(
     return HAL_OK;
 }
 
-bool hal_gpio_read( hal_gpio_id_t id )
+/* One pending edge per button, consumed by the next poll. */
+typedef struct
 {
-    return ( id == ACTION_ID ) ? action_pressed : next_pressed;
+    bool level;
+    bool pending;
+    uint32_t timestamp_ms;
+} fake_edge_t;
+
+static fake_edge_t next_edge;
+static fake_edge_t action_edge;
+
+hal_status_t hal_gpio_watch( hal_gpio_id_t id )
+{
+    ( void )id;
+    return HAL_OK;
+}
+
+bool hal_gpio_take_edge(
+    hal_gpio_id_t id,
+    bool * level,
+    uint32_t * timestamp_ms
+)
+{
+    fake_edge_t * edge = ( id == ACTION_ID ) ? &action_edge : &next_edge;
+    bool had_edge      = edge->pending;
+
+    if ( had_edge )
+    {
+        *level        = edge->level;
+        *timestamp_ms = edge->timestamp_ms;
+        edge->pending = false;
+    }
+    return had_edge;
 }
 
 hal_status_t display_init( const display_pins_t * pins )
@@ -133,8 +174,8 @@ hal_status_t display_init( const display_pins_t * pins )
     return HAL_OK;
 }
 
-void ui_init(
-    ui_widget_t * widgets,
+void text_init(
+    text_widget_t * widgets,
     size_t count,
     uint16_t page_bg
 )
@@ -144,13 +185,37 @@ void ui_init(
     ( void )page_bg;
 }
 
-void ui_poll(
-    ui_widget_t * widgets,
+void text_poll(
+    text_widget_t * widgets,
     size_t count
 )
 {
     ( void )widgets;
     ( void )count;
+}
+
+void dial_init(
+    dial_widget_t * d,
+    const dial_cfg_t * cfg,
+    uint32_t now_ms
+)
+{
+    ( void )d;
+    ( void )cfg;
+    ( void )now_ms;
+}
+
+void dial_poll(
+    dial_widget_t * d,
+    uint32_t now_ms,
+    bool has_value,
+    int32_t value
+)
+{
+    ( void )d;
+    ( void )now_ms;
+    ( void )has_value;
+    ( void )value;
 }
 
 static uint32_t now;
@@ -161,22 +226,37 @@ static void tick( uint32_t delta_ms )
     gauge_poll( now );
 }
 
+/* Latch an edge at the simulated time; tick() lets gauge.c consume it. */
+static void press_next( bool level )
+{
+    next_edge.level        = level;
+    next_edge.timestamp_ms = now;
+    next_edge.pending      = true;
+}
+
+static void press_action( bool level )
+{
+    action_edge.level        = level;
+    action_edge.timestamp_ms = now;
+    action_edge.pending      = true;
+}
+
 static void test_brief_press_below_debounce_does_nothing( void )
 {
-    action_pressed = true;
-    tick( 5 ); /* raw goes true, but not stable long enough yet */
-    action_pressed = false;
+    press_action( true );
+    tick( 5 ); /* too brief to debounce */
+    press_action( false );
     tick( 5 );
     CHECK( !clear_started );
 }
 
 static void test_release_before_threshold_cancels( void )
 {
-    action_pressed = true;
-    tick( 1 );   /* raw settles, debounce window starts */
+    press_action( true );
+    tick( 1 );   /* press observed */
     tick( 35 );  /* past debounce: enters HOLDING */
     tick( 500 ); /* still short of the 2 s hold */
-    action_pressed = false;
+    press_action( false );
     tick( 1 );    /* released early: back to idle, no clear */
     tick( 2000 ); /* long after, still idle */
     CHECK( !clear_started );
@@ -184,7 +264,7 @@ static void test_release_before_threshold_cancels( void )
 
 static void test_hold_past_threshold_triggers_clear( void )
 {
-    action_pressed = true;
+    press_action( true );
     tick( 1 );
     tick( 35 );   /* HOLDING starts */
     tick( 1965 ); /* crosses the 2 s hold */
@@ -205,27 +285,112 @@ static void test_dismissing_the_result_does_not_retrigger( void )
 {
     /* Still held from the previous phase; release, then a fresh press
      * dismisses the result screen rather than starting a new clear. */
-    action_pressed = false;
+    press_action( false );
     tick( 1 ); /* release seen */
-    action_pressed = true;
+    press_action( true );
     tick( 1 );  /* a fresh press starts */
     tick( 35 ); /* past debounce: dismisses the result, not a new clear */
     CHECK( !clear_started );
-    action_pressed = false;
+    press_action( false );
     tick( 1 ); /* leave the button released for anything that follows */
+}
+
+/* Selection restore runs only on the first poll, so this test runs first. */
+static void test_restores_saved_selection_on_first_poll( void )
+{
+    tick( 1 ); /* triggers restore_selected_idx */
+    CHECK_EQ( last_selected_idx, 2 );
+}
+
+static void test_next_tap_advances_the_parameter( void )
+{
+    last_selected_idx = 999u;
+    nvm_save_called   = false;
+    press_next( true );
+    tick( 1 );                         /* press observed */
+    tick( 35 );                        /* past debounce: counts as one press */
+    CHECK_EQ( last_selected_idx, 0u ); /* (2 + 1) % 3 */
+    CHECK( nvm_save_called );
+    CHECK_EQ( nvm_saved_value, 0u );
+}
+
+static void test_next_latched_while_held( void )
+{
+    /* Still held from the previous phase: must not advance again. */
+    last_selected_idx = 999u;
+    tick( 100 );
+    CHECK_EQ( last_selected_idx, 999u );
+}
+
+static void test_next_wraps_around( void )
+{
+    /* Release must debounce before another press counts. */
+    press_next( false );
+    tick( 1 );
+    tick( 35 ); /* release registers: un-latches */
+    press_next( true );
+    tick( 1 );
+    tick( 35 ); /* second press: 0 -> 1 */
+    CHECK_EQ( last_selected_idx, 1u );
+
+    press_next( false );
+    tick( 1 );
+    tick( 35 );
+    press_next( true );
+    tick( 1 );
+    tick( 35 ); /* third press: 1 -> 2 */
+    CHECK_EQ( last_selected_idx, 2u );
+
+    press_next( false );
+    tick( 1 );
+    tick( 35 );
+    press_next( true );
+    tick( 1 );
+    tick( 35 ); /* fourth press: 2 -> 0 (wraps) */
+    CHECK_EQ( last_selected_idx, 0u );
+
+    press_next( false );
+    tick( 1 );
+    tick( 35 ); /* leave released and un-latched */
+}
+
+static void test_next_blocked_during_clear( void )
+{
+    press_action( true );
+    tick( 1 );
+    tick( 35 ); /* HOLDING */
+
+    last_selected_idx = 999u;
+    press_next( true );
+    tick( 1 );
+    tick( 35 );                          /* would normally count as a press */
+    CHECK_EQ( last_selected_idx, 999u ); /* blocked: clear_ui != IDLE */
+
+    press_next( false );
+    tick( 1 );
+    press_action( false );
+    tick( 1 ); /* released before the 2 s hold: back to IDLE */
 }
 
 int main( void )
 {
     static const display_pins_t pins = { 0 };
 
+    nvm_load_ok    = true;
+    nvm_load_value = 2u; /* valid: ecu_param_count() == 3 */
+
     ( void )gauge_init( &pins, NEXT_ID, ACTION_ID );
 
+    test_restores_saved_selection_on_first_poll();
     test_brief_press_below_debounce_does_nothing();
     test_release_before_threshold_cancels();
     test_hold_past_threshold_triggers_clear();
     test_held_button_does_not_retrigger_while_clearing();
     test_dismissing_the_result_does_not_retrigger();
+    test_next_tap_advances_the_parameter();
+    test_next_latched_while_held();
+    test_next_wraps_around();
+    test_next_blocked_during_clear();
 
     return MT_RESULT();
 }

@@ -28,4 +28,14 @@ void hal_gpio_write(
     bool asserted
 );
 
+/* Latch both edges on an input opened with hal_gpio_open(). */
+hal_status_t hal_gpio_watch( hal_gpio_id_t id );
+
+/* Consume the latest edge. Leave outputs unchanged if none is pending. */
+bool hal_gpio_take_edge(
+    hal_gpio_id_t id,
+    bool * level,
+    uint32_t * timestamp_ms
+);
+
 #endif /* HAL_GPIO_H */
