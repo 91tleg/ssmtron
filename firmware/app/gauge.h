@@ -16,7 +16,7 @@ hal_status_t gauge_init(
 
 /* Call every loop: polls both buttons and re-checks the ECU value and
  * link state, redrawing only the widgets whose text actually changed
- * (see ui.h). */
+ * (see text.h). */
 void gauge_poll( uint32_t now_ms );
 
 #endif /* GAUGE_H */

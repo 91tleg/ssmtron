@@ -1,11 +1,9 @@
-set(UI_SOURCES ui.c ui_font.c)
+set(UI_SOURCES text.c font.c dial.c)
 
 if(COMMAND zephyr_library_named)
   zephyr_library_named(ui)
   zephyr_library_sources(${UI_SOURCES})
-  # See firmware/hal/nrf52/CMakeLists.txt: add_subdirectory from the app
-  # runs in Zephyr CMake application mode, so this library misses the
-  # automatic dependency on generated headers a real Zephyr module gets.
+  # Ensure Zephyr headers exist before compiling this library.
   if(TARGET zephyr_generated_headers)
     add_dependencies(ui zephyr_generated_headers)
   endif()

@@ -2,11 +2,12 @@
 
 #include <string.h>
 
+#include "dial.h"
 #include "ecu.h"
 #include "fmt.h"
 #include "hal_log.h"
 #include "hal_nvm.h"
-#include "ui.h"
+#include "text.h"
 
 #define FG ( 0xFFFFu ) /* white */
 #define BG ( 0x0000u ) /* black */
@@ -14,6 +15,7 @@
 /* Mechanical switch settle time: a press/release edge must be stable
  * this long before it counts. */
 #define DEBOUNCE_MS ( 30u )
+
 /* ACTION requires a sustained press; taps do nothing. */
 #define ACTION_HOLD_MS ( 2000u )
 
@@ -31,19 +33,10 @@ typedef enum
 static hal_gpio_id_t next_btn_id;
 static hal_gpio_id_t action_btn_id;
 
-static bool next_raw_prev;
-static uint32_t next_stable_since;
-static bool next_latched; /* true while held, so one press = one advance */
-
-static bool action_raw_prev;
-static uint32_t action_stable_since;
-static uint32_t action_hold_start;
-static bool action_released_since_result;
 static clear_ui_t clear_ui = CLEAR_UI_IDLE;
 
 /* Mirror the selected parameter; gauge.c alone calls ecu_select_param. */
 static size_t selected_idx;
-static bool selection_restored;
 
 /* Find the fresh value from the ECU's single active stream. */
 static bool current_value(
@@ -64,7 +57,7 @@ static bool current_value(
     return found;
 }
 
-/* Copy and terminate up to UI_TEXT_MAX bytes. */
+/* Copy and terminate up to TEXT_MAX bytes. */
 static void copy_capped(
     char * buf,
     const char * s
@@ -72,11 +65,11 @@ static void copy_capped(
 {
     size_t n = strlen( s );
 
-    if ( n > UI_TEXT_MAX )
+    if ( n > TEXT_MAX )
     {
-        n = UI_TEXT_MAX;
+        n = TEXT_MAX;
     }
-    memcpy( buf, s, n );
+    ( void )memcpy( buf, s, n );
     buf[n] = '\0';
 }
 
@@ -101,18 +94,32 @@ static void restore_selected_idx( void )
     ( void )ecu_select_param( selected_idx );
 }
 
+static void poll_level(
+    hal_gpio_id_t id,
+    bool * level,
+    uint32_t * stable_since
+)
+{
+    uint32_t edge_at;
+
+    if ( hal_gpio_take_edge( id, level, &edge_at ) )
+    {
+        *stable_since = edge_at;
+    }
+}
+
 static void poll_next( uint32_t now )
 {
-    bool raw = hal_gpio_read( next_btn_id );
+    static bool next_level;
+    static uint32_t next_stable_since;
 
-    if ( raw != next_raw_prev )
-    {
-        next_stable_since = now;
-        next_raw_prev     = raw;
-    }
+    poll_level( next_btn_id, &next_level, &next_stable_since );
+
     if ( ( now - next_stable_since ) >= DEBOUNCE_MS )
     {
-        if ( raw && !next_latched && ( clear_ui == CLEAR_UI_IDLE )
+        static bool next_latched;
+
+        if ( next_level && !next_latched && ( clear_ui == CLEAR_UI_IDLE )
              && ( ecu_param_count() > 0u ) )
         {
             selected_idx = ( selected_idx + 1u ) % ecu_param_count();
@@ -120,27 +127,31 @@ static void poll_next( uint32_t now )
             save_selected_idx( selected_idx );
             next_latched = true;
         }
-        else if ( !raw )
+        else if ( !next_level )
         {
             next_latched = false;
+        }
+        else
+        {
+            /* A held press has already advanced the selection. */
         }
     }
 }
 
 static void poll_action( uint32_t now )
 {
-    bool raw = hal_gpio_read( action_btn_id );
+    static bool action_level;
+    static uint32_t action_stable_since;
+    static uint32_t action_hold_start;
+    static bool action_released_since_result;
 
-    if ( raw != action_raw_prev )
-    {
-        action_stable_since = now;
-        action_raw_prev     = raw;
-    }
+    poll_level( action_btn_id, &action_level, &action_stable_since );
 
     switch ( clear_ui )
     {
         case CLEAR_UI_IDLE:
-            if ( raw && ( ( now - action_stable_since ) >= DEBOUNCE_MS ) )
+            if ( action_level
+                 && ( ( now - action_stable_since ) >= DEBOUNCE_MS ) )
             {
                 action_hold_start = action_stable_since;
                 clear_ui          = CLEAR_UI_HOLDING;
@@ -148,7 +159,7 @@ static void poll_action( uint32_t now )
             break;
 
         case CLEAR_UI_HOLDING:
-            if ( !raw )
+            if ( !action_level )
             {
                 clear_ui = CLEAR_UI_IDLE; /* let go before the bar */
             }
@@ -157,6 +168,10 @@ static void poll_action( uint32_t now )
                 ( void )ecu_clear_start();
                 clear_ui = CLEAR_UI_ACTIVE;
                 hal_log_write( "ecu clear: started" );
+            }
+            else
+            {
+                /* Continue waiting for the hold threshold. */
             }
             break;
 
@@ -182,7 +197,7 @@ static void poll_action( uint32_t now )
              * not re-trigger a clear, so a press only counts once the
              * button has been seen released since the result appeared
              * (it may still be held from the original 2 s press). */
-            if ( !raw )
+            if ( !action_level )
             {
                 action_released_since_result = true;
             }
@@ -190,6 +205,10 @@ static void poll_action( uint32_t now )
                       && ( ( now - action_stable_since ) >= DEBOUNCE_MS ) )
             {
                 clear_ui = CLEAR_UI_IDLE;
+            }
+            else
+            {
+                /* Wait for a new debounced press. */
             }
             break;
     }
@@ -236,7 +255,7 @@ static void value_text( char * buf )
 
     if ( current_value( &info, &value ) )
     {
-        ( void )fmt_value( buf, UI_TEXT_MAX + 1u, info, value );
+        ( void )fmt_value( buf, TEXT_MAX + 1u, info, value );
     }
     else
     {
@@ -260,16 +279,34 @@ static void link_text( char * buf )
 }
 
 /* The screen: rects are kept a safe margin inside the round panel's 120
- * px radius (see the corner-distance check in the commit that added this
- * file), not tiled edge-to-edge like a square display would allow.
- * Moving, resizing or adding a field is a change to this table alone. */
-static ui_widget_t screen[] = {
+ * px radius, not tiled edge-to-edge like a square display would allow. */
+static text_widget_t screen[] = {
     { { 40, 55, 160, 7 }, 1, FG, BG, name_text, { 0 } },
     { { 32, 95, 176, 28 }, 4, FG, BG, value_text, { 0 } },
     { { 60, 135, 120, 14 }, 2, FG, BG, unit_text, { 0 } },
     { { 70, 175, 100, 7 }, 1, FG, BG, link_text, { 0 } },
 };
 #define SCREEN_COUNT ( sizeof( screen ) / sizeof( screen[0] ) )
+
+/* Boost is unique by decode; rpm shares ECU_DEC_LINEAR, so match by unit
+ * instead. Tried in order; first match wins. */
+static bool is_boost( const ecu_param_info_t * info )
+{
+    return info->decode == ECU_DEC_BOOST;
+}
+
+static bool is_rpm( const ecu_param_info_t * info )
+{
+    return strcmp( info->unit, "rpm" ) == 0;
+}
+
+typedef struct
+{
+    bool ( *matches )( const ecu_param_info_t * info );
+    const dial_cfg_t * cfg;
+    dial_widget_t * widget;
+    int32_t value_div; /* ecu_get_value units per dial unit */
+} dial_entry_t;
 
 hal_status_t gauge_init(
     const display_pins_t * pins,
@@ -281,20 +318,69 @@ hal_status_t gauge_init(
 
     next_btn_id   = next_btn;
     action_btn_id = action_btn;
-    /* Not fatal if either fails to open: the buttons just would not
-     * respond, same tolerance main.c already gives the display/BLE. */
+    /* Log watch setup failures; a button without a watch cannot respond. */
     ( void )hal_gpio_open( next_btn_id, HAL_GPIO_INPUT );
     ( void )hal_gpio_open( action_btn_id, HAL_GPIO_INPUT );
+    if ( hal_gpio_watch( next_btn_id ) != HAL_OK )
+    {
+        hal_log_write( "next btn watch failed" );
+    }
+    if ( hal_gpio_watch( action_btn_id ) != HAL_OK )
+    {
+        hal_log_write( "action btn watch failed" );
+    }
 
     if ( status == HAL_OK )
     {
-        ui_init( screen, SCREEN_COUNT, BG );
+        text_init( screen, SCREEN_COUNT, BG );
     }
     return status;
 }
 
 void gauge_poll( uint32_t now_ms )
 {
+    /* Keep the existing pressure units with the Lamco-style face. */
+    static const dial_cfg_t boost_dial_cfg = {
+        -30,
+        20,
+        10,
+        4u,
+        "TURBO",
+        "PSI",
+        "INHG",
+        0xEF5Bu,
+        0x632Cu,
+        0xF922u,
+        30u,
+        DIAL_STYLE_LAMCO
+    };
+    static dial_widget_t boost_dial;
+
+    /* The tachometer displays thousands of rpm on the same pale face. */
+    static const dial_cfg_t rpm_dial_cfg = {
+        0,
+        8,
+        1,
+        0u,
+        "RPM",
+        "x1000",
+        NULL,
+        0xEF5Bu,
+        0x632Cu,
+        0xF922u,
+        40u,
+        DIAL_STYLE_LAMCO
+    };
+    static dial_widget_t rpm_dial;
+    static bool selection_restored;
+    static const dial_entry_t dial_table[] = {
+        { is_boost, &boost_dial_cfg, &boost_dial, 1000 }, /* milli-psi/inHg */
+        { is_rpm, &rpm_dial_cfg, &rpm_dial, 1000 },
+    };
+    static const dial_entry_t * active_dial;
+    const ecu_param_info_t * sel_info = NULL;
+    const dial_entry_t * next_dial    = NULL;
+
     if ( !selection_restored && ( ecu_param_count() > 0u ) )
     {
         restore_selected_idx();
@@ -302,5 +388,54 @@ void gauge_poll( uint32_t now_ms )
     }
     poll_next( now_ms );
     poll_action( now_ms );
-    ui_poll( screen, SCREEN_COUNT );
+
+    if ( ecu_param_count() > 0u )
+    {
+        sel_info = ecu_param_info( selected_idx );
+    }
+    /* Show clear status on the digital screen, even for a dial param. */
+    if ( ( clear_ui == CLEAR_UI_IDLE ) && ( sel_info != NULL ) )
+    {
+        for ( size_t i = 0;
+              ( next_dial == NULL )
+              && ( i < ( sizeof( dial_table ) / sizeof( dial_table[0] ) ) );
+              i++ )
+        {
+            if ( dial_table[i].matches( sel_info ) )
+            {
+                next_dial = &dial_table[i];
+            }
+        }
+    }
+
+    if ( next_dial != active_dial )
+    {
+        if ( next_dial != NULL )
+        {
+            dial_init( next_dial->widget, next_dial->cfg, now_ms );
+        }
+        else
+        {
+            text_init( screen, SCREEN_COUNT, BG );
+        }
+        active_dial = next_dial;
+    }
+
+    if ( active_dial != NULL )
+    {
+        const ecu_param_info_t * info = NULL;
+        int32_t value                 = 0;
+        bool has_value                = current_value( &info, &value );
+
+        dial_poll(
+            active_dial->widget,
+            now_ms,
+            has_value,
+            value / active_dial->value_div
+        );
+    }
+    else
+    {
+        text_poll( screen, SCREEN_COUNT );
+    }
 }

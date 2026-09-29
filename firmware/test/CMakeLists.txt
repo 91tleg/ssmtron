@@ -40,7 +40,24 @@ target_include_directories(test_gauge PRIVATE ../app ../hal ../lib/display
 target_link_libraries(test_gauge PRIVATE fmt)
 add_test(NAME gauge COMMAND test_gauge)
 
-# Compile UI sources directly with a fake display; HAL has no host backend.
-add_executable(test_ui test_ui.c ../lib/ui/ui.c ../lib/ui/ui_font.c)
-target_include_directories(test_ui PRIVATE ../lib/ui ../lib/display ../hal)
-add_test(NAME ui COMMAND test_ui)
+add_executable(test_gauge_watch_log test_gauge_watch_log.c ../app/gauge.c)
+target_include_directories(test_gauge_watch_log
+                            PRIVATE ../app ../hal ../lib/display ../lib/ui)
+target_link_libraries(test_gauge_watch_log PRIVATE fmt)
+add_test(NAME gauge_watch_log COMMAND test_gauge_watch_log)
+
+add_executable(test_gauge_dial test_gauge_dial.c ../app/gauge.c)
+target_include_directories(test_gauge_dial
+                            PRIVATE ../app ../hal ../lib/display ../lib/ui)
+target_link_libraries(test_gauge_dial PRIVATE fmt)
+add_test(NAME gauge_dial COMMAND test_gauge_dial)
+
+# Compile text/font sources directly with a fake display; HAL has no host
+# backend.
+add_executable(test_text test_text.c ../lib/ui/text.c ../lib/ui/font.c)
+target_include_directories(test_text PRIVATE ../lib/ui ../lib/display ../hal)
+add_test(NAME text COMMAND test_text)
+
+add_executable(test_dial test_dial.c ../lib/ui/dial.c ../lib/ui/font.c)
+target_include_directories(test_dial PRIVATE ../lib/ui ../lib/display ../hal)
+add_test(NAME dial COMMAND test_dial)
