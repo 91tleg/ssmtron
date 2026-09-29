@@ -33,6 +33,16 @@
 #define DIAL_MAX_TICKS  ( 32u )
 #define DIAL_MAX_LABELS ( 16u )
 
+/* Per-frame redraw covers only the needle's old and new position, not the
+ * whole face (ticks/labels/face don't change between frames): one blit
+ * instead of 240, and a few thousand pixels instead of 57600. This bounds
+ * the biggest side that box can be; a jump that would exceed it (should
+ * never happen at any sane max_step_deg) falls back to a full draw_frame.
+ * DIAL_DEFAULT_TAIL_R is the counterweight's reach behind center. */
+#define DIAL_REGION_MAX     ( 128 )
+#define DIAL_REGION_MARGIN  ( 3 ) /* half-width padding plus rounding slack */
+#define DIAL_DEFAULT_TAIL_R  ( 31 )
+
 typedef struct
 {
     int16_t deg;
@@ -448,7 +458,9 @@ static uint16_t pixel_color(
         set   = true;
     }
 
-    if ( on_radial_line( dx, dy, -needle_sin, -needle_cos, 0, 31, 5 ) )
+    if ( on_radial_line(
+             dx, dy, -needle_sin, -needle_cos, 0, DIAL_DEFAULT_TAIL_R, 5
+         ) )
     {
         color = 0xCE79u;
         set   = true;
@@ -501,6 +513,137 @@ static uint16_t pixel_color(
         }
     }
     return color;
+}
+
+/* Bounding box (x0 <= x < x1) of the needle shape at deg: the forward tip
+ * at DIAL_NEEDLE_LEN, and the counterweight tail reaching
+ * DIAL_DEFAULT_TAIL_R behind center. Both lie on the same line through the
+ * center, so covering both endpoints covers the whole shape. */
+static void needle_extent(
+    int16_t deg,
+    int16_t * x0,
+    int16_t * y0,
+    int16_t * x1,
+    int16_t * y1
+)
+{
+    int32_t sin_m;
+    int32_t cos_m;
+    int32_t back_r = DIAL_DEFAULT_TAIL_R;
+    int32_t fwd_x;
+    int32_t fwd_y;
+    int32_t back_x;
+    int32_t back_y;
+    int32_t min_x;
+    int32_t max_x;
+    int32_t min_y;
+    int32_t max_y;
+
+    angle_vec( deg, &sin_m, &cos_m );
+    fwd_x  = ( DIAL_NEEDLE_LEN * sin_m ) / 1000;
+    fwd_y  = -( DIAL_NEEDLE_LEN * cos_m ) / 1000;
+    back_x = -( back_r * sin_m ) / 1000;
+    back_y = ( back_r * cos_m ) / 1000;
+
+    min_x = ( fwd_x < back_x ) ? fwd_x : back_x;
+    max_x = ( fwd_x > back_x ) ? fwd_x : back_x;
+    min_y = ( fwd_y < back_y ) ? fwd_y : back_y;
+    max_y = ( fwd_y > back_y ) ? fwd_y : back_y;
+
+    *x0 = ( int16_t )( ( DIAL_CX + min_x ) - DIAL_REGION_MARGIN );
+    *y0 = ( int16_t )( ( DIAL_CY + min_y ) - DIAL_REGION_MARGIN );
+    *x1 = ( int16_t )( ( DIAL_CX + max_x ) + DIAL_REGION_MARGIN + 1 );
+    *y1 = ( int16_t )( ( DIAL_CY + max_y ) + DIAL_REGION_MARGIN + 1 );
+}
+
+/* Clips a box to the panel; x0/y0 may still exceed x1/y1 afterward if the
+ * box fell entirely outside it (the caller checks that). */
+static void clamp_box(
+    int16_t * x0,
+    int16_t * y0,
+    int16_t * x1,
+    int16_t * y1
+)
+{
+    if ( *x0 < 0 )
+    {
+        *x0 = 0;
+    }
+    if ( *y0 < 0 )
+    {
+        *y0 = 0;
+    }
+    if ( *x1 > ( int16_t )DIAL_PANEL_W )
+    {
+        *x1 = ( int16_t )DIAL_PANEL_W;
+    }
+    if ( *y1 > ( int16_t )DIAL_PANEL_H )
+    {
+        *y1 = ( int16_t )DIAL_PANEL_H;
+    }
+}
+
+/* Same pixel_color geometry as draw_frame, restricted to one rectangle and
+ * blitted in a single call instead of one blit per row. Ticks/labels are
+ * still built fresh (cheap: a couple dozen entries) so a tick or label
+ * inside the box is drawn correctly; pixels outside the box are untouched
+ * because nothing but the needle moved since the last redraw. */
+static void draw_region(
+    const dial_widget_t * d,
+    int16_t x0,
+    int16_t y0,
+    int16_t x1,
+    int16_t y1
+)
+{
+    static uint16_t
+        region_buf[( size_t )DIAL_REGION_MAX * ( size_t )DIAL_REGION_MAX];
+    dial_tick_t ticks[DIAL_MAX_TICKS];
+    dial_label_t labels[DIAL_MAX_LABELS];
+    size_t tick_count;
+    size_t label_count;
+
+    int32_t needle_sin;
+    int32_t needle_cos;
+
+    int32_t width_delta  = ( int32_t )x1 - ( int32_t )x0;
+    int32_t height_delta = ( int32_t )y1 - ( int32_t )y0;
+    uint16_t width       = ( uint16_t )width_delta;
+    int16_t row;
+    size_t row_index = 0u;
+
+    build_ticks( d->cfg, ticks, &tick_count, labels, &label_count );
+    add_fixed_labels( d->cfg, labels, &label_count );
+    angle_vec( d->displayed_deg, &needle_sin, &needle_cos );
+
+    for ( row = y0; row < y1; row++ )
+    {
+        uint16_t * dst = &region_buf[row_index * ( size_t )width];
+        int16_t col;
+
+        for ( col = x0; col < x1; col++ )
+        {
+            dst[col - x0] = pixel_color(
+                d->cfg,
+                ticks,
+                tick_count,
+                labels,
+                label_count,
+                needle_sin,
+                needle_cos,
+                row,
+                col
+            );
+        }
+        row_index++;
+    }
+    ( void )display_blit(
+        ( uint16_t )x0,
+        ( uint16_t )y0,
+        width,
+        ( uint16_t )height_delta,
+        region_buf
+    );
 }
 
 static void draw_frame( const dial_widget_t * d )
@@ -569,10 +712,47 @@ void dial_poll(
     if ( ( d->displayed_deg != d->target_deg )
          && ( ( now_ms - d->last_frame_ms ) >= DIAL_FRAME_INTERVAL_MS ) )
     {
+        int16_t old_deg = d->displayed_deg;
+        int16_t ox0;
+        int16_t oy0;
+        int16_t ox1;
+        int16_t oy1;
+        int16_t nx0;
+        int16_t ny0;
+        int16_t nx1;
+        int16_t ny1;
+        int16_t x0;
+        int16_t y0;
+        int16_t x1;
+        int16_t y1;
+
         d->displayed_deg = step_toward(
             d->displayed_deg, d->target_deg, d->cfg->max_step_deg
         );
-        draw_frame( d );
+
+        /* Only the needle moved: redraw the union of where it was and
+         * where it is now, not the whole face (see draw_region). A box
+         * bigger than the scratch buffer can hold (never expected at any
+         * sane max_step_deg) falls back to a full redraw instead of
+         * clipping it. */
+        needle_extent( old_deg, &ox0, &oy0, &ox1, &oy1 );
+        needle_extent( d->displayed_deg, &nx0, &ny0, &nx1, &ny1 );
+        x0 = ( ox0 < nx0 ) ? ox0 : nx0;
+        y0 = ( oy0 < ny0 ) ? oy0 : ny0;
+        x1 = ( ox1 > nx1 ) ? ox1 : nx1;
+        y1 = ( oy1 > ny1 ) ? oy1 : ny1;
+        clamp_box( &x0, &y0, &x1, &y1 );
+
+        if ( ( x0 < x1 ) && ( y0 < y1 )
+             && ( ( x1 - x0 ) <= ( int16_t )DIAL_REGION_MAX )
+             && ( ( y1 - y0 ) <= ( int16_t )DIAL_REGION_MAX ) )
+        {
+            draw_region( d, x0, y0, x1, y1 );
+        }
+        else
+        {
+            draw_frame( d );
+        }
         d->last_frame_ms = now_ms;
     }
 }
