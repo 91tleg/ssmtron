@@ -13,19 +13,25 @@
 #include "ssm1_romid.h"
 #include "ssm1_rx.h"
 
-#define QUIET_MS        ( 80u )   /* line silence required after a stop */
-#define STOP_SETTLE_MS  ( 1000u ) /* give up waiting for silence after this */
-#define FIRST_DATA_MS   ( 300u )  /* read sent -> first confirmed sample */
-#define STALL_MS        ( 500u )  /* no confirmed sample while streaming */
-#define BACKOFF_MS      ( 1000u )
-#define FRESH_MS        ( 500u )  /* value older than this is not reported */
-#define LINK_MS         ( 1000u ) /* link is up while samples are this recent */
-#define MAX_TRIES       ( 3u )
-#define ID_RESEND_MS    ( 300u )  /* ROM ID command repeat while unanswered */
-#define ID_TIMEOUT_MS   ( 1500u ) /* read sent -> confirmed ROM ID */
-#define CLEAR_GAP_MS    ( 384u )  /* between clear writes, and after the last */
-#define CLEAR_WRITES    ( 4u )
-#define CLEAR_LIMIT_MS  ( 10000u )
+#define QUIET_MS       ( 80u )   /* line silence required after a stop */
+#define STOP_SETTLE_MS ( 1000u ) /* give up waiting for silence after this */
+#define FIRST_DATA_MS  ( 300u )  /* read sent -> first confirmed sample */
+#define STALL_MS       ( 500u )  /* no confirmed sample while streaming */
+#define BACKOFF_MS     ( 1000u )
+#define FRESH_MS       ( 500u )  /* value older than this is not reported */
+#define LINK_MS        ( 1000u ) /* link is up while samples are this recent */
+#define MAX_TRIES      ( 3u )
+#define ID_RESEND_MS   ( 300u )  /* ROM ID command repeat while unanswered */
+#define ID_TIMEOUT_MS  ( 1500u ) /* read sent -> confirmed ROM ID */
+#define CLEAR_GAP_MS   ( 384u )  /* between clear writes */
+/* After the last write, before resuming reads: real EEPROM/flash write
+ * cycle time, not just line settling. Resuming sooner risks reading
+ * mid-write garbage or interrupting the clear. */
+#define CLEAR_DONE_WAIT_MS ( 22407u )
+#define CLEAR_WRITES       ( 4u )
+/* Must clear (CLEAR_WRITES - 1) write gaps plus CLEAR_DONE_WAIT_MS,
+ * with margin for command transmission time and jitter. */
+#define CLEAR_LIMIT_MS  ( 30000u )
 #define SSM1_ADDR_ROMID ( 0xFFFEu )
 #define SLOTS           ( SSM1_PARAM_MAX + 1u ) /* + the clear address */
 
@@ -184,7 +190,7 @@ static void clear_tick( void )
             finish_clear( ECU_CLEAR_FAILED );
         }
         else if ( ( s.clear_writes >= CLEAR_WRITES )
-                  && ( since( s.clear_last ) >= CLEAR_GAP_MS ) )
+                  && ( since( s.clear_last ) >= CLEAR_DONE_WAIT_MS ) )
         {
             finish_clear( ECU_CLEAR_DONE );
         }
@@ -356,8 +362,9 @@ static size_t clear_write( uint8_t * buf )
         {
             if ( first )
             {
+                /* SSM1_CLEAR_ZERO sends 0xFF, not literal 0. */
                 s.clear_data = ( s.profile->clear_mode == SSM1_CLEAR_ZERO )
-                                   ? 0u
+                                   ? 0xFFu
                                    : ( uint8_t )~s.raw[s.want];
             }
             n = ssm1_cmd_write( s.profile->clear_addr, s.clear_data, buf );

@@ -565,7 +565,7 @@ static void test_stray_bytes_before_start( void )
 static void check_clear_writes( void )
 {
     uint8_t want = ( prof->clear_mode == SSM1_CLEAR_ZERO )
-                       ? 0u
+                       ? 0xFFu
                        : ( uint8_t )~mem( prof->clear_addr );
 
     CHECK_EQ( sim.writes, 4 );
@@ -594,7 +594,7 @@ static void test_clear_every_profile( void )
         CHECK( ecu_clear_start() );
         CHECK( ecu_clear_state() == ECU_CLEAR_BUSY );
         CHECK( !ecu_clear_start() ); /* already running */
-        run( 6000 );
+        run( 24000 );                /* > CLEAR_DONE_WAIT_MS + write gaps */
         CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
         check_clear_writes();
 
@@ -642,7 +642,7 @@ static void test_clear_selection_during_clear_applies_after( void )
     run( 300 );
     selected = 3;
     CHECK( ecu_select_param( 3 ) );
-    run( 6000 );
+    run( 24000 ); /* > CLEAR_DONE_WAIT_MS + write gaps */
     CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
     run( 1000 );
     CHECK( value_ok( 3 ) );
@@ -656,7 +656,7 @@ static void test_clear_survives_lost_bytes( void )
     run( 250 );
     sim.drop_bytes = 3;
     ecu_feed_error();
-    run( 6000 );
+    run( 24000 ); /* > CLEAR_DONE_WAIT_MS + write gaps */
     CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
     CHECK_EQ( sim.writes, 4 );
 }
@@ -667,7 +667,7 @@ static void test_clear_fails_when_ecu_dies( void )
     ecu_clear_start();
     run( 200 );
     sim.alive = false;
-    run( 11000 );
+    run( 31000 ); /* > CLEAR_LIMIT_MS */
     CHECK( ecu_clear_state() == ECU_CLEAR_FAILED );
     CHECK( sim.writes < 4 );
 
@@ -675,7 +675,7 @@ static void test_clear_fails_when_ecu_dies( void )
     sim.streaming = false;
     sim.writes    = 0;
     CHECK( ecu_clear_start() ); /* can try again */
-    run( 8000 );
+    run( 24000 );               /* > CLEAR_DONE_WAIT_MS + write gaps */
     CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
     CHECK_EQ( sim.writes, 4 );
 }

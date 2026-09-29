@@ -18,7 +18,7 @@ typedef struct
 
 typedef enum
 {
-    SSM1_CLEAR_ZERO,  /* write 0 */
+    SSM1_CLEAR_ZERO,  /* write 0xFF, not literal zero */
     SSM1_CLEAR_INVERT /* write the bitwise NOT of the current value */
 } ssm1_clear_mode_t;
 
