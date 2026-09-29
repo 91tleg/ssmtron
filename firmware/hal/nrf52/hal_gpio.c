@@ -20,6 +20,11 @@ typedef struct
     volatile bool level;
     volatile bool pending;
     volatile uint32_t timestamp_ms;
+    /* A press not yet handed out. A later release must not hide it, or a
+     * tap shorter than the caller's poll gap would never be seen. It is a
+     * flag, not a queue, so a burst of presses still reads as one. */
+    volatile bool press_pending;
+    volatile uint32_t press_ms;
 } watch_t;
 
 static watch_t watches[HAL_GPIO_COUNT];
@@ -83,6 +88,11 @@ static void on_gpio_interrupt(
             watches[id].level        = gpio_pin_get_dt( &gpios[id] ) > 0;
             watches[id].timestamp_ms = k_uptime_get_32();
             watches[id].pending      = true;
+            if ( watches[id].level )
+            {
+                watches[id].press_pending = true;
+                watches[id].press_ms      = watches[id].timestamp_ms;
+            }
             break;
         }
     }
@@ -121,7 +131,20 @@ bool hal_gpio_take_edge(
         /* Read and clear the latch atomically with respect to the ISR. */
         unsigned int key = irq_lock();
 
-        if ( watches[id].pending )
+        if ( watches[id].press_pending )
+        {
+            *level                    = true;
+            *timestamp_ms             = watches[id].press_ms;
+            watches[id].press_pending = false;
+            had_edge                  = true;
+            /* If the latest edge is a release it stays pending, so the
+             * next call reports it. If it is this press, it is consumed. */
+            if ( watches[id].level )
+            {
+                watches[id].pending = false;
+            }
+        }
+        else if ( watches[id].pending )
         {
             *level              = watches[id].level;
             *timestamp_ms       = watches[id].timestamp_ms;
