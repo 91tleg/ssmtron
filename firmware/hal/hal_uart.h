@@ -32,6 +32,9 @@ hal_status_t hal_uart_open(
     const hal_uart_cfg_t * cfg
 );
 
+/* Non-blocking. Queues the whole buffer and returns len, or queues
+ * nothing and returns 0 if it does not fit, so a frame is never sent
+ * torn. The bytes leave in the background. */
 size_t hal_uart_write(
     hal_uart_id_t id,
     const uint8_t * buf,
