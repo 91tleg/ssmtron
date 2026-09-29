@@ -302,56 +302,101 @@ static void test_restores_saved_selection_on_first_poll( void )
     CHECK_EQ( last_selected_idx, 2 );
 }
 
-static void test_next_tap_advances_the_parameter( void )
+/* One debounced tap: the parameter advances on release. */
+static void tap_next( void )
+{
+    press_next( true );
+    tick( 1 );
+    tick( 35 );
+    press_next( false );
+    tick( 1 );
+    tick( 35 );
+}
+
+static void test_next_tap_advances_on_release_without_saving( void )
 {
     last_selected_idx = 999u;
     nvm_save_called   = false;
     press_next( true );
-    tick( 1 );                         /* press observed */
-    tick( 35 );                        /* past debounce: counts as one press */
+    tick( 1 );
+    tick( 35 ); /* past debounce: still only a candidate press */
+    CHECK_EQ( last_selected_idx, 999u );
+    press_next( false );
+    tick( 1 );
+    tick( 35 );                        /* release settles: one tap */
     CHECK_EQ( last_selected_idx, 0u ); /* (2 + 1) % 3 */
-    CHECK( nvm_save_called );
-    CHECK_EQ( nvm_saved_value, 0u );
+    CHECK( !nvm_save_called );
 }
 
-static void test_next_latched_while_held( void )
+static void test_next_hold_saves_without_advancing( void )
 {
-    /* Still held from the previous phase: must not advance again. */
     last_selected_idx = 999u;
-    tick( 100 );
-    CHECK_EQ( last_selected_idx, 999u );
+    nvm_save_called   = false;
+    press_next( true );
+    tick( 1 );
+    tick( 35 );
+    tick( 1400 ); /* short of the 1.5 s hold */
+    CHECK( !nvm_save_called );
+    tick( 100 ); /* crosses it */
+    CHECK( nvm_save_called );
+    CHECK_EQ( nvm_saved_value, 0u ); /* the shown parameter, not the next */
+
+    press_next( false );
+    tick( 1 );
+    tick( 35 );
+    CHECK_EQ( last_selected_idx, 999u ); /* release after a save is inert */
+}
+
+static void test_next_hold_of_saved_selection_skips_the_write( void )
+{
+    nvm_save_called = false;
+    press_next( true );
+    tick( 1 );
+    tick( 35 );
+    tick( 1600 );
+    CHECK( !nvm_save_called ); /* same index as the stored one */
+    press_next( false );
+    tick( 1 );
+    tick( 35 );
+}
+
+static void test_next_hold_is_held_once( void )
+{
+    tap_next(); /* 0 -> 1, so the next hold has something new to save */
+    nvm_save_called = false;
+    press_next( true );
+    tick( 1 );
+    tick( 35 );
+    tick( 1600 );
+    CHECK( nvm_save_called );
+    CHECK_EQ( nvm_saved_value, 1u );
+    nvm_save_called = false;
+    tick( 5000 ); /* still held: no second write */
+    CHECK( !nvm_save_called );
+    press_next( false );
+    tick( 1 );
+    tick( 35 );
 }
 
 static void test_next_wraps_around( void )
 {
-    /* Release must debounce before another press counts. */
-    press_next( false );
-    tick( 1 );
-    tick( 35 ); /* release registers: un-latches */
-    press_next( true );
-    tick( 1 );
-    tick( 35 ); /* second press: 0 -> 1 */
-    CHECK_EQ( last_selected_idx, 1u );
-
-    press_next( false );
-    tick( 1 );
-    tick( 35 );
-    press_next( true );
-    tick( 1 );
-    tick( 35 ); /* third press: 1 -> 2 */
+    last_selected_idx = 999u;
+    tap_next(); /* 1 -> 2 */
     CHECK_EQ( last_selected_idx, 2u );
-
-    press_next( false );
-    tick( 1 );
-    tick( 35 );
-    press_next( true );
-    tick( 1 );
-    tick( 35 ); /* fourth press: 2 -> 0 (wraps) */
+    tap_next(); /* 2 -> 0 (wraps) */
     CHECK_EQ( last_selected_idx, 0u );
+}
 
+/* The HAL hands over a press first even when the release already
+ * happened, so a tap that fits inside one stalled loop pass still counts. */
+static void test_next_tap_across_a_stall_still_counts( void )
+{
+    last_selected_idx = 999u;
+    press_next( true );
+    tick( 150 ); /* one long pass: sees only the press */
     press_next( false );
-    tick( 1 );
-    tick( 35 ); /* leave released and un-latched */
+    tick( 35 ); /* the release arrives on the following pass */
+    CHECK_EQ( last_selected_idx, 1u ); /* 0 -> 1 */
 }
 
 static void test_next_blocked_during_clear( void )
@@ -387,9 +432,12 @@ int main( void )
     test_hold_past_threshold_triggers_clear();
     test_held_button_does_not_retrigger_while_clearing();
     test_dismissing_the_result_does_not_retrigger();
-    test_next_tap_advances_the_parameter();
-    test_next_latched_while_held();
+    test_next_tap_advances_on_release_without_saving();
+    test_next_hold_saves_without_advancing();
+    test_next_hold_of_saved_selection_skips_the_write();
+    test_next_hold_is_held_once();
     test_next_wraps_around();
+    test_next_tap_across_a_stall_still_counts();
     test_next_blocked_during_clear();
 
     return MT_RESULT();

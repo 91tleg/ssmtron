@@ -6,8 +6,9 @@
 #include "hal_gpio.h"
 
 /* Starts the panel on the given pins and draws the initial screen.
- * next_btn cycles the shown parameter; action_btn, held, clears trouble
- * codes (see gauge.c for the exact behavior of each). */
+ * next_btn: a tap cycles the shown parameter, a hold saves it as the
+ * power-on default. action_btn, held, clears trouble codes (see gauge.c
+ * for the exact behavior of each). */
 hal_status_t gauge_init(
     const display_pins_t * pins,
     hal_gpio_id_t next_btn,

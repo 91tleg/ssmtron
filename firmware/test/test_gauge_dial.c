@@ -271,6 +271,17 @@ static void press_next( bool level )
     next_edge.pending      = true;
 }
 
+/* One debounced tap: the selection advances when the button is released. */
+static void tap_next( void )
+{
+    press_next( true );
+    tick( 1 );
+    tick( 35 );
+    press_next( false );
+    tick( 1 );
+    tick( 35 );
+}
+
 static void press_action( bool level )
 {
     action_edge.level        = level;
@@ -302,9 +313,7 @@ int main( void )
     CHECK_EQ( dial_init_count, 1u );
 
     /* NEXT selects rpm: also a dial, but a different one. */
-    press_next( true );
-    tick( 1 );
-    tick( 35 ); /* past debounce: counts as one press, idx 0 -> 1 */
+    tap_next(); /* idx 0 -> 1 */
     CHECK_EQ( selected, RPM_IDX );
     CHECK_EQ( text_init_count, 1u ); /* still no digital screen */
     CHECK_EQ( dial_init_count, 2u );
@@ -312,33 +321,17 @@ int main( void )
     rpm_cfg = last_dial_cfg;
     CHECK( rpm_cfg != boost_cfg );
 
-    press_next( false );
-    tick( 1 );
-    tick( 35 ); /* release, un-latch */
-
     /* NEXT selects load: not a dial, back to digital. */
-    press_next( true );
-    tick( 1 );
-    tick( 35 );
+    tap_next();
     CHECK_EQ( selected, LOAD_IDX );
     CHECK_EQ( text_init_count, 2u );
     CHECK_EQ( dial_init_count, 2u );
 
-    press_next( false );
-    tick( 1 );
-    tick( 35 );
-
     /* NEXT wraps back to the boost dial. */
-    press_next( true );
-    tick( 1 );
-    tick( 35 );
+    tap_next();
     CHECK_EQ( selected, BOOST_IDX );
     CHECK_EQ( dial_init_count, 3u );
     CHECK( last_dial_cfg == boost_cfg );
-
-    press_next( false );
-    tick( 1 );
-    tick( 35 );
 
     /* Clear status uses the digital screen, even on a dial param. */
     press_action( true );

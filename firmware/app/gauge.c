@@ -1,5 +1,6 @@
 #include "gauge.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #include "dial.h"
@@ -19,7 +20,17 @@
 /* ACTION requires a sustained press; taps do nothing. */
 #define ACTION_HOLD_MS ( 2000u )
 
+/* NEXT held this long saves the shown parameter as the power-on default.
+ * Short presses only browse, so flash is written only on request. */
+#define NEXT_HOLD_MS ( 1500u )
+
+/* How long the SAVED or SAVE FAILED notice replaces the gauge face. */
+#define SAVE_NOTICE_MS ( 1000u )
+
 #define PARAM_IDX_KEY "param_idx"
+
+/* No stored selection is known yet. */
+#define SAVED_IDX_NONE ( SIZE_MAX )
 
 /* UI state includes HOLDING before any ECU clear request starts. */
 typedef enum
@@ -34,6 +45,22 @@ static hal_gpio_id_t next_btn_id;
 static hal_gpio_id_t action_btn_id;
 
 static clear_ui_t clear_ui = CLEAR_UI_IDLE;
+
+/* NEXT tracks one press at a time; DONE waits out the rest of a press
+ * that already saved or was refused, so it cannot also cycle on release. */
+typedef enum
+{
+    NEXT_IDLE,
+    NEXT_PRESSED,
+    NEXT_DONE
+} next_state_t;
+
+static bool save_notice_active;
+static bool save_notice_ok;
+static uint32_t save_notice_start;
+
+/* Last value known to be in NVM, so a repeat save costs no flash write. */
+static size_t saved_idx = SAVED_IDX_NONE;
 
 /* Mirror the selected parameter; gauge.c alone calls ecu_select_param. */
 static size_t selected_idx;
@@ -73,11 +100,21 @@ static void copy_capped(
     buf[n] = '\0';
 }
 
-static void save_selected_idx( size_t idx )
+static bool save_selected_idx( size_t idx )
 {
-    uint32_t v = ( uint32_t )idx;
+    bool ok = ( idx == saved_idx );
 
-    ( void )hal_nvm_save( PARAM_IDX_KEY, &v, sizeof( v ) );
+    if ( !ok )
+    {
+        uint32_t v = ( uint32_t )idx;
+
+        ok = ( hal_nvm_save( PARAM_IDX_KEY, &v, sizeof( v ) ) == HAL_OK );
+        if ( ok )
+        {
+            saved_idx = idx;
+        }
+    }
+    return ok;
 }
 
 /* Restore selection once ECU identification provides the parameter count. */
@@ -90,6 +127,7 @@ static void restore_selected_idx( void )
          && ( len == sizeof( v ) ) && ( ( size_t )v < ecu_param_count() ) )
     {
         selected_idx = ( size_t )v;
+        saved_idx    = selected_idx;
     }
     ( void )ecu_select_param( selected_idx );
 }
@@ -110,31 +148,67 @@ static void poll_level(
 
 static void poll_next( uint32_t now )
 {
+    static next_state_t next_state = NEXT_IDLE;
     static bool next_level;
     static uint32_t next_stable_since;
+    static uint32_t next_hold_start;
+    bool settled;
 
     poll_level( next_btn_id, &next_level, &next_stable_since );
+    settled = ( now - next_stable_since ) >= DEBOUNCE_MS;
 
-    if ( ( now - next_stable_since ) >= DEBOUNCE_MS )
+    switch ( next_state )
     {
-        static bool next_latched;
+        case NEXT_IDLE:
+            if ( next_level && settled )
+            {
+                if ( ( clear_ui == CLEAR_UI_IDLE )
+                     && ( ecu_param_count() > 0u ) )
+                {
+                    next_hold_start = next_stable_since;
+                    next_state      = NEXT_PRESSED;
+                }
+                else
+                {
+                    /* Not for us: a press that began during a clear. */
+                    next_state = NEXT_DONE;
+                }
+            }
+            break;
 
-        if ( next_level && !next_latched && ( clear_ui == CLEAR_UI_IDLE )
-             && ( ecu_param_count() > 0u ) )
-        {
-            selected_idx = ( selected_idx + 1u ) % ecu_param_count();
-            ( void )ecu_select_param( selected_idx );
-            save_selected_idx( selected_idx );
-            next_latched = true;
-        }
-        else if ( !next_level )
-        {
-            next_latched = false;
-        }
-        else
-        {
-            /* A held press has already advanced the selection. */
-        }
+        case NEXT_PRESSED:
+            if ( clear_ui != CLEAR_UI_IDLE )
+            {
+                next_state = NEXT_DONE;
+            }
+            else if ( !next_level && settled )
+            {
+                /* A short press browses in RAM only. */
+                selected_idx = ( selected_idx + 1u ) % ecu_param_count();
+                ( void )ecu_select_param( selected_idx );
+                next_state = NEXT_IDLE;
+            }
+            else if ( next_level
+                      && ( ( now - next_hold_start ) >= NEXT_HOLD_MS ) )
+            {
+                save_notice_ok     = save_selected_idx( selected_idx );
+                save_notice_active = true;
+                save_notice_start  = now;
+                next_state         = NEXT_DONE;
+            }
+            else
+            {
+                /* Continue waiting for release or the hold threshold. */
+            }
+            break;
+
+        case NEXT_DONE:
+        default:
+            if ( !next_level && settled )
+            {
+                next_state = NEXT_IDLE;
+            }
+            break;
     }
 }
 
@@ -240,9 +314,16 @@ static void name_text( char * buf )
             const ecu_param_info_t * info = NULL;
             int32_t value                 = 0;
 
-            copy_capped(
-                buf, current_value( &info, &value ) ? info->name : "NO ECU"
-            );
+            if ( save_notice_active )
+            {
+                copy_capped( buf, save_notice_ok ? "SAVED" : "SAVE FAILED" );
+            }
+            else
+            {
+                copy_capped(
+                    buf, current_value( &info, &value ) ? info->name : "NO ECU"
+                );
+            }
             break;
         }
     }
@@ -388,13 +469,20 @@ void gauge_poll( uint32_t now_ms )
     }
     poll_next( now_ms );
     poll_action( now_ms );
+    if ( save_notice_active
+         && ( ( now_ms - save_notice_start ) >= SAVE_NOTICE_MS ) )
+    {
+        save_notice_active = false;
+    }
 
     if ( ecu_param_count() > 0u )
     {
         sel_info = ecu_param_info( selected_idx );
     }
-    /* Show clear status on the digital screen, even for a dial param. */
-    if ( ( clear_ui == CLEAR_UI_IDLE ) && ( sel_info != NULL ) )
+    /* Show clear and save status on the digital screen, even for a dial
+     * param. */
+    if ( ( clear_ui == CLEAR_UI_IDLE ) && !save_notice_active
+         && ( sel_info != NULL ) )
     {
         for ( size_t i = 0;
               ( next_dial == NULL )
