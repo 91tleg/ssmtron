@@ -35,6 +35,10 @@ RING_BUF_DECLARE(
 
 static struct k_work tx_work;
 static struct k_work_delayable adv_retry_work;
+/* conn is written by the BT thread and read by the work queue, so both
+ * sides go through conn_lock. The work queue also holds its own reference
+ * while it uses the connection, so a disconnect cannot free it mid-send. */
+static struct k_spinlock conn_lock;
 static struct bt_conn * conn;
 static atomic_t linked;     /* a peer is connected */
 static atomic_t subscribed; /* and has enabled notifications */
@@ -55,6 +59,21 @@ static void push_event( hal_ble_evt_t evt )
 }
 
 #define ADV_RETRY_MS 500u
+
+/* Returns a referenced connection, or NULL if there is none. The caller
+ * releases it with bt_conn_unref. */
+static struct bt_conn * conn_acquire( void )
+{
+    struct bt_conn * c   = NULL;
+    k_spinlock_key_t key = k_spin_lock( &conn_lock );
+
+    if ( conn != NULL )
+    {
+        c = bt_conn_ref( conn );
+    }
+    k_spin_unlock( &conn_lock, key );
+    return c;
+}
 
 static void advertise( void )
 {
@@ -101,29 +120,39 @@ static void tx_handler( struct k_work * work )
         }
         else
         {
-            struct bt_conn * c = conn;
-            /* bt_nus_get_mtu is gatt_mtu - 3; clamp instead of trusting
-             * that gatt_mtu is always >= 3, so a bad read never turns into
-             * a huge unsigned value here. */
-            uint32_t mtu = bt_nus_get_mtu( c );
-            uint32_t len;
+            struct bt_conn * c = conn_acquire();
 
-            if ( mtu > TX_SIZE )
+            if ( c == NULL )
             {
-                mtu = TX_SIZE;
-            }
-            len = ( claimed < mtu ) ? claimed : mtu;
-
-            if ( bt_nus_send( c, data, ( uint16_t )len ) == 0 )
-            {
-                ( void )ring_buf_get_finish( &tx_ring, len );
+                /* Disconnected since the check above. */
+                ( void )ring_buf_get_finish( &tx_ring, claimed );
             }
             else
             {
-                /* Stack buffers are full: keep the data. The sent callback
-                 * calls us again when there is room. */
-                ( void )ring_buf_get_finish( &tx_ring, 0 );
-                go = false;
+                /* bt_nus_get_mtu is gatt_mtu - 3; clamp instead of trusting
+                 * that gatt_mtu is always >= 3, so a bad read never turns
+                 * into a huge unsigned value here. */
+                uint32_t mtu = bt_nus_get_mtu( c );
+                uint32_t len;
+
+                if ( mtu > TX_SIZE )
+                {
+                    mtu = TX_SIZE;
+                }
+                len = ( claimed < mtu ) ? claimed : mtu;
+
+                if ( bt_nus_send( c, data, ( uint16_t )len ) == 0 )
+                {
+                    ( void )ring_buf_get_finish( &tx_ring, len );
+                }
+                else
+                {
+                    /* Stack buffers are full: keep the data. The sent
+                     * callback calls us again when there is room. */
+                    ( void )ring_buf_get_finish( &tx_ring, 0 );
+                    go = false;
+                }
+                bt_conn_unref( c );
             }
         }
     }
@@ -138,7 +167,10 @@ static void on_connected(
 
     if ( ref != NULL )
     {
+        k_spinlock_key_t key = k_spin_lock( &conn_lock );
+
         conn = ref;
+        k_spin_unlock( &conn_lock, key );
         ( void )atomic_set( &linked, 1 );
         push_event( HAL_BLE_EVT_CONNECTED );
     }
@@ -155,11 +187,25 @@ static void on_disconnected(
     uint8_t reason
 )
 {
+    k_spinlock_key_t key;
+    bool ours;
+
     ARG_UNUSED( reason );
     ( void )atomic_set( &linked, 0 );
     ( void )atomic_set( &subscribed, 0 );
-    bt_conn_unref( c );
-    conn = NULL;
+    key  = k_spin_lock( &conn_lock );
+    ours = ( conn == c );
+    if ( ours )
+    {
+        conn = NULL;
+    }
+    k_spin_unlock( &conn_lock, key );
+    /* Drop only the reference on_connected took; if it never took one
+     * (bt_conn_ref failed), there is nothing of ours to release. */
+    if ( ours )
+    {
+        bt_conn_unref( c );
+    }
     push_event( HAL_BLE_EVT_DISCONNECTED );
     ( void )k_work_submit( &tx_work ); /* discards anything still queued */
 }
