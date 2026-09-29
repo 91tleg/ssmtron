@@ -31,7 +31,10 @@ void hal_gpio_write(
 /* Latch both edges on an input opened with hal_gpio_open(). */
 hal_status_t hal_gpio_watch( hal_gpio_id_t id );
 
-/* Consume the latest edge. Leave outputs unchanged if none is pending. */
+/* Consume the latest edge. Leave outputs unchanged if none is pending.
+ * A press is reported even if the release followed before this call: the
+ * press comes first, the release on the next call. Repeated presses
+ * between calls collapse to one. */
 bool hal_gpio_take_edge(
     hal_gpio_id_t id,
     bool * level,
