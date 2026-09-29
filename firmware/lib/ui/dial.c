@@ -14,33 +14,19 @@
 /* 270 degree sweep, with zero straight up and positive clockwise. */
 #define DIAL_SWEEP_MIN_DEG  ( -135 )
 #define DIAL_SWEEP_MAX_DEG  ( 135 )
-#define DIAL_SWEEP_SPAN_DEG ( DIAL_SWEEP_MAX_DEG - DIAL_SWEEP_MIN_DEG )
 #define DIAL_ANGLE_COUNT    ( 271u )
 
-/* Unwrapped angles keep the Lamco needle on the lower arc. */
-#define LAMCO_MIN_DEG  ( 135 )
-#define LAMCO_ZERO_DEG ( 270 )
-#define LAMCO_MAX_DEG  ( 435 )
-#define LAMCO_TICK_R   ( 99 )
-
-#define DIAL_TICK_OUTER_R ( 116 ) /* stays inside the 120 px radius */
+/* Unwrapped angles keep the needle on the lower arc. */
+#define DIAL_DEFAULT_MIN_DEG  ( 135 )
+#define DIAL_DEFAULT_ZERO_DEG ( 270 )
+#define DIAL_DEFAULT_MAX_DEG  ( 435 )
+#define DIAL_DEFAULT_TICK_R   ( 99 )
 
 #define DIAL_TICK_MAJOR_LEN ( 16 )
 #define DIAL_TICK_MINOR_LEN ( 8 )
 #define DIAL_TICK_HALF_W    ( 1 )
 
-#define DIAL_LABEL_R     ( 88 )
-#define DIAL_LABEL_SCALE ( 1u )
-
-#define DIAL_SHORT_LABEL_SCALE    ( 1u )
-#define DIAL_SHORT_LABEL_Y_OFFSET ( 45 ) /* above center */
-#define DIAL_UNIT_X_OFFSET        ( 18 ) /* out from center, each side */
-#define DIAL_UNIT_Y_OFFSET        ( 30 ) /* below center */
-
-#define DIAL_NEEDLE_LEN    ( 78 )
-#define DIAL_NEEDLE_HALF_W ( 3 )
-#define DIAL_HUB_R         ( 9 )
-#define DIAL_HUB_FG        ( 0xC618u ) /* light gray, same on every dial */
+#define DIAL_NEEDLE_LEN ( 78 )
 
 #define DIAL_FRAME_INTERVAL_MS ( 33u ) /* ~30 fps */
 
@@ -165,43 +151,39 @@ static int16_t value_to_deg(
     {
         /* Keep the value unchanged. */
     }
-    if ( ( cfg->style == DIAL_STYLE_LAMCO ) && ( cfg->min_value < 0 )
-         && ( cfg->max_value > 0 ) )
+    if ( ( cfg->min_value < 0 ) && ( cfg->max_value > 0 ) )
     {
         if ( clamped <= 0 )
         {
             offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                    * ( LAMCO_ZERO_DEG - LAMCO_MIN_DEG ) )
+                                    * ( DIAL_DEFAULT_ZERO_DEG - DIAL_DEFAULT_MIN_DEG ) )
                                   / -cfg->min_value );
-            deg    = ( int16_t )( LAMCO_MIN_DEG + offset );
+            deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
         }
         else
         {
             offset = ( int32_t )( ( ( int64_t )clamped
-                                    * ( LAMCO_MAX_DEG - LAMCO_ZERO_DEG ) )
+                                    * ( DIAL_DEFAULT_MAX_DEG - DIAL_DEFAULT_ZERO_DEG ) )
                                   / cfg->max_value );
-            deg    = ( int16_t )( LAMCO_ZERO_DEG + offset );
+            deg    = ( int16_t )( DIAL_DEFAULT_ZERO_DEG + offset );
         }
-    }
-    else if ( cfg->style == DIAL_STYLE_LAMCO )
-    {
-        int32_t span = cfg->max_value - cfg->min_value;
-
-        offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                * ( LAMCO_MAX_DEG - LAMCO_MIN_DEG ) )
-                              / span );
-        deg    = ( int16_t )( LAMCO_MIN_DEG + offset );
     }
     else
     {
         int32_t span = cfg->max_value - cfg->min_value;
 
         offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                * DIAL_SWEEP_SPAN_DEG )
+                                * ( DIAL_DEFAULT_MAX_DEG - DIAL_DEFAULT_MIN_DEG ) )
                               / span );
-        deg    = ( int16_t )( DIAL_SWEEP_MIN_DEG + offset );
+        deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
     }
     return deg;
+}
+
+/* Where the needle rests: zero when the scale crosses it, else the low end. */
+static int16_t rest_deg( const dial_cfg_t * cfg )
+{
+    return value_to_deg( cfg, ( cfg->min_value < 0 ) ? 0 : cfg->min_value );
 }
 
 static int16_t step_toward(
@@ -326,8 +308,7 @@ static void build_ticks(
         ticks[nt].major = is_major;
         nt++;
 
-        if ( is_major && ( nl < DIAL_MAX_LABELS )
-             && ( ( cfg->style != DIAL_STYLE_LAMCO ) || ( value != 0 ) ) )
+        if ( is_major && ( nl < DIAL_MAX_LABELS ) && ( value != 0 ) )
         {
             int32_t sin_m;
             int32_t cos_m;
@@ -335,14 +316,12 @@ static void build_ticks(
             size_t len;
             int32_t x;
             int32_t y;
-            uint8_t label_scale =
-                ( cfg->style == DIAL_STYLE_LAMCO ) ? 2u : DIAL_LABEL_SCALE;
+            uint8_t label_scale = 2u;
             int32_t label_h = ( int32_t )FONT_H * ( int32_t )label_scale;
 
             angle_vec( deg, &sin_m, &cos_m );
             len = format_int( value, text );
-            int32_t label_r =
-                ( cfg->style == DIAL_STYLE_LAMCO ) ? 70 : DIAL_LABEL_R;
+            int32_t label_r = 70;
 
             x = DIAL_CX + ( ( label_r * sin_m ) / 1000 )
                 - ( label_width( len, label_scale ) / 2 );
@@ -367,7 +346,7 @@ static void add_fixed_labels(
 {
     size_t n = *label_count;
 
-    if ( cfg->style == DIAL_STYLE_LAMCO )
+    if ( ( cfg->label != NULL ) && ( n < DIAL_MAX_LABELS ) )
     {
         labels[n].x =
             ( int16_t )( DIAL_CX
@@ -376,60 +355,24 @@ static void add_fixed_labels(
         labels[n].scale = 1u;
         copy_bounded( labels[n].text, cfg->label );
         n++;
-
-        if ( cfg->unit_pos != NULL )
-        {
-            labels[n].x     = 159;
-            labels[n].y     = 125;
-            labels[n].scale = 1u;
-            copy_bounded( labels[n].text, cfg->unit_pos );
-            n++;
-        }
-
-        if ( cfg->unit_neg != NULL )
-        {
-            labels[n].x     = 54;
-            labels[n].y     = 143;
-            labels[n].scale = 1u;
-            copy_bounded( labels[n].text, cfg->unit_neg );
-            n++;
-        }
     }
-    else
+
+    if ( ( cfg->unit_pos != NULL ) && ( n < DIAL_MAX_LABELS ) )
     {
-        if ( ( cfg->label != NULL ) && ( n < DIAL_MAX_LABELS ) )
-        {
-            size_t len = strlen( cfg->label );
-            int32_t x =
-                DIAL_CX - ( label_width( len, DIAL_SHORT_LABEL_SCALE ) / 2 );
-            int32_t y = DIAL_CY - DIAL_SHORT_LABEL_Y_OFFSET;
+        labels[n].x     = 159;
+        labels[n].y     = 125;
+        labels[n].scale = 1u;
+        copy_bounded( labels[n].text, cfg->unit_pos );
+        n++;
+    }
 
-            labels[n].x     = ( int16_t )x;
-            labels[n].y     = ( int16_t )y;
-            labels[n].scale = DIAL_SHORT_LABEL_SCALE;
-            copy_bounded( labels[n].text, cfg->label );
-            n++;
-        }
-        if ( ( cfg->unit_pos != NULL ) && ( n < DIAL_MAX_LABELS ) )
-        {
-            labels[n].x     = ( int16_t )( DIAL_CX + DIAL_UNIT_X_OFFSET );
-            labels[n].y     = ( int16_t )( DIAL_CY + DIAL_UNIT_Y_OFFSET );
-            labels[n].scale = DIAL_LABEL_SCALE;
-            copy_bounded( labels[n].text, cfg->unit_pos );
-            n++;
-        }
-        if ( ( cfg->unit_neg != NULL ) && ( n < DIAL_MAX_LABELS ) )
-        {
-            size_t len = strlen( cfg->unit_neg );
-            int32_t x  = DIAL_CX - DIAL_UNIT_X_OFFSET
-                        - label_width( len, DIAL_LABEL_SCALE );
-
-            labels[n].x     = ( int16_t )x;
-            labels[n].y     = ( int16_t )( DIAL_CY + DIAL_UNIT_Y_OFFSET );
-            labels[n].scale = DIAL_LABEL_SCALE;
-            copy_bounded( labels[n].text, cfg->unit_neg );
-            n++;
-        }
+    if ( ( cfg->unit_neg != NULL ) && ( n < DIAL_MAX_LABELS ) )
+    {
+        labels[n].x     = 54;
+        labels[n].y     = 143;
+        labels[n].scale = 1u;
+        copy_bounded( labels[n].text, cfg->unit_neg );
+        n++;
     }
     *label_count = n;
 }
@@ -499,20 +442,13 @@ static uint16_t pixel_color(
     uint16_t color  = cfg->face_bg;
     bool set        = false;
 
-    if ( ( cfg->style == DIAL_STYLE_LAMCO ) && ( dist_sq <= ( 12 * 12 ) ) )
+    if ( dist_sq <= ( 12 * 12 ) )
     {
         color = ( dist_sq <= ( 9 * 9 ) ) ? 0xE73Cu : 0xA514u;
         set   = true;
     }
 
-    if ( ( cfg->style != DIAL_STYLE_LAMCO )
-         && ( dist_sq <= ( DIAL_HUB_R * DIAL_HUB_R ) ) )
-    {
-        color = DIAL_HUB_FG;
-        set   = true;
-    }
-    if ( ( cfg->style == DIAL_STYLE_LAMCO )
-         && on_radial_line( dx, dy, -needle_sin, -needle_cos, 0, 31, 5 ) )
+    if ( on_radial_line( dx, dy, -needle_sin, -needle_cos, 0, 31, 5 ) )
     {
         color = 0xCE79u;
         set   = true;
@@ -525,7 +461,7 @@ static uint16_t pixel_color(
              needle_cos,
              0,
              DIAL_NEEDLE_LEN,
-             ( cfg->style == DIAL_STYLE_LAMCO ) ? 4 : DIAL_NEEDLE_HALF_W
+             4
          ) )
     {
         color = cfg->needle_fg;
@@ -547,9 +483,7 @@ static uint16_t pixel_color(
         int32_t cos_m;
         int32_t len =
             ticks[i].major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN;
-        int32_t outer_r = ( cfg->style == DIAL_STYLE_LAMCO )
-                              ? LAMCO_TICK_R
-                              : DIAL_TICK_OUTER_R;
+        int32_t outer_r = DIAL_DEFAULT_TICK_R;
 
         angle_vec( ticks[i].deg, &sin_m, &cos_m );
         if ( on_radial_line(
@@ -559,9 +493,7 @@ static uint16_t pixel_color(
                  cos_m,
                  outer_r - len,
                  outer_r,
-                 ( ( cfg->style == DIAL_STYLE_LAMCO ) && ticks[i].major )
-                     ? 2
-                     : DIAL_TICK_HALF_W
+                 ticks[i].major ? 2 : DIAL_TICK_HALF_W
              ) )
         {
             color = cfg->tick_fg;
@@ -617,10 +549,7 @@ void dial_init(
 )
 {
     d->cfg = cfg;
-    d->displayed_deg =
-        ( cfg->style == DIAL_STYLE_LAMCO )
-            ? value_to_deg( cfg, ( cfg->min_value < 0 ) ? 0 : cfg->min_value )
-            : ( int16_t )DIAL_SWEEP_MIN_DEG;
+    d->displayed_deg = rest_deg( cfg );
     d->target_deg    = d->displayed_deg;
     d->last_frame_ms = now_ms;
     ( void )display_clear( cfg->face_bg );
@@ -635,14 +564,7 @@ void dial_poll(
 )
 {
     d->target_deg =
-        has_value
-            ? value_to_deg( d->cfg, value )
-            : ( ( d->cfg->style == DIAL_STYLE_LAMCO )
-                    ? value_to_deg(
-                          d->cfg,
-                          ( d->cfg->min_value < 0 ) ? 0 : d->cfg->min_value
-                      )
-                    : ( int16_t )DIAL_SWEEP_MIN_DEG );
+        has_value ? value_to_deg( d->cfg, value ) : rest_deg( d->cfg );
 
     if ( ( d->displayed_deg != d->target_deg )
          && ( ( now_ms - d->last_frame_ms ) >= DIAL_FRAME_INTERVAL_MS ) )

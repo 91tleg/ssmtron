@@ -32,11 +32,10 @@ hal_status_t display_clear( uint16_t color_rgb565 )
 
 #define PANEL_H 240u /* one blit per row: see dial.c's draw_frame */
 
-/* 0..100 over the same -135..135 sweep as any other dial; no labels, so
- * this test isn't coupled to font/text layout at all, only the needle's
- * timing. 270 degrees / 10 per frame = exactly 27 frames end to end. */
+/* 0..100 over the full 135..435 sweep, with no face label or units. 300
+ * degrees / 10 per frame = exactly 30 frames end to end. */
 static const dial_cfg_t test_cfg = {
-    0, 100, 25, 0u, NULL, NULL, NULL, 1u, 2u, 3u, 10u, DIAL_STYLE_PLAIN
+    0, 100, 25, 0u, NULL, NULL, NULL, 1u, 2u, 3u, 10u, DIAL_STYLE_DEFAULT
 };
 
 static void reset( void )
@@ -96,7 +95,7 @@ static void test_big_jump_sweeps_over_multiple_frames( void )
 
     /* Full-scale jump, one frame interval apart each time: must take
      * more than one redraw to get there (a real sweep, not a teleport),
-     * and exactly 27 (270 degrees / 10 per frame). */
+     * and exactly 30 (300 degrees / 10 per frame). */
     for ( int i = 0; i < 40; i++ )
     {
         now += 33u;
@@ -106,7 +105,7 @@ static void test_big_jump_sweeps_over_multiple_frames( void )
             redraws = blit_calls / PANEL_H;
         }
     }
-    CHECK_EQ( redraws, 27u );
+    CHECK_EQ( redraws, 30u );
     CHECK_EQ( d.displayed_deg, d.target_deg );
 
     /* Settled: further polls at the same value blit nothing more. */
@@ -139,10 +138,10 @@ static void test_value_loss_sweeps_back_to_rest( void )
     }
     CHECK( blit_calls > PANEL_H ); /* took more than one redraw */
     CHECK_EQ( d.displayed_deg, d.target_deg );
-    CHECK_EQ( d.target_deg, -135 );
+    CHECK_EQ( d.target_deg, 135 );
 }
 
-static void test_lamco_scale_and_rest( void )
+static void test_default_scale_and_rest( void )
 {
     static const dial_cfg_t cfg = {
         -30,
@@ -156,7 +155,7 @@ static void test_lamco_scale_and_rest( void )
         2u,
         3u,
         30u,
-        DIAL_STYLE_LAMCO
+        DIAL_STYLE_DEFAULT
     };
     dial_widget_t d;
 
@@ -176,7 +175,7 @@ static void test_lamco_scale_and_rest( void )
 static void test_rpm_face_scale( void )
 {
     static const dial_cfg_t cfg = {
-        0, 8, 1, 0u, "RPM", "x1000", NULL, 1u, 2u, 3u, 30u, DIAL_STYLE_LAMCO
+        0, 8, 1, 0u, "RPM", "x1000", NULL, 1u, 2u, 3u, 30u, DIAL_STYLE_DEFAULT
     };
     dial_widget_t d;
 
@@ -197,7 +196,7 @@ int main( void )
     test_value_change_within_frame_interval_waits();
     test_big_jump_sweeps_over_multiple_frames();
     test_value_loss_sweeps_back_to_rest();
-    test_lamco_scale_and_rest();
+    test_default_scale_and_rest();
     test_rpm_face_scale();
 
     return MT_RESULT();
