@@ -12,9 +12,9 @@
 #define DIAL_CY      ( 120 )
 
 /* 270 degree sweep, with zero straight up and positive clockwise. */
-#define DIAL_SWEEP_MIN_DEG  ( -135 )
-#define DIAL_SWEEP_MAX_DEG  ( 135 )
-#define DIAL_ANGLE_COUNT    ( 271u )
+#define DIAL_SWEEP_MIN_DEG ( -135 )
+#define DIAL_SWEEP_MAX_DEG ( 135 )
+#define DIAL_ANGLE_COUNT   ( 271u )
 
 /* Unwrapped angles keep the needle on the lower arc. */
 #define DIAL_DEFAULT_MIN_DEG  ( 135 )
@@ -41,7 +41,7 @@
  * DIAL_DEFAULT_TAIL_R is the counterweight's reach behind center. */
 #define DIAL_REGION_MAX     ( 128 )
 #define DIAL_REGION_MARGIN  ( 3 ) /* half-width padding plus rounding slack */
-#define DIAL_DEFAULT_TAIL_R  ( 31 )
+#define DIAL_DEFAULT_TAIL_R ( 31 )
 
 typedef struct
 {
@@ -166,14 +166,16 @@ static int16_t value_to_deg(
         if ( clamped <= 0 )
         {
             offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                    * ( DIAL_DEFAULT_ZERO_DEG - DIAL_DEFAULT_MIN_DEG ) )
+                                    * ( DIAL_DEFAULT_ZERO_DEG
+                                        - DIAL_DEFAULT_MIN_DEG ) )
                                   / -cfg->min_value );
             deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
         }
         else
         {
             offset = ( int32_t )( ( ( int64_t )clamped
-                                    * ( DIAL_DEFAULT_MAX_DEG - DIAL_DEFAULT_ZERO_DEG ) )
+                                    * ( DIAL_DEFAULT_MAX_DEG
+                                        - DIAL_DEFAULT_ZERO_DEG ) )
                                   / cfg->max_value );
             deg    = ( int16_t )( DIAL_DEFAULT_ZERO_DEG + offset );
         }
@@ -182,10 +184,11 @@ static int16_t value_to_deg(
     {
         int32_t span = cfg->max_value - cfg->min_value;
 
-        offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                * ( DIAL_DEFAULT_MAX_DEG - DIAL_DEFAULT_MIN_DEG ) )
-                              / span );
-        deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
+        offset =
+            ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                           * ( DIAL_DEFAULT_MAX_DEG - DIAL_DEFAULT_MIN_DEG ) )
+                         / span );
+        deg = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
     }
     return deg;
 }
@@ -327,10 +330,10 @@ static void build_ticks(
             int32_t x;
             int32_t y;
             uint8_t label_scale = 2u;
-            int32_t label_h = ( int32_t )FONT_H * ( int32_t )label_scale;
+            int32_t label_h     = ( int32_t )FONT_H * ( int32_t )label_scale;
 
             angle_vec( deg, &sin_m, &cos_m );
-            len = format_int( value, text );
+            len             = format_int( value, text );
             int32_t label_r = 70;
 
             x = DIAL_CX + ( ( label_r * sin_m ) / 1000 )
@@ -467,13 +470,7 @@ static uint16_t pixel_color(
     }
     if ( !set
          && on_radial_line(
-             dx,
-             dy,
-             needle_sin,
-             needle_cos,
-             0,
-             DIAL_NEEDLE_LEN,
-             4
+             dx, dy, needle_sin, needle_cos, 0, DIAL_NEEDLE_LEN, 4
          ) )
     {
         color = cfg->needle_fg;
@@ -691,7 +688,7 @@ void dial_init(
     uint32_t now_ms
 )
 {
-    d->cfg = cfg;
+    d->cfg           = cfg;
     d->displayed_deg = rest_deg( cfg );
     d->target_deg    = d->displayed_deg;
     d->last_frame_ms = now_ms;
