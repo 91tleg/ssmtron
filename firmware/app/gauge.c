@@ -339,7 +339,7 @@ hal_status_t gauge_init(
 
 void gauge_poll( uint32_t now_ms )
 {
-    /* Keep the existing pressure units with the Lamco-style face. */
+    /* Keep the existing pressure units with the default-style face. */
     static const dial_cfg_t boost_dial_cfg = {
         -30,
         20,
@@ -352,7 +352,7 @@ void gauge_poll( uint32_t now_ms )
         0x632Cu,
         0xF922u,
         30u,
-        DIAL_STYLE_LAMCO
+        DIAL_STYLE_DEFAULT
     };
     static dial_widget_t boost_dial;
 
@@ -369,7 +369,7 @@ void gauge_poll( uint32_t now_ms )
         0x632Cu,
         0xF922u,
         40u,
-        DIAL_STYLE_LAMCO
+        DIAL_STYLE_DEFAULT
     };
     static dial_widget_t rpm_dial;
     static bool selection_restored;

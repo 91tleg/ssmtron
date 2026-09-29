@@ -8,10 +8,11 @@
 /* Maximum visible characters in a dial label. */
 #define DIAL_TEXT_MAX ( 8u )
 
+/* Face and needle look. Only the default exists today; the enum is kept so
+ * user-defined dials can be added later without changing dial_cfg_t. */
 typedef enum
 {
-    DIAL_STYLE_PLAIN,
-    DIAL_STYLE_LAMCO
+    DIAL_STYLE_DEFAULT
 } dial_style_t;
 
 typedef struct
