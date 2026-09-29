@@ -27,6 +27,9 @@
 /* The ring holds 2-byte entries: { byte, is_error }. */
 #define RX_ENTRIES  ( 64u )
 #define RX_BUF_SIZE ( RX_ENTRIES * 2u )
+/* Holds several queued ECU requests; a write that does not fit whole is
+ * refused, so a frame is never sent torn. */
+#define TX_BUF_SIZE ( 64u )
 #define STOCK_BAUD                                                             \
     ( 9600u ) /* any rate Zephyr accepts; overwritten below                    \
                */
@@ -37,6 +40,8 @@ struct uart_state
     NRF_UARTE_Type * regs;
     struct ring_buf rx;
     uint8_t rx_storage[RX_BUF_SIZE];
+    struct ring_buf tx;
+    uint8_t tx_storage[TX_BUF_SIZE];
     atomic_t lost; /* set by the ISR when the ring was full */
 };
 
@@ -63,6 +68,31 @@ static void rx_push(
     }
 }
 
+/* Moves queued bytes into the driver. The claim is only released for the
+ * bytes the driver accepted, so nothing is dropped when it takes fewer
+ * than offered. */
+static void tx_drain(
+    const struct device * dev,
+    struct uart_state * u
+)
+{
+    uint8_t * data = NULL;
+    uint32_t avail = ring_buf_get_claim( &u->tx, &data, TX_BUF_SIZE );
+    int sent       = 0;
+
+    if ( avail > 0u )
+    {
+        sent = uart_fifo_fill( dev, data, ( int )avail );
+    }
+    ( void )ring_buf_get_finish( &u->tx, ( sent > 0 ) ? ( uint32_t )sent : 0u );
+
+    /* Stop the interrupt once the ring is empty, or it fires forever. */
+    if ( ring_buf_is_empty( &u->tx ) )
+    {
+        uart_irq_tx_disable( dev );
+    }
+}
+
 static void uart_isr(
     const struct device * dev,
     void * user
@@ -81,6 +111,10 @@ static void uart_isr(
             {
                 rx_push( u, chunk[i], false );
             }
+        }
+        if ( uart_irq_tx_ready( dev ) )
+        {
+            tx_drain( dev, u );
         }
         /* The error flags are not tied to one byte, so the marker goes
          * after the bytes read in this pass. */
@@ -136,6 +170,7 @@ static hal_status_t start_uart(
         nrf_uarte_enable( u->regs );
 
         ring_buf_init( &u->rx, sizeof( u->rx_storage ), u->rx_storage );
+        ring_buf_init( &u->tx, sizeof( u->tx_storage ), u->tx_storage );
 
         /* -ENOSYS/-ENOTSUP here means this driver instance never calls
          * uart_isr, so RX and error detection would silently do nothing;
@@ -195,13 +230,16 @@ size_t hal_uart_write(
 {
     size_t written = 0;
 
-    if ( ( id < HAL_UART_COUNT ) && ( buf != NULL ) )
+    if ( ( id < HAL_UART_COUNT ) && ( buf != NULL ) && ( len > 0u ) )
     {
-        for ( ; written < len; written++ )
+        struct uart_state * u = &uarts[id];
+
+        /* Only this thread adds to the ring and only the ISR removes, so
+         * the space seen here can only grow before the put. */
+        if ( ring_buf_space_get( &u->tx ) >= len )
         {
-            /* blocks ~5 ms/byte at 1953 baud; the driver returns void, so
-             * there is nothing to check per byte. */
-            uart_poll_out( uarts[id].dev, buf[written] );
+            written = ring_buf_put( &u->tx, buf, ( uint32_t )len );
+            uart_irq_tx_enable( u->dev );
         }
     }
     return written;
