@@ -317,6 +317,75 @@ static void test_every_parameter_of_every_profile_reads( void )
     }
 }
 
+/* A remembered profile shows its parameters before the ECU has answered,
+ * but it is only a guess: nothing is reported as identified and the clear,
+ * which writes to an address from the profile, refuses. */
+static void test_assumed_profile_shows_pages_but_is_not_identified( void )
+{
+    start_id( 0, 0x3672 );
+    CHECK_EQ( ecu_assume_profile( 0x3672 ), 0x3672u );
+    CHECK_EQ( ecu_param_count(), prof->count );
+    CHECK( ecu_param_info( 0 ) == prof->params[0].info );
+    CHECK( ecu_select_param( 3 ) );
+    CHECK( ecu_name() == NULL );
+    CHECK_EQ( ecu_rom_id(), 0 );
+    CHECK( !ecu_clear_start() );
+}
+
+/* The same ECU answers: the page chosen meanwhile is kept, and the clear
+ * is allowed now that the ECU has identified itself. */
+static void test_assumed_profile_confirmed_keeps_the_selection( void )
+{
+    start_id( 0, 0x3672 );
+    ( void )ecu_assume_profile( 0x3672 );
+    selected = 3;
+    CHECK( ecu_select_param( 3 ) );
+    run( 2500 );
+    CHECK( ecu_name() != NULL );
+    CHECK_EQ( ecu_rom_id(), 0x013672u );
+    CHECK( value_ok( 3 ) ); /* parameter 3 is being read, not parameter 0 */
+    CHECK_EQ( wrong_values, 0 );
+    CHECK( ecu_clear_start() );
+}
+
+/* A different ECU answers: its own pages replace the assumed ones and the
+ * selection returns to the first parameter. */
+static void test_assumed_profile_replaced_by_the_real_one( void )
+{
+    start_id( 0, 0x3272 ); /* the real ECU is a 92 NA */
+    CHECK_EQ( ecu_assume_profile( 0x3672 ), 0x3672u ); /* a turbo was assumed */
+    CHECK( ecu_select_param( 3 ) );
+    selected = 0;
+    run( 2500 );
+    CHECK( strcmp( ecu_name(), prof->name ) == 0 );
+    CHECK_EQ( ecu_param_count(), prof->count );
+    CHECK( ecu_param_info( 0 ) == prof->params[0].info );
+    CHECK( value_ok( 0 ) );
+    CHECK_EQ( wrong_values, 0 );
+}
+
+static void test_assuming_an_unknown_key_uses_the_first_profile( void )
+{
+    start_id( 0, 0x3272 );
+    CHECK_EQ( ecu_assume_profile( 0x9999 ), ssm1_profile( 0 )->rom_id );
+    CHECK_EQ( ecu_param_count(), ssm1_profile( 0 )->count );
+}
+
+/* No ECU ever answers: the assumed pages stay, with no data and no link. */
+static void test_assumed_profile_stays_when_the_ecu_is_silent( void )
+{
+    int32_t v;
+
+    start_id( 0, 0x3672 );
+    sim.alive = false;
+    ( void )ecu_assume_profile( 0x3672 );
+    run( 5000 );
+    CHECK_EQ( ecu_param_count(), prof->count );
+    CHECK( !ecu_get_value( 0, &v ) );
+    CHECK( ecu_link() == ECU_LINK_DOWN );
+    CHECK( !ecu_clear_start() );
+}
+
 static void test_unknown_rom_id( void )
 {
     int32_t v;
@@ -686,6 +755,11 @@ int main( void )
     test_command_sequence();
     test_identifies_all_six();
     test_every_parameter_of_every_profile_reads();
+    test_assumed_profile_shows_pages_but_is_not_identified();
+    test_assumed_profile_confirmed_keeps_the_selection();
+    test_assumed_profile_replaced_by_the_real_one();
+    test_assuming_an_unknown_key_uses_the_first_profile();
+    test_assumed_profile_stays_when_the_ecu_is_silent();
     test_unknown_rom_id();
     test_id_streamed_continuously();
     test_id_survives_lost_bytes_and_noise();

@@ -1,6 +1,10 @@
 /* Check that gauge_init logs only the button whose watch setup fails. */
 #include <string.h>
 
+#include "hal/hal_random.h"
+#include "hal/hal_dfu.h"
+#include "hal/hal_ble.h"
+#include "app/fw_info.h"
 #include "dial.h"
 #include "ecu.h"
 #include "gauge.h"
@@ -53,6 +57,67 @@ ecu_clear_t ecu_clear_state( void )
 ecu_link_t ecu_link( void )
 {
     return ECU_LINK_DOWN;
+}
+
+/* The page that shows the firmware version needs one. */
+const fw_info_t fw_info = { "9.9.9-test" };
+
+/* Bluetooth, the random source and the restart that ends update mode. */
+static unsigned ble_opens;
+static uint32_t ble_opened_passkey;
+static hal_status_t ble_open_result = HAL_OK;
+static hal_ble_evt_t ble_events[4];
+static size_t ble_event_count;
+static uint32_t random_value = 123456u;
+static unsigned reboots;
+
+hal_status_t hal_ble_open( const hal_ble_cfg_t * cfg )
+{
+    ble_opens++;
+    ble_opened_passkey = cfg->passkey;
+    return ble_open_result;
+}
+
+hal_ble_evt_t hal_ble_poll_event( void )
+{
+    hal_ble_evt_t evt = HAL_BLE_EVT_NONE;
+
+    if ( ble_event_count > 0u )
+    {
+        evt = ble_events[0];
+        for ( size_t i = 1; i < ble_event_count; i++ )
+        {
+            ble_events[i - 1u] = ble_events[i];
+        }
+        ble_event_count--;
+    }
+    return evt;
+}
+
+hal_status_t hal_random_u32( uint32_t * out )
+{
+    *out = random_value;
+    return HAL_OK;
+}
+
+void hal_dfu_reboot( void )
+{
+    reboots++;
+}
+
+/* 0 until the ECU has identified itself, as the real one reports. */
+static uint32_t fake_rom_id;
+static uint16_t assumed_with = 0xFFFFu; /* the key the gauge assumed */
+
+uint16_t ecu_assume_profile( uint16_t profile_key )
+{
+    assumed_with = profile_key;
+    return profile_key;
+}
+
+uint32_t ecu_rom_id( void )
+{
+    return fake_rom_id;
 }
 
 static bool logged_next_failed;
@@ -132,6 +197,15 @@ hal_status_t display_init( const display_pins_t * pins )
     return HAL_OK;
 }
 
+hal_status_t display_on( void )
+{
+    return HAL_OK;
+}
+
+/* A full draw clears the panel to a color first. */
+static unsigned text_inits;
+static size_t text_init_widgets;
+
 void text_init(
     text_widget_t * widgets,
     size_t count,
@@ -139,8 +213,9 @@ void text_init(
 )
 {
     ( void )widgets;
-    ( void )count;
     ( void )page_bg;
+    text_inits++;
+    text_init_widgets = count;
 }
 
 void text_poll(
@@ -176,6 +251,15 @@ void dial_poll(
     ( void )value;
 }
 
+/* Whether the needle has reached the value it was last given. */
+static bool fake_dial_settled;
+
+bool dial_settled( const dial_widget_t * d )
+{
+    ( void )d;
+    return fake_dial_settled;
+}
+
 int main( void )
 {
     static const display_pins_t pins = { 0 };
@@ -185,6 +269,12 @@ int main( void )
     CHECK( logged_next_failed );
     CHECK( !logged_action_failed );
     CHECK_EQ( log_count, 1u );
+
+    /* With no ECU pages yet the first frame is the number screen. It must
+     * be drawn in full, which clears the panel, before the panel turns on;
+     * otherwise its widgets land on whatever the panel last showed. */
+    CHECK_EQ( text_inits, 1u );
+    CHECK_EQ( text_init_widgets, 3u );
 
     return MT_RESULT();
 }

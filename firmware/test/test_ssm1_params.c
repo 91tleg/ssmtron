@@ -1,4 +1,6 @@
 /* Sanity of the profile tables. */
+#include <string.h>
+
 #include "minitest.h"
 #include "ssm1_params.h"
 
@@ -55,9 +57,36 @@ static void test_tables_are_well_formed( void )
     }
 }
 
+/* The clear applies to the Active and Stored Codes pages and to nothing
+ * else, in every profile. A code page that missed the marker could not be
+ * cleared; a switch page that had it would offer a clear that does nothing
+ * useful. */
+static void test_only_the_code_pages_carry_the_marker( void )
+{
+    for ( size_t i = 0; i < ssm1_profile_count(); i++ )
+    {
+        const ssm1_profile_t * p = ssm1_profile( i );
+        size_t code_pages        = 0;
+
+        for ( size_t k = 0; k < p->count; k++ )
+        {
+            const ecu_param_info_t * info = p->params[k].info;
+            bool named_codes =
+                ( strncmp( info->name, "Active Codes", 12 ) == 0 )
+                || ( strncmp( info->name, "Stored Codes", 12 ) == 0 );
+
+            CHECK( info->trouble_codes == named_codes );
+            code_pages += info->trouble_codes ? 1u : 0u;
+        }
+        CHECK_EQ( code_pages, 6u ); /* three active and three stored bytes */
+    }
+}
+
 int main( void )
 {
     test_six_profiles_found_by_rom_id();
     test_tables_are_well_formed();
+    test_only_the_code_pages_carry_the_marker();
+
     return MT_RESULT();
 }

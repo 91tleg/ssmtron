@@ -14,7 +14,11 @@ typedef struct
     bool present;
 } slot_t;
 
-static slot_t slots[] = { { "param_idx", 0, false }, { "theme", 0, false } };
+static slot_t slots[] = {
+    { "param_idx", 0, false },
+    { "theme", 0, false },
+    { "ecu_profile", 0, false }
+};
 static unsigned writes;
 static bool fail_writes;
 
@@ -74,30 +78,49 @@ static void test_nothing_stored_loads_nothing( void )
 
     CHECK( !gauge_settings_load_param( 5u, &out ) );
     CHECK( !gauge_settings_load_theme( 2u, &out ) );
+    CHECK( !gauge_settings_load_profile( &out ) );
     CHECK_EQ( out, 99u ); /* left alone */
 }
 
 static void test_first_save_writes_both( void )
 {
     writes = 0;
-    CHECK( gauge_settings_save( 3u, 1u ) );
-    CHECK_EQ( writes, 2u );
+    CHECK( gauge_settings_save( 3u, 1u, 0x3672u ) );
+    CHECK_EQ( writes, 3u );
 }
 
 static void test_repeat_save_writes_nothing( void )
 {
     writes = 0;
-    CHECK( gauge_settings_save( 3u, 1u ) );
+    CHECK( gauge_settings_save( 3u, 1u, 0x3672u ) );
     CHECK_EQ( writes, 0u );
 }
 
 static void test_only_the_changed_value_is_written( void )
 {
     writes = 0;
-    CHECK( gauge_settings_save( 4u, 1u ) ); /* theme unchanged */
+    CHECK( gauge_settings_save( 4u, 1u, 0x3672u ) ); /* theme unchanged */
     CHECK_EQ( writes, 1u );
-    CHECK( gauge_settings_save( 4u, 0u ) ); /* param unchanged */
+    CHECK( gauge_settings_save( 4u, 0u, 0x3672u ) ); /* param unchanged */
     CHECK_EQ( writes, 2u );
+}
+
+/* The profile key is saved alongside the page, and only it is rewritten
+ * when the ECU changes. */
+static void test_profile_key_is_saved_with_the_page( void )
+{
+    size_t key = 0;
+
+    CHECK( gauge_settings_load_profile( &key ) );
+    CHECK_EQ( key, 0x3672u );
+
+    writes = 0;
+    CHECK( gauge_settings_save( 4u, 0u, 0x3273u ) ); /* another ECU */
+    CHECK_EQ( writes, 1u );
+    CHECK( gauge_settings_load_profile( &key ) );
+    CHECK_EQ( key, 0x3273u );
+
+    CHECK( gauge_settings_save( 4u, 0u, 0x3672u ) ); /* restore it */
 }
 
 static void test_saved_values_load_back( void )
@@ -124,11 +147,15 @@ static void test_a_failed_write_is_reported_and_retried( void )
 {
     fail_writes = true;
     writes      = 0;
-    CHECK( !gauge_settings_save( 2u, 0u ) ); /* param differs: needs a write */
+    CHECK(
+        !gauge_settings_save( 2u, 0u, 0x3672u )
+    ); /* param differs: needs a write */
     CHECK_EQ( writes, 0u );
 
     fail_writes = false;
-    CHECK( gauge_settings_save( 2u, 0u ) ); /* not remembered as stored */
+    CHECK(
+        gauge_settings_save( 2u, 0u, 0x3672u )
+    ); /* not remembered as stored */
     CHECK_EQ( writes, 1u );
 }
 
@@ -138,6 +165,7 @@ int main( void )
     test_first_save_writes_both();
     test_repeat_save_writes_nothing();
     test_only_the_changed_value_is_written();
+    test_profile_key_is_saved_with_the_page();
     test_saved_values_load_back();
     test_a_stored_value_out_of_range_is_refused();
     test_a_failed_write_is_reported_and_retried();

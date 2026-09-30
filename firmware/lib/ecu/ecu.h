@@ -67,6 +67,9 @@ typedef struct
     bool has_thresholds;
     int32_t warn_value;
     int32_t redline_value;
+    /* A flags byte whose bits are trouble codes: the only pages the clear
+     * command applies to. Switch bytes and values are false. */
+    bool trouble_codes;
 } ecu_param_info_t;
 
 static inline const char * ecu_unit(
@@ -147,10 +150,22 @@ const char * ecu_name( void );
 /* ROM ID bytes as r0 | r1 << 8 | r2 << 16; 0 until identified. */
 uint32_t ecu_rom_id( void );
 
+/* Shows a remembered ECU's parameters before it has identified itself, so
+ * a gauge can draw its pages at power-on. profile_key is the low 16 bits of
+ * a ROM ID from an earlier run; an unknown key uses the first profile.
+ * Returns the key of the profile actually used. Call it after ecu_init and
+ * before the ECU answers.
+ * The ECU is still not identified: ecu_name and ecu_rom_id report nothing,
+ * and ecu_clear_start refuses, because nothing may be written to an address
+ * taken from a guess. When the ECU identifies itself, the same profile keeps
+ * the selection made meanwhile; a different one replaces it and the
+ * selection goes back to the first parameter. */
+uint16_t ecu_assume_profile( uint16_t profile_key );
+
 size_t ecu_param_count( void );
 const ecu_param_info_t * ecu_param_info( size_t idx );
-/* Start monitoring a parameter. False if idx is out of range (so always
- * false before the ECU is identified). */
+/* Start monitoring a parameter. False if idx is out of range (so false
+ * until a profile is known, identified or assumed). */
 bool ecu_select_param( size_t idx );
 /* Latest value; false if never read or stale. For ECU_DEC_FLAGS the value
  * is the raw byte. */

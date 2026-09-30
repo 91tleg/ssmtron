@@ -1,0 +1,178 @@
+#include "app/gauge_info.h"
+
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
+#include "app/fw_info.h"
+#include "lib/ecu/ecu.h"
+#include "lib/ui/text.h"
+#include "lib/ui/ui_geom.h"
+
+/* Each row is a label, padded so the values line up, and then its value.
+ * A row holds at most 20 glyphs, so a long value is cut. */
+#define INFO_LABEL_W ( 8u )
+#define INFO_ROW_W   ( 20u )
+
+/* The text the notice line shows. The callbacks take no context, so
+ * gauge_info_poll sets this before every redraw. */
+static const char * shown_notice = "";
+
+/* Writes label, padding and value into buf, cut to INFO_ROW_W glyphs. */
+static void put_row(
+    char * buf,
+    const char * label,
+    const char * value
+)
+{
+    size_t label_len = strlen( label );
+    size_t value_len = strlen( value );
+
+    if ( label_len > INFO_LABEL_W )
+    {
+        label_len = INFO_LABEL_W;
+    }
+    if ( value_len > ( INFO_ROW_W - INFO_LABEL_W ) )
+    {
+        value_len = INFO_ROW_W - INFO_LABEL_W;
+    }
+    ( void )memcpy( buf, label, label_len );
+    ( void )memset( &buf[label_len], ' ', INFO_LABEL_W - label_len );
+    ( void )memcpy( &buf[INFO_LABEL_W], value, value_len );
+    buf[INFO_LABEL_W + value_len] = '\0';
+}
+
+/* Copies s, cut to INFO_ROW_W glyphs. Its widget centers it. */
+static void put_text(
+    char * buf,
+    const char * s
+)
+{
+    size_t len = strlen( s );
+
+    if ( len > INFO_ROW_W )
+    {
+        len = INFO_ROW_W;
+    }
+    ( void )memcpy( buf, s, len );
+    buf[len] = '\0';
+}
+
+static void info_title_text( char * buf )
+{
+    put_text( buf, "INFO" );
+}
+
+static void info_version_text( char * buf )
+{
+    put_row( buf, "FW", fw_info.version );
+}
+
+/* The three ROM ID bytes in the order the ECU sent them, as xx.xx.xx, or
+ * dashes until the ECU has identified itself. Only the first two bytes pick
+ * the profile; the third is shown for reference. */
+static void info_rom_id_text( char * buf )
+{
+    static const char hex[] = "0123456789ABCDEF";
+    char id_text[9];
+    uint32_t id = ecu_rom_id();
+
+    if ( id == 0u )
+    {
+        ( void )memcpy( id_text, "--.--.--", sizeof( id_text ) );
+    }
+    else
+    {
+        uint32_t bits = id;
+
+        for ( size_t byte = 0; byte < 3u; byte++ )
+        {
+            uint32_t value = bits & 0xFFu;
+
+            bits >>= 8u;
+            id_text[byte * 3u]          = hex[value >> 4];
+            id_text[( byte * 3u ) + 1u] = hex[value & 0x0Fu];
+            id_text[( byte * 3u ) + 2u] = ( byte < 2u ) ? '.' : '\0';
+        }
+    }
+    put_row( buf, "ROM ID", id_text );
+}
+
+static void info_link_text( char * buf )
+{
+    put_row( buf, "ECU", ( ecu_link() == ECU_LINK_UP ) ? "LINKED" : "NO LINK" );
+}
+
+static void info_notice_text( char * buf )
+{
+    put_text( buf, shown_notice );
+}
+
+/* Text sizes, chosen for the 240 px panel. */
+#define INFO_SCALE UI_TEXT_SCALE( 1 )
+
+/* Rows sit as a block centered on the panel, 134 thousandths of the radius
+ * apart, like the flags page. The notice line is below them. */
+#define INFO_ROW_Y( n ) ( UI_CY - UI_LEN( 200 ) + ( ( n ) * UI_LEN( 134 ) ) )
+
+static text_widget_t info_page[] = {
+    { UI_CENTERED_RECT( 20, INFO_SCALE, UI_CY - UI_LEN( 800 ) ),
+      INFO_SCALE,
+      0u,
+      0u,
+      info_title_text,
+      { 0 },
+      TEXT_ALIGN_CENTER },
+    { UI_CENTERED_RECT( 20, INFO_SCALE, INFO_ROW_Y( 0 ) ),
+      INFO_SCALE,
+      0u,
+      0u,
+      info_version_text,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( 20, INFO_SCALE, INFO_ROW_Y( 1 ) ),
+      INFO_SCALE,
+      0u,
+      0u,
+      info_rom_id_text,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( 20, INFO_SCALE, INFO_ROW_Y( 2 ) ),
+      INFO_SCALE,
+      0u,
+      0u,
+      info_link_text,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( 20, INFO_SCALE, UI_CY + UI_LEN( 550 ) ),
+      INFO_SCALE,
+      0u,
+      0u,
+      info_notice_text,
+      { 0 },
+      TEXT_ALIGN_CENTER },
+};
+#define INFO_PAGE_COUNT ( sizeof( info_page ) / sizeof( info_page[0] ) )
+
+void gauge_info_set_colors(
+    uint16_t face,
+    uint16_t ink
+)
+{
+    for ( size_t i = 0; i < INFO_PAGE_COUNT; i++ )
+    {
+        info_page[i].bg = face;
+        info_page[i].fg = ink;
+    }
+}
+
+void gauge_info_open( uint16_t face )
+{
+    text_init( info_page, INFO_PAGE_COUNT, face );
+}
+
+void gauge_info_poll( const char * notice )
+{
+    shown_notice = ( notice != NULL ) ? notice : "";
+    text_poll( info_page, INFO_PAGE_COUNT );
+}

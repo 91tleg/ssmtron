@@ -1,6 +1,10 @@
 /* Check switching between the boost/rpm dials and the digital screen. */
 #include <string.h>
 
+#include "hal/hal_random.h"
+#include "hal/hal_dfu.h"
+#include "hal/hal_ble.h"
+#include "app/fw_info.h"
 #include "dial.h"
 #include "ecu.h"
 #include "gauge.h"
@@ -45,7 +49,8 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
         0,
         false,
         0,
-        0
+        0,
+        false
     };
     static const ecu_param_info_t rpm_info = {
         "Engine Speed",
@@ -61,10 +66,25 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
         0,
         false,
         0,
-        0
+        0,
+        false
     };
     static const ecu_param_info_t load_info = {
-        "Load", "", NULL, ECU_DEC_LINEAR, 1, 1, 0, 0, NULL, NULL, 0, false, 0, 0
+        "Load",
+        "",
+        NULL,
+        ECU_DEC_LINEAR,
+        1,
+        1,
+        0,
+        0,
+        NULL,
+        NULL,
+        0,
+        false,
+        0,
+        0,
+        false
     };
     const ecu_param_info_t * info = NULL;
 
@@ -107,8 +127,11 @@ bool ecu_get_value(
     return found;
 }
 
+static unsigned clear_starts;
+
 bool ecu_clear_start( void )
 {
+    clear_starts++;
     return true;
 }
 
@@ -120,6 +143,67 @@ ecu_clear_t ecu_clear_state( void )
 ecu_link_t ecu_link( void )
 {
     return ECU_LINK_DOWN;
+}
+
+/* The page that shows the firmware version needs one. */
+const fw_info_t fw_info = { "9.9.9-test" };
+
+/* Bluetooth, the random source and the restart that ends update mode. */
+static unsigned ble_opens;
+static uint32_t ble_opened_passkey;
+static hal_status_t ble_open_result = HAL_OK;
+static hal_ble_evt_t ble_events[4];
+static size_t ble_event_count;
+static uint32_t random_value = 123456u;
+static unsigned reboots;
+
+hal_status_t hal_ble_open( const hal_ble_cfg_t * cfg )
+{
+    ble_opens++;
+    ble_opened_passkey = cfg->passkey;
+    return ble_open_result;
+}
+
+hal_ble_evt_t hal_ble_poll_event( void )
+{
+    hal_ble_evt_t evt = HAL_BLE_EVT_NONE;
+
+    if ( ble_event_count > 0u )
+    {
+        evt = ble_events[0];
+        for ( size_t i = 1; i < ble_event_count; i++ )
+        {
+            ble_events[i - 1u] = ble_events[i];
+        }
+        ble_event_count--;
+    }
+    return evt;
+}
+
+hal_status_t hal_random_u32( uint32_t * out )
+{
+    *out = random_value;
+    return HAL_OK;
+}
+
+void hal_dfu_reboot( void )
+{
+    reboots++;
+}
+
+/* 0 until the ECU has identified itself, as the real one reports. */
+static uint32_t fake_rom_id;
+static uint16_t assumed_with = 0xFFFFu; /* the key the gauge assumed */
+
+uint16_t ecu_assume_profile( uint16_t profile_key )
+{
+    assumed_with = profile_key;
+    return profile_key;
+}
+
+uint32_t ecu_rom_id( void )
+{
+    return fake_rom_id;
 }
 
 void hal_log_write( const char * text )
@@ -203,6 +287,11 @@ hal_status_t display_init( const display_pins_t * pins )
     return HAL_OK;
 }
 
+hal_status_t display_on( void )
+{
+    return HAL_OK;
+}
+
 static unsigned text_init_count;
 static unsigned dial_init_count;
 static bool last_dial_has_value;
@@ -256,6 +345,15 @@ void dial_poll(
     last_dial_value     = value;
 }
 
+/* Whether the needle has reached the value it was last given. */
+static bool fake_dial_settled;
+
+bool dial_settled( const dial_widget_t * d )
+{
+    ( void )d;
+    return fake_dial_settled;
+}
+
 static uint32_t now;
 
 static void tick( uint32_t delta_ms )
@@ -297,16 +395,26 @@ int main( void )
 
     ( void )gauge_init( &pins, NEXT_ID, ACTION_ID );
 
-    /* Initialization starts on the digital screen. */
-    CHECK_EQ( text_init_count, 1u );
-
-    /* Boost selection enters the dial on the first poll. */
-    tick( 1 );
+    /* The first frame is the saved page itself, the boost dial, and not a
+     * number screen that a dial replaces a moment later. */
     CHECK_EQ( dial_init_count, 1u );
-    CHECK_EQ( text_init_count, 1u );
+    CHECK_EQ( text_init_count, 0u );
+    boost_cfg = last_dial_cfg;
+
+    /* The power-on sweep aims the needle at full scale (boost tops out at
+     * 20) before the reading is used. It starts with that first frame. */
+    CHECK( last_dial_has_value );
+    CHECK_EQ( last_dial_value, 20 );
+    tick( 1 );
+    CHECK_EQ( dial_init_count, 1u ); /* the dial is not drawn again */
+    CHECK_EQ( text_init_count, 0u );
+    CHECK_EQ( last_dial_value, 20 );
+    tick( 1 ); /* still travelling: still full scale */
+    CHECK_EQ( last_dial_value, 20 );
+    fake_dial_settled = true; /* the needle got there */
+    tick( 1 );
     CHECK( last_dial_has_value );
     CHECK_EQ( last_dial_value, 15 ); /* 15000 milli-psi -> 15 psi */
-    boost_cfg = last_dial_cfg;
 
     /* Staying on the same parameter must not re-enter the dial. */
     tick( 1 );
@@ -315,7 +423,7 @@ int main( void )
     /* NEXT selects rpm: also a dial, but a different one. */
     tap_next(); /* idx 0 -> 1 */
     CHECK_EQ( selected, RPM_IDX );
-    CHECK_EQ( text_init_count, 1u ); /* still no digital screen */
+    CHECK_EQ( text_init_count, 0u ); /* still no digital screen */
     CHECK_EQ( dial_init_count, 2u );
     CHECK_EQ( last_dial_value, 3 ); /* thousands of rpm */
     rpm_cfg = last_dial_cfg;
@@ -324,8 +432,14 @@ int main( void )
     /* NEXT selects load: not a dial, back to digital. */
     tap_next();
     CHECK_EQ( selected, LOAD_IDX );
-    CHECK_EQ( text_init_count, 2u );
+    CHECK_EQ( text_init_count, 1u );
     CHECK_EQ( dial_init_count, 2u );
+
+    /* After the last parameter comes the info page, drawn as its own page;
+     * the selected parameter stays the last one. */
+    tap_next();
+    CHECK_EQ( selected, LOAD_IDX );
+    CHECK_EQ( text_init_count, 2u );
 
     /* NEXT wraps back to the boost dial. */
     tap_next();
@@ -333,12 +447,17 @@ int main( void )
     CHECK_EQ( dial_init_count, 3u );
     CHECK( last_dial_cfg == boost_cfg );
 
-    /* Clear status uses the digital screen, even on a dial param. */
+    /* Holding ACTION on a dial does nothing: there are no trouble codes to
+     * clear here, so no clear starts and the dial stays up. */
     press_action( true );
     tick( 1 );
-    tick( 35 );   /* HOLDING */
-    tick( 1965 ); /* crosses the 2 s hold: clear starts */
-    CHECK_EQ( text_init_count, 3u );
+    tick( 35 );
+    tick( 2500 ); /* well past the 2 s hold */
+    CHECK_EQ( clear_starts, 0u );
+    CHECK_EQ( text_init_count, 2u ); /* no new screen for the hold */
+    CHECK_EQ( dial_init_count, 3u );
+    press_action( false );
+    tick( 1 );
 
     return MT_RESULT();
 }

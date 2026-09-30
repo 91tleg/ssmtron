@@ -18,7 +18,8 @@
       0,                                                                       \
       false,                                                                   \
       0,                                                                       \
-      0 }
+      0,                                                                       \
+      false }
 #define FLAGS( n, arr )                                                        \
     { ( n ),                                                                   \
       "",                                                                      \
@@ -33,7 +34,26 @@
       ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),                     \
       false,                                                                   \
       0,                                                                       \
-      0 }
+      0,                                                                       \
+      false }
+
+/* The same, for the bytes whose bits are trouble codes. */
+#define CODES( n, arr )                                                        \
+    { ( n ),                                                                   \
+      "",                                                                      \
+      NULL,                                                                    \
+      ECU_DEC_FLAGS,                                                           \
+      1,                                                                       \
+      1,                                                                       \
+      0,                                                                       \
+      0,                                                                       \
+      NULL,                                                                    \
+      ( arr ),                                                                 \
+      ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),                     \
+      false,                                                                   \
+      0,                                                                       \
+      0,                                                                       \
+      true }
 
 /* ---- flag bits --------------------------------------------------------
  */
@@ -186,7 +206,8 @@ static const ecu_param_info_t TW_H = {
     0,
     false,
     0,
-    0
+    0,
+    false
 };
 static const ecu_param_info_t TW_J = LIN( "Coolant Temp", "F", 18, 1, -580, 1 );
 static const ecu_param_info_t ADVS =
@@ -221,7 +242,8 @@ static const ecu_param_info_t RTRD_H = {
     0,
     false,
     0,
-    0
+    0,
+    false
 };
 static const ecu_param_info_t RTRD_J =
     LIN( "Timing Correction", "deg", 25, 1, -3200, 2 );
@@ -247,7 +269,8 @@ static const ecu_param_info_t MANIP = {
     0,
     false,
     0,
-    0
+    0,
+    false
 };
 static const ecu_param_info_t FA0_HN = FLAGS( "Input Switches", sw0_hitachi_n );
 static const ecu_param_info_t FA0_HT = FLAGS( "Input Switches", sw0_hitachi_t );
@@ -255,18 +278,18 @@ static const ecu_param_info_t FA0_J1 = FLAGS( "Input Switches", sw0_jecs1 );
 static const ecu_param_info_t FA0_J2 = FLAGS( "Input Switches", sw0_jecs2 );
 static const ecu_param_info_t FA1_N  = FLAGS( "I/O Switches", sw1_na );
 static const ecu_param_info_t FA1_T  = FLAGS( "I/O Switches", sw1_turbo );
-static const ecu_param_info_t U1     = FLAGS( "Active Codes 1/3", dtc1 );
-static const ecu_param_info_t U2     = FLAGS( "Active Codes 2/3", dtc2 );
+static const ecu_param_info_t U1     = CODES( "Active Codes 1/3", dtc1 );
+static const ecu_param_info_t U2     = CODES( "Active Codes 2/3", dtc2 );
 static const ecu_param_info_t U3_HN =
-    FLAGS( "Active Codes 3/3", dtc3_hitachi_n );
-static const ecu_param_info_t U3_T = FLAGS( "Active Codes 3/3", dtc3_turbo );
-static const ecu_param_info_t U3_J = FLAGS( "Active Codes 3/3", dtc3_jecs );
-static const ecu_param_info_t M1   = FLAGS( "Stored Codes 1/3", dtc1 );
-static const ecu_param_info_t M2   = FLAGS( "Stored Codes 2/3", dtc2 );
+    CODES( "Active Codes 3/3", dtc3_hitachi_n );
+static const ecu_param_info_t U3_T = CODES( "Active Codes 3/3", dtc3_turbo );
+static const ecu_param_info_t U3_J = CODES( "Active Codes 3/3", dtc3_jecs );
+static const ecu_param_info_t M1   = CODES( "Stored Codes 1/3", dtc1 );
+static const ecu_param_info_t M2   = CODES( "Stored Codes 2/3", dtc2 );
 static const ecu_param_info_t M3_HN =
-    FLAGS( "Stored Codes 3/3", dtc3_hitachi_n );
-static const ecu_param_info_t M3_T = FLAGS( "Stored Codes 3/3", dtc3_turbo );
-static const ecu_param_info_t M3_J = FLAGS( "Stored Codes 3/3", dtc3_jecs );
+    CODES( "Stored Codes 3/3", dtc3_hitachi_n );
+static const ecu_param_info_t M3_T = CODES( "Stored Codes 3/3", dtc3_turbo );
+static const ecu_param_info_t M3_J = CODES( "Stored Codes 3/3", dtc3_jecs );
 
 /* ---- profiles ---------------------------------------------------------
  */
@@ -397,9 +420,6 @@ size_t ssm1_profile_count( void )
     return PROFILE_COUNT;
 }
 
-/* cppcheck-suppress misra-c2012-8.7 ; public API (ssm1_params.h), called
- * from test_ssm1_params.c, which this scoped MISRA scan does not cover.
- */
 const ssm1_profile_t * ssm1_profile( size_t idx )
 {
     return ( idx < PROFILE_COUNT ) ? &profiles[idx] : NULL;

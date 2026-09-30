@@ -17,7 +17,8 @@ static const ecu_param_info_t rpm = {
     0,
     false,
     0,
-    0
+    0,
+    false
 };
 static const ecu_param_info_t volt = {
     "System Voltage",
@@ -33,7 +34,8 @@ static const ecu_param_info_t volt = {
     0,
     false,
     0,
-    0
+    0,
+    false
 };
 static const ecu_param_info_t boost = {
     "Boost/Vacuum",
@@ -49,7 +51,8 @@ static const ecu_param_info_t boost = {
     0,
     false,
     0,
-    0
+    0,
+    false
 };
 static const ecu_param_info_t flags = {
     "Input Switches",
@@ -65,7 +68,8 @@ static const ecu_param_info_t flags = {
     0,
     false,
     0,
-    0
+    0,
+    false
 };
 
 static bool
