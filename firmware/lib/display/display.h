@@ -25,9 +25,6 @@ typedef struct
 
 hal_status_t display_init( const display_pins_t * pins );
 
-uint16_t display_width( void );
-uint16_t display_height( void );
-
 /* Writes a w x h block of RGB565 pixels, row-major, top-left at (x, y).
  * Blocking. HAL_ERR_INVALID if the rectangle falls outside the panel. */
 hal_status_t display_blit(
@@ -41,8 +38,5 @@ hal_status_t display_blit(
 /* Fills the whole panel with one color; cheaper than blitting a filled
  * buffer of it. */
 hal_status_t display_clear( uint16_t color_rgb565 );
-
-/* No-op if has_backlight was false at display_init. */
-void display_backlight( bool on );
 
 #endif /* DISPLAY_H */

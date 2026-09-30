@@ -2,11 +2,10 @@
  * never part of a production image. */
 #include "hil_test.h"
 
+#if defined( CONFIG_APP_HIL_TEST )
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/uart.h>
-
-#define HANG_CMD ( 'H' )
 
 static const struct device * console_dev =
     DEVICE_DT_GET( DT_CHOSEN( zephyr_console ) );
@@ -17,7 +16,7 @@ void hil_test_poll( void )
 
     if ( uart_poll_in( console_dev, &c ) == 0 )
     {
-        if ( c == HANG_CMD )
+        if ( c == ( unsigned char )'H' )
         {
             /* The watchdog, not this code, must recover the unit. */
             for ( ;; )
@@ -26,3 +25,4 @@ void hil_test_poll( void )
         }
     }
 }
+#endif /* CONFIG_APP_HIL_TEST */

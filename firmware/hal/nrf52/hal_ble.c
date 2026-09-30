@@ -11,6 +11,9 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/ring_buffer.h>
 
+#define HAL_BLE_NAME_MAX    ( 26u )
+#define HAL_BLE_PASSKEY_MAX ( 999999u )
+
 #if !defined( CONFIG_BT_APP_PASSKEY ) || !defined( CONFIG_BT_NUS_AUTHEN )
 #error                                                                         \
     "hal_ble needs CONFIG_BT_SMP, CONFIG_BT_APP_PASSKEY and CONFIG_BT_NUS_AUTHEN"

@@ -360,9 +360,13 @@ typedef struct
 {
     bool ( *matches )( const ecu_param_info_t * info );
     const dial_cfg_t * cfg;
-    dial_widget_t * widget;
     int32_t value_div; /* ecu_get_value units per dial unit */
 } dial_entry_t;
+
+/* Dials are picked by index into the table. Their widgets live in a
+ * separate array, so no widget pointer is read through the const table. */
+#define DIAL_COUNT ( 2u )
+#define NO_DIAL    ( SIZE_MAX )
 
 /* Keep the existing pressure units with the default-style face. Colors
  * are set by apply_theme(), so these are not const. */
@@ -380,7 +384,6 @@ static dial_cfg_t boost_dial_cfg = {
     30u,
     DIAL_STYLE_DEFAULT
 };
-static dial_widget_t boost_dial;
 
 /* The tachometer displays thousands of rpm on the same face. */
 static dial_cfg_t rpm_dial_cfg = {
@@ -396,12 +399,6 @@ static dial_cfg_t rpm_dial_cfg = {
     NEEDLE_RED,
     40u,
     DIAL_STYLE_DEFAULT
-};
-static dial_widget_t rpm_dial;
-
-static const dial_entry_t dial_table[] = {
-    { is_boost, &boost_dial_cfg, &boost_dial, 1000 }, /* milli-psi/inHg */
-    { is_rpm, &rpm_dial_cfg, &rpm_dial, 1000 },
 };
 
 static void apply_theme( void )
@@ -442,12 +439,19 @@ hal_status_t gauge_init(
 void gauge_poll( uint32_t now_ms )
 {
     static bool selection_restored;
-    static const dial_entry_t * active_dial;
+
+    static dial_widget_t dial_widgets[DIAL_COUNT];
+    static const dial_entry_t dial_table[DIAL_COUNT] = {
+        { is_boost, &boost_dial_cfg, 1000 }, /* milli-psi/inHg */
+        { is_rpm, &rpm_dial_cfg, 1000 },
+    };
+    static size_t active_dial = NO_DIAL;
+
     static bool flags_active;
     bool face_idle;
     bool want_flags;
     const ecu_param_info_t * sel_info = NULL;
-    const dial_entry_t * next_dial    = NULL;
+    size_t next_dial                  = NO_DIAL;
 
     if ( !selection_restored && ( ecu_param_count() > 0u ) )
     {
@@ -474,14 +478,12 @@ void gauge_poll( uint32_t now_ms )
                 && ( sel_info != NULL ) && !want_flags;
     if ( face_idle )
     {
-        for ( size_t i = 0;
-              ( next_dial == NULL )
-              && ( i < ( sizeof( dial_table ) / sizeof( dial_table[0] ) ) );
+        for ( size_t i = 0; ( next_dial == NO_DIAL ) && ( i < DIAL_COUNT );
               i++ )
         {
             if ( dial_table[i].matches( sel_info ) )
             {
-                next_dial = &dial_table[i];
+                next_dial = i;
             }
         }
     }
@@ -489,9 +491,11 @@ void gauge_poll( uint32_t now_ms )
     if ( ( next_dial != active_dial ) || ( want_flags != flags_active )
          || redraw_face )
     {
-        if ( next_dial != NULL )
+        if ( next_dial != NO_DIAL )
         {
-            dial_init( next_dial->widget, next_dial->cfg, now_ms );
+            dial_init(
+                &dial_widgets[next_dial], dial_table[next_dial].cfg, now_ms
+            );
         }
         else if ( want_flags )
         {
@@ -506,17 +510,17 @@ void gauge_poll( uint32_t now_ms )
         redraw_face  = false;
     }
 
-    if ( active_dial != NULL )
+    if ( active_dial != NO_DIAL )
     {
         const ecu_param_info_t * info = NULL;
         int32_t value                 = 0;
         bool has_value                = current_value( &info, &value );
 
         dial_poll(
-            active_dial->widget,
+            &dial_widgets[active_dial],
             now_ms,
             has_value,
-            value / active_dial->value_div
+            value / dial_table[active_dial].value_div
         );
     }
     else if ( flags_active )

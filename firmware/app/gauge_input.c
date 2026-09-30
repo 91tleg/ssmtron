@@ -47,11 +47,7 @@ typedef enum
     ACTION_WAIT_RELEASE /* a press was handed back: it ends when released */
 } action_state_t;
 
-static next_state_t next_state = NEXT_IDLE;
-static uint32_t next_hold_start;
-
 static action_state_t action_state = ACTION_IDLE;
-static uint32_t action_hold_start;
 
 static void poll_button( button_t * b )
 {
@@ -102,6 +98,8 @@ next_event_t gauge_input_next(
     bool has_params
 )
 {
+    static next_state_t next_state = NEXT_IDLE;
+    static uint32_t next_hold_start;
     next_event_t event = NEXT_EVENT_NONE;
     bool ready         = settled( &next_btn, now_ms );
 
@@ -158,6 +156,8 @@ next_event_t gauge_input_next(
 
 action_event_t gauge_input_action( uint32_t now_ms )
 {
+    /* When the current press began; only this function reads it. */
+    static uint32_t action_hold_start;
     action_event_t event = ACTION_EVENT_NONE;
 
     switch ( action_state )

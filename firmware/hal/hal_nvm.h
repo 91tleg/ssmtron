@@ -7,7 +7,9 @@
 
 #include "hal_status.h"
 
-#define HAL_NVM_KEY_MAX 32u /* characters, including the terminator */
+/* Used by the nRF52 backend, outside the scoped application scan. */
+/* cppcheck-suppress misra-c2012-2.5 */
+#define HAL_NVM_KEY_MAX ( 32u ) /* includes the terminator */
 
 /* Starts the store; safe to call more than once. Must be called before
  * hal_nvm_save/hal_nvm_load. */

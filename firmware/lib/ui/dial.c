@@ -184,11 +184,14 @@ static int16_t value_to_deg(
     {
         int32_t span = cfg->max_value - cfg->min_value;
 
-        offset =
-            ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                           * ( DIAL_DEFAULT_MAX_DEG - DIAL_DEFAULT_MIN_DEG ) )
-                         / span );
-        deg = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
+        /* An empty scale has nowhere to sweep: rest at the low end. */
+        offset = ( span != 0 )
+                     ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                                      * ( DIAL_DEFAULT_MAX_DEG
+                                          - DIAL_DEFAULT_MIN_DEG ) )
+                                    / span )
+                     : 0;
+        deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
     }
     return deg;
 }

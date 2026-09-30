@@ -9,14 +9,10 @@
 
 #include "hal_status.h"
 
-#define HAL_BLE_NAME_MAX ( 26u ) /* characters, so it fits the advert */
-
-#define HAL_BLE_PASSKEY_MAX ( 999999u )
-
 typedef struct
 {
     const char * name; /* advertised device name */
-    /* Six-digit passkey (0..HAL_BLE_PASSKEY_MAX) the peer must enter to
+    /* Six-digit passkey (0..999999) the peer must enter to
      * pair. Data only flows over an encrypted, authenticated link, and
      * pairings are remembered. */
     uint32_t passkey;
