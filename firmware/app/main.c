@@ -42,6 +42,7 @@ static uint32_t ble_passkey( void )
 /* Yield without delaying a 1953 baud byte. */
 #define LOOP_DELAY_MS ( 1u )
 
+/* cppcheck-suppress misra-c2012-8.6 ; separate application firmware */
 int main( void )
 {
     const hal_ble_cfg_t ble = { BLE_NAME, ble_passkey() };
@@ -56,7 +57,7 @@ int main( void )
         .backlight     = ( hal_gpio_id_t )0u,
         .has_backlight = false
     };
-    hal_status_t status;
+
     hal_status_t ecu_status;
     bool confirmed = false;
 
@@ -94,7 +95,7 @@ int main( void )
 
         if ( !confirmed && ( now >= CONFIRM_AFTER_MS ) )
         {
-            status = hal_dfu_confirm();
+            hal_status_t status = hal_dfu_confirm();
 
             /* Retry failures; builds without a bootloader need no confirmation.
              */
@@ -105,6 +106,4 @@ int main( void )
         hal_wdt_feed();
         hal_delay_ms( LOOP_DELAY_MS );
     }
-
-    return ( int )status;
 }

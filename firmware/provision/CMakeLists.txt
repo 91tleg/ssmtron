@@ -21,6 +21,7 @@ set(DTC_OVERLAY_FILE ${CMAKE_CURRENT_LIST_DIR}/../bsp/${BSP_BOARD}/board.overlay
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(ssmtron_provision)
 
+zephyr_get(PROVISION_PASSKEY)
 if(NOT DEFINED PROVISION_PASSKEY)
   message(FATAL_ERROR "Pass -DPROVISION_PASSKEY=<6-digit code>")
 endif()

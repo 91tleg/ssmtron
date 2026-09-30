@@ -24,10 +24,9 @@ static void draw_widget(
     uint16_t row_pixels =
         ( w->rect.w <= TEXT_MAX_ROW_PX ) ? w->rect.w : TEXT_MAX_ROW_PX;
     /* The last glyph has no trailing gap, so it does not skew the center. */
+    uint16_t gap_px = ( uint16_t )( cell_w - glyph_px );
     uint16_t text_px =
-        ( text_len > 0u )
-            ? ( uint16_t )( ( text_len * cell_w ) - ( cell_w - glyph_px ) )
-            : 0u;
+        ( text_len > 0u ) ? ( uint16_t )( ( text_len * cell_w ) - gap_px ) : 0u;
     uint16_t x_off =
         ( ( w->align == TEXT_ALIGN_CENTER ) && ( row_pixels > text_px ) )
             ? ( uint16_t )( ( row_pixels - text_px ) / 2u )
