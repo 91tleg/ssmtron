@@ -162,15 +162,24 @@ static void on_sample( uint8_t data )
 
 static void on_identified( uint32_t id )
 {
+    const ssm1_profile_t * found =
+        ssm1_profile_find( ( uint16_t )( id & 0xFFFFu ) );
+    /* An assumed profile that turns out to be right keeps the selection made
+     * while waiting. Anything else starts at the first parameter. */
+    bool same = ( found != NULL ) && ( found == s.profile );
+
     s.rom_id      = id;
-    s.profile     = ssm1_profile_find( ( uint16_t )( id & 0xFFFFu ) );
+    s.profile     = found;
     s.identified  = true;
     s.ident       = false;
     s.last_sample = s.now;
     s.any_sample  = true;
     s.fails       = 0;
-    s.want        = 0;
-    s.resume      = 0;
+    if ( !same )
+    {
+        s.want   = 0;
+        s.resume = 0;
+    }
     if ( s.profile != NULL )
     {
         begin_cycle(); /* stop the 0xFFFE stream, then read parameter 0 */
@@ -454,11 +463,22 @@ const char * ecu_name( void )
     return name;
 }
 
-/* cppcheck-suppress misra-c2012-8.7 ; public API (ecu.h), called from
- * test_ssm1.c, which this scoped MISRA scan does not cover. */
 uint32_t ecu_rom_id( void )
 {
     return s.identified ? s.rom_id : 0u;
+}
+
+uint16_t ecu_assume_profile( uint16_t profile_key )
+{
+    if ( !s.identified )
+    {
+        const ssm1_profile_t * found = ssm1_profile_find( profile_key );
+
+        s.profile = ( found != NULL ) ? found : ssm1_profile( 0u );
+        s.want    = 0;
+        s.resume  = 0;
+    }
+    return ( s.profile != NULL ) ? s.profile->rom_id : 0u;
 }
 
 size_t ecu_param_count( void )
@@ -506,7 +526,10 @@ bool ecu_get_value(
 
 bool ecu_clear_start( void )
 {
-    bool ok = ( s.profile != NULL ) && ( s.clear != ECU_CLEAR_BUSY );
+    /* Only a profile the ECU itself identified: an assumed one is a guess,
+     * and the clear writes to an address taken from the profile. */
+    bool ok =
+        s.identified && ( s.profile != NULL ) && ( s.clear != ECU_CLEAR_BUSY );
 
     if ( ok )
     {

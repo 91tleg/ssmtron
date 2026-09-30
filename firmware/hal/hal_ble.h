@@ -13,8 +13,9 @@ typedef struct
 {
     const char * name; /* advertised device name */
     /* Six-digit passkey (0..999999) the peer must enter to
-     * pair. Data only flows over an encrypted, authenticated link, and
-     * pairings are remembered. */
+     * pair. Data only flows over an encrypted, authenticated link. The
+     * caller shows the passkey to the user, and a fresh one is used each
+     * time Bluetooth is started. */
     uint32_t passkey;
 } hal_ble_cfg_t;
 

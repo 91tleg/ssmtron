@@ -44,6 +44,9 @@ typedef struct
     uint32_t last_frame_ms;
 } dial_widget_t;
 
+/* True once the needle has reached the value it was last given. */
+bool dial_settled( const dial_widget_t * d );
+
 /* Draw the face with the needle at min_value. */
 void dial_init(
     dial_widget_t * d,

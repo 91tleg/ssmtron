@@ -33,7 +33,13 @@ typedef struct
     bool has_backlight;
 } display_pins_t;
 
+/* Starts the panel but leaves it off. Its memory is undefined at power-up,
+ * so the caller draws the first frame and then calls display_on(), and the
+ * user never sees noise. */
 hal_status_t display_init( const display_pins_t * pins );
+
+/* Turns the panel on. HAL_ERR_INVALID before display_init succeeds. */
+hal_status_t display_on( void );
 
 /* Writes a w x h block of RGB565 pixels, row-major, top-left at (x, y).
  * Blocking. HAL_ERR_INVALID if the rectangle falls outside the panel. */

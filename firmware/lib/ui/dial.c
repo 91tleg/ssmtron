@@ -729,6 +729,11 @@ static void draw_frame( const dial_widget_t * d )
     }
 }
 
+bool dial_settled( const dial_widget_t * d )
+{
+    return d->displayed_deg == d->target_deg;
+}
+
 void dial_init(
     dial_widget_t * d,
     const dial_cfg_t * cfg,

@@ -20,7 +20,8 @@ static const ecu_param_info_t infos[2] = {
       0,
       false,
       0,
-      0 },
+      0,
+      false },
     { "System Voltage",
       "V",
       NULL,
@@ -34,7 +35,8 @@ static const ecu_param_info_t infos[2] = {
       0,
       false,
       0,
-      0 },
+      0,
+      false },
 };
 static bool fresh[2];
 static int32_t vals[2];

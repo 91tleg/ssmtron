@@ -4,8 +4,11 @@
 #include <string.h>
 
 #include "app/gauge_flags.h"
+#include "app/gauge_info.h"
 #include "app/gauge_input.h"
 #include "app/gauge_settings.h"
+#include "app/gauge_sweep.h"
+#include "app/gauge_update.h"
 #include "hal/hal_log.h"
 #include "lib/ecu/ecu.h"
 #include "lib/fmt/fmt.h"
@@ -62,6 +65,10 @@ static void apply_theme( void );
 /* Mirror the selected parameter; gauge.c alone calls ecu_select_param. */
 static size_t selected_idx;
 
+/* The info page follows the last parameter in the cycle. While it is shown,
+ * selected_idx keeps the last parameter, which the ECU keeps streaming. */
+static bool info_shown;
+
 /* Find the fresh value from the ECU's single active stream. */
 static bool current_value(
     const ecu_param_info_t ** info,
@@ -97,7 +104,7 @@ static void copy_capped(
     buf[n] = '\0';
 }
 
-/* Restore selection once ECU identification provides the parameter count. */
+/* Restore the saved page. */
 static void restore_selected_idx( void )
 {
     size_t idx;
@@ -109,29 +116,130 @@ static void restore_selected_idx( void )
     ( void )ecu_select_param( selected_idx );
 }
 
-/* The clear prompt, progress or result owns the screen. A press that is
- * still only a possible tap does not, so a tap causes no flicker. */
-static bool clear_prompt_shown( void )
+/* Restores the saved page as soon as the ECU has pages to choose from. */
+static void restore_selection_once( void )
 {
-    return ( clear_ui != CLEAR_UI_IDLE ) && ( clear_ui != CLEAR_UI_PRESSED );
+    static bool selection_restored;
+
+    if ( !selection_restored && ( ecu_param_count() > 0u ) )
+    {
+        restore_selected_idx();
+        selection_restored = true;
+    }
+}
+
+/* The ECU profile whose pages are on show, as its 16-bit key. It is what a
+ * save stores next to the page number. */
+static uint16_t profile_key;
+
+/* Shows the pages of the ECU remembered from last time, or of the first
+ * profile on a first run, so the first frame already has its pages. The ECU
+ * still has to identify itself before anything is written to it. */
+static void assume_remembered_profile( void )
+{
+    size_t key = 0u;
+
+    ( void )gauge_settings_load_profile( &key );
+    profile_key = ecu_assume_profile( ( uint16_t )key );
+    restore_selection_once();
+}
+
+/* Once the ECU answers, a different ECU than the one assumed replaces its
+ * pages, and the page goes back to the first. */
+static void check_identification( void )
+{
+    static bool identification_checked;
+    uint32_t id = ecu_rom_id();
+
+    if ( ( id != 0u ) && !identification_checked )
+    {
+        uint16_t key = ( uint16_t )( id & 0xFFFFu );
+
+        identification_checked = true;
+        if ( key != profile_key )
+        {
+            profile_key  = key;
+            selected_idx = 0u;
+            ( void )ecu_select_param( 0u );
+        }
+    }
+}
+
+/* The selected page's parameter, or NULL while the ECU has none. */
+static const ecu_param_info_t * selected_info( void )
+{
+    const ecu_param_info_t * info = NULL;
+
+    if ( selected_idx < ecu_param_count() )
+    {
+        info = ecu_param_info( selected_idx );
+    }
+    return info;
+}
+
+/* The selected parameter's fresh value, if it has one. */
+static bool selected_value( int32_t * value )
+{
+    return ( selected_idx < ecu_param_count() )
+           && ecu_get_value( selected_idx, value );
+}
+
+/* The clear command applies to the trouble-code pages only. */
+static bool clear_allowed( void )
+{
+    const ecu_param_info_t * info = selected_info();
+
+    return !info_shown && ( info != NULL ) && info->trouble_codes;
+}
+
+/* The pages are the ECU's parameters in order, then the info page, then
+ * round to the first again. The info page exists without an ECU, so NEXT
+ * always has somewhere to go. */
+static void next_page( void )
+{
+    if ( info_shown )
+    {
+        info_shown   = false;
+        selected_idx = 0u;
+        ( void )ecu_select_param( selected_idx );
+    }
+    else if ( ( selected_idx + 1u ) >= ecu_param_count() )
+    {
+        info_shown = true;
+    }
+    else
+    {
+        selected_idx++;
+        ( void )ecu_select_param( selected_idx );
+    }
 }
 
 static void poll_next( uint32_t now )
 {
-    switch ( gauge_input_next(
-        now, clear_ui != CLEAR_UI_IDLE, ecu_param_count() > 0u
-    ) )
+    switch ( gauge_input_next( now, clear_ui != CLEAR_UI_IDLE, true ) )
     {
         case NEXT_EVENT_TAP:
-            /* A short press browses in RAM only. */
-            selected_idx = ( selected_idx + 1u ) % ecu_param_count();
-            ( void )ecu_select_param( selected_idx );
+            if ( gauge_update_active() )
+            {
+                gauge_update_exit(); /* a tap leaves update mode */
+            }
+            else
+            {
+                /* Moving to another page ends the power-on sweep. */
+                gauge_sweep_cancel();
+                /* A short press browses in RAM only. */
+                next_page();
+            }
             break;
 
         case NEXT_EVENT_HOLD:
-            save_notice_ok     = gauge_settings_save( selected_idx, theme_idx );
-            save_notice_active = true;
-            save_notice_start  = now;
+            if ( !gauge_update_active() )
+            {
+                save_notice_ok =
+                    gauge_settings_save( selected_idx, theme_idx, profile_key );
+                save_notice_active = true;
+                save_notice_start  = now;
+            }
             break;
 
         case NEXT_EVENT_NONE:
@@ -142,6 +250,22 @@ static void poll_next( uint32_t now )
 
 /* Which press-tracking step the clear UI is in: the gesture events move
  * it, and the two later steps below are driven by the ECU instead. */
+/* Holding ACTION means something on the trouble-code pages (clear the codes)
+ * and on the info page (start update mode), and nothing while update mode is
+ * already on. */
+static bool hold_allowed( void )
+{
+    return !gauge_update_active() && ( clear_allowed() || info_shown );
+}
+
+/* After a clear result shows, the button must be seen released before a new
+ * press dismisses it. */
+static bool clear_result_released;
+
+/* The last clear attempt was refused, so the ECU's own result, which may
+ * still be that of an earlier clear, does not describe it. */
+static bool clear_refused;
+
 static void poll_action_gesture( uint32_t now )
 {
     switch ( gauge_input_action( now ) )
@@ -158,7 +282,18 @@ static void poll_action_gesture( uint32_t now )
             break;
 
         case ACTION_EVENT_HOLD:
-            clear_ui = CLEAR_UI_HOLDING;
+            if ( hold_allowed() )
+            {
+                clear_ui = CLEAR_UI_HOLDING;
+            }
+            else
+            {
+                /* Holding does nothing on a page with no trouble codes to
+                 * clear. The press is dropped, so it cannot turn into a tap
+                 * when it is released. */
+                clear_ui = CLEAR_UI_IDLE;
+                gauge_input_action_reset();
+            }
             break;
 
         case ACTION_EVENT_ABORT:
@@ -166,9 +301,30 @@ static void poll_action_gesture( uint32_t now )
             break;
 
         case ACTION_EVENT_CLEAR:
-            ( void )ecu_clear_start();
-            clear_ui = CLEAR_UI_ACTIVE;
-            hal_log_write( "ecu clear: started" );
+            if ( info_shown )
+            {
+                /* On the info page the hold starts update mode. The rest of
+                 * the press is dropped, so it cannot also be a tap. */
+                gauge_update_start( now );
+                clear_ui = CLEAR_UI_IDLE;
+                gauge_input_action_reset();
+            }
+            else if ( ecu_clear_start() )
+            {
+                clear_refused = false;
+                clear_ui      = CLEAR_UI_ACTIVE;
+                hal_log_write( "ecu clear: started" );
+            }
+            else
+            {
+                /* The ECU layer refused: nothing has identified itself yet.
+                 * Say so at once, instead of showing a clear that is not
+                 * happening. */
+                clear_refused         = true;
+                clear_ui              = CLEAR_UI_RESULT;
+                clear_result_released = false;
+                hal_log_write( "ecu clear: refused" );
+            }
             break;
 
         case ACTION_EVENT_NONE:
@@ -179,8 +335,6 @@ static void poll_action_gesture( uint32_t now )
 
 static void poll_action( uint32_t now )
 {
-    static bool action_released_since_result;
-
     switch ( clear_ui )
     {
         case CLEAR_UI_IDLE:
@@ -195,8 +349,8 @@ static void poll_action( uint32_t now )
 
             if ( result != ECU_CLEAR_BUSY )
             {
-                clear_ui                     = CLEAR_UI_RESULT;
-                action_released_since_result = false;
+                clear_ui              = CLEAR_UI_RESULT;
+                clear_result_released = false;
                 hal_log_write(
                     ( result == ECU_CLEAR_DONE ) ? "ecu clear: done"
                                                  : "ecu clear: failed"
@@ -213,9 +367,9 @@ static void poll_action( uint32_t now )
              * (it may still be held from the original 2 s press). */
             if ( !gauge_input_action_down() )
             {
-                action_released_since_result = true;
+                clear_result_released = true;
             }
-            else if ( action_released_since_result
+            else if ( clear_result_released
                       && gauge_input_action_settled( now ) )
             {
                 clear_ui = CLEAR_UI_IDLE;
@@ -231,51 +385,26 @@ static void poll_action( uint32_t now )
 
 static void name_text( char * buf )
 {
-    switch ( clear_ui )
+    const ecu_param_info_t * info = selected_info();
+
+    if ( save_notice_active )
     {
-        case CLEAR_UI_HOLDING:
-            copy_capped( buf, "HOLD TO CLEAR" );
-            break;
-
-        case CLEAR_UI_ACTIVE:
-            copy_capped( buf, "CLEARING..." );
-            break;
-
-        case CLEAR_UI_RESULT:
-            copy_capped(
-                buf,
-                ( ecu_clear_state() == ECU_CLEAR_DONE ) ? "CLEARED - IGNITION"
-                                                        : "CLEAR FAILED"
-            );
-            break;
-
-        case CLEAR_UI_IDLE:
-        default:
-        {
-            const ecu_param_info_t * info = NULL;
-            int32_t value                 = 0;
-
-            if ( save_notice_active )
-            {
-                copy_capped( buf, save_notice_ok ? "SAVED" : "SAVE FAILED" );
-            }
-            else
-            {
-                copy_capped(
-                    buf, current_value( &info, &value ) ? info->name : "NO ECU"
-                );
-            }
-            break;
-        }
+        copy_capped( buf, save_notice_ok ? "SAVED" : "SAVE FAILED" );
+    }
+    else
+    {
+        /* The page is named even before the ECU has sent a value. */
+        copy_capped( buf, ( info != NULL ) ? info->name : "" );
     }
 }
 
+/* Dashes stand in for a value the ECU has not sent, as a dial rests. */
 static void value_text( char * buf )
 {
-    const ecu_param_info_t * info = NULL;
+    const ecu_param_info_t * info = selected_info();
     int32_t value                 = 0;
 
-    if ( current_value( &info, &value ) )
+    if ( ( info != NULL ) && selected_value( &value ) )
     {
         ( void )fmt_value( buf, TEXT_MAX + 1u, info, value );
     }
@@ -287,17 +416,15 @@ static void value_text( char * buf )
 
 static void unit_text( char * buf )
 {
-    const ecu_param_info_t * info = NULL;
+    const ecu_param_info_t * info = selected_info();
     int32_t value                 = 0;
 
     copy_capped(
-        buf, current_value( &info, &value ) ? ecu_unit( info, value ) : ""
+        buf,
+        ( ( info != NULL ) && selected_value( &value ) )
+            ? ecu_unit( info, value )
+            : ""
     );
-}
-
-static void link_text( char * buf )
-{
-    copy_capped( buf, ( ecu_link() == ECU_LINK_UP ) ? "LINKED" : "NO LINK" );
 }
 
 /* The screen: rects are kept a safe margin inside the round panel's 120
@@ -306,7 +433,6 @@ static void link_text( char * buf )
 #define NAME_SCALE  UI_TEXT_SCALE( 1 )
 #define VALUE_SCALE UI_TEXT_SCALE( 4 )
 #define UNIT_SCALE  UI_TEXT_SCALE( 2 )
-#define LINK_SCALE  UI_TEXT_SCALE( 1 )
 
 static text_widget_t screen[] = {
     /* The name sits where the dials put their label: centered, above the
@@ -332,15 +458,29 @@ static text_widget_t screen[] = {
       unit_text,
       { 0 },
       TEXT_ALIGN_CENTER },
-    { UI_CENTERED_RECT( 24, LINK_SCALE, UI_CY + UI_LEN( 459 ) ),
-      LINK_SCALE,
-      FG,
-      BG,
-      link_text,
-      { 0 },
-      TEXT_ALIGN_CENTER },
 };
 #define SCREEN_COUNT ( sizeof( screen ) / sizeof( screen[0] ) )
+
+/* What the info page shows under its rows. Holding ACTION there starts
+ * update mode, so it says so while the button is held. */
+static const char * current_info_notice( void )
+{
+    const char * text = "";
+
+    if ( clear_ui == CLEAR_UI_HOLDING )
+    {
+        text = "HOLD TO UPDATE";
+    }
+    else if ( save_notice_active )
+    {
+        text = save_notice_ok ? "SAVED" : "SAVE FAILED";
+    }
+    else
+    {
+        /* Nothing to say. */
+    }
+    return text;
+}
 
 /* What the flags page shows under the flags. */
 static flags_status_t flags_status( void )
@@ -358,9 +498,10 @@ static flags_status_t flags_status( void )
             break;
 
         case CLEAR_UI_RESULT:
-            status = ( ecu_clear_state() == ECU_CLEAR_DONE )
-                         ? FLAGS_STATUS_CLEARED
-                         : FLAGS_STATUS_CLEAR_FAILED;
+            status =
+                ( !clear_refused && ( ecu_clear_state() == ECU_CLEAR_DONE ) )
+                    ? FLAGS_STATUS_CLEARED
+                    : FLAGS_STATUS_CLEAR_FAILED;
             break;
 
         case CLEAR_UI_IDLE:
@@ -441,12 +582,142 @@ static void apply_theme( void )
     boost_dial_cfg.tick_fg = t->ink;
     rpm_dial_cfg.face_bg   = t->face;
     rpm_dial_cfg.tick_fg   = t->ink;
+    gauge_info_set_colors( t->face, t->ink );
+    gauge_update_set_colors( t->face, t->ink );
     for ( size_t i = 0; i < SCREEN_COUNT; i++ )
     {
         screen[i].bg = t->face;
         screen[i].fg = t->ink;
     }
     gauge_flags_set_colors( t->face, t->ink );
+}
+
+/* Picks the face for the page on show, draws it afresh when it changes, and
+ * polls it. gauge_init calls it once before the panel is turned on, so the
+ * first frame is already the saved page. */
+static void update_face( uint32_t now_ms )
+{
+    static dial_widget_t dial_widgets[DIAL_COUNT];
+    static const dial_entry_t dial_table[DIAL_COUNT] = {
+        { is_boost, &boost_dial_cfg, 1000 }, /* milli-psi/inHg */
+        { is_rpm, &rpm_dial_cfg, 1000 },
+    };
+    static size_t active_dial = NO_DIAL;
+
+    static bool flags_active;
+    static bool info_active;
+    static bool update_active;
+    static bool face_drawn; /* a first frame exists: nothing is stale before */
+    bool face_idle;
+    bool want_flags;
+    bool want_info;
+    bool want_update;
+    const ecu_param_info_t * sel_info = NULL;
+    size_t next_dial                  = NO_DIAL;
+
+    if ( ecu_param_count() > 0u )
+    {
+        sel_info = ecu_param_info( selected_idx );
+    }
+    /* The flags page shows clear and save status itself. A dial gives way
+     * to the digital screen for them. */
+    want_update = gauge_update_active();
+    want_info   = info_shown && !want_update;
+    want_flags  = !want_info && !want_update && gauge_flags_handles( sel_info );
+    face_idle   = !want_update && !want_info && !save_notice_active
+                && ( sel_info != NULL ) && !want_flags;
+    if ( face_idle )
+    {
+        for ( size_t i = 0; ( next_dial == NO_DIAL ) && ( i < DIAL_COUNT );
+              i++ )
+        {
+            if ( dial_table[i].matches( sel_info ) )
+            {
+                next_dial = i;
+            }
+        }
+    }
+
+    /* A page that is not a dial came first: no sweep. A blank face while the
+     * ECU has no pages yet does not count, so the sweep waits for the dial. */
+    if ( want_update || want_info || want_flags
+         || ( face_idle && ( next_dial == NO_DIAL ) ) )
+    {
+        gauge_sweep_cancel();
+    }
+
+    if ( ( next_dial != active_dial ) || ( want_flags != flags_active )
+         || ( want_info != info_active ) || ( want_update != update_active )
+         || redraw_face || !face_drawn )
+    {
+        if ( next_dial != NO_DIAL )
+        {
+            dial_init(
+                &dial_widgets[next_dial], dial_table[next_dial].cfg, now_ms
+            );
+        }
+        else if ( want_update )
+        {
+            gauge_update_open( themes[theme_idx].face );
+        }
+        else if ( want_info )
+        {
+            gauge_info_open( themes[theme_idx].face );
+        }
+        else if ( want_flags )
+        {
+            gauge_flags_open( themes[theme_idx].face );
+        }
+        else
+        {
+            text_init( screen, SCREEN_COUNT, themes[theme_idx].face );
+        }
+        active_dial   = next_dial;
+        flags_active  = want_flags;
+        info_active   = want_info;
+        update_active = want_update;
+        redraw_face   = false;
+        face_drawn    = true;
+    }
+
+    if ( active_dial != NO_DIAL )
+    {
+        const ecu_param_info_t * info = NULL;
+        int32_t value                 = 0;
+        bool has_value                = current_value( &info, &value );
+        int32_t dial_value  = value / dial_table[active_dial].value_div;
+        int32_t sweep_value = 0;
+
+        /* At power-on the needle sweeps to full scale first; the live
+         * reading, or rest if there is none, takes over when it gets
+         * there. */
+        if ( gauge_sweep_target(
+                 dial_table[active_dial].cfg,
+                 dial_settled( &dial_widgets[active_dial] ),
+                 &sweep_value
+             ) )
+        {
+            has_value  = true;
+            dial_value = sweep_value;
+        }
+        dial_poll( &dial_widgets[active_dial], now_ms, has_value, dial_value );
+    }
+    else if ( update_active )
+    {
+        gauge_update_poll( now_ms );
+    }
+    else if ( info_active )
+    {
+        gauge_info_poll( current_info_notice() );
+    }
+    else if ( flags_active )
+    {
+        gauge_flags_poll( selected_idx, flags_status(), now_ms );
+    }
+    else
+    {
+        text_poll( screen, SCREEN_COUNT );
+    }
 }
 
 hal_status_t gauge_init(
@@ -461,35 +732,21 @@ hal_status_t gauge_init(
 
     ( void )gauge_settings_load_theme( THEME_COUNT, &theme_idx );
     apply_theme();
+    assume_remembered_profile();
     if ( status == HAL_OK )
     {
-        text_init( screen, SCREEN_COUNT, themes[theme_idx].face );
+        /* Draw the saved page itself, not a stand-in for it. The panel was
+         * left off by display_init, so it lights up already showing it. */
+        update_face( 0u );
+        ( void )display_on();
     }
     return status;
 }
 
 void gauge_poll( uint32_t now_ms )
 {
-    static bool selection_restored;
-
-    static dial_widget_t dial_widgets[DIAL_COUNT];
-    static const dial_entry_t dial_table[DIAL_COUNT] = {
-        { is_boost, &boost_dial_cfg, 1000 }, /* milli-psi/inHg */
-        { is_rpm, &rpm_dial_cfg, 1000 },
-    };
-    static size_t active_dial = NO_DIAL;
-
-    static bool flags_active;
-    bool face_idle;
-    bool want_flags;
-    const ecu_param_info_t * sel_info = NULL;
-    size_t next_dial                  = NO_DIAL;
-
-    if ( !selection_restored && ( ecu_param_count() > 0u ) )
-    {
-        restore_selected_idx();
-        selection_restored = true;
-    }
+    restore_selection_once();
+    check_identification();
     gauge_input_poll();
     poll_next( now_ms );
     poll_action( now_ms );
@@ -499,68 +756,5 @@ void gauge_poll( uint32_t now_ms )
         save_notice_active = false;
     }
 
-    if ( ecu_param_count() > 0u )
-    {
-        sel_info = ecu_param_info( selected_idx );
-    }
-    /* The flags page shows clear and save status itself. A dial gives way
-     * to the digital screen for them. */
-    want_flags = gauge_flags_handles( sel_info );
-    face_idle  = !clear_prompt_shown() && !save_notice_active
-                && ( sel_info != NULL ) && !want_flags;
-    if ( face_idle )
-    {
-        for ( size_t i = 0; ( next_dial == NO_DIAL ) && ( i < DIAL_COUNT );
-              i++ )
-        {
-            if ( dial_table[i].matches( sel_info ) )
-            {
-                next_dial = i;
-            }
-        }
-    }
-
-    if ( ( next_dial != active_dial ) || ( want_flags != flags_active )
-         || redraw_face )
-    {
-        if ( next_dial != NO_DIAL )
-        {
-            dial_init(
-                &dial_widgets[next_dial], dial_table[next_dial].cfg, now_ms
-            );
-        }
-        else if ( want_flags )
-        {
-            gauge_flags_open( themes[theme_idx].face );
-        }
-        else
-        {
-            text_init( screen, SCREEN_COUNT, themes[theme_idx].face );
-        }
-        active_dial  = next_dial;
-        flags_active = want_flags;
-        redraw_face  = false;
-    }
-
-    if ( active_dial != NO_DIAL )
-    {
-        const ecu_param_info_t * info = NULL;
-        int32_t value                 = 0;
-        bool has_value                = current_value( &info, &value );
-
-        dial_poll(
-            &dial_widgets[active_dial],
-            now_ms,
-            has_value,
-            value / dial_table[active_dial].value_div
-        );
-    }
-    else if ( flags_active )
-    {
-        gauge_flags_poll( selected_idx, flags_status(), now_ms );
-    }
-    else
-    {
-        text_poll( screen, SCREEN_COUNT );
-    }
+    update_face( now_ms );
 }

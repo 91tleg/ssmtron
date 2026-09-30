@@ -247,9 +247,9 @@ static void on_send_enabled( enum bt_nus_send_status status )
     ( void )k_work_submit( &tx_work );
 }
 
-/* Pairing: we show a fixed passkey (nothing to display yet), the peer types
- * it. Having app_passkey makes us display-capable, which is what turns
- * pairing into the authenticated (MITM-protected) kind. */
+/* Pairing: the caller supplies the passkey and shows it on the gauge, and
+ * the peer types it. Having app_passkey makes us display-capable, which is
+ * what turns pairing into the authenticated (MITM-protected) kind. */
 static uint32_t on_app_passkey( struct bt_conn * c )
 {
     ARG_UNUSED( c );

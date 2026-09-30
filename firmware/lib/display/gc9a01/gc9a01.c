@@ -175,7 +175,6 @@ static void run_init_steps( void )
         { 0x98u, 2, 0, d_98 },
         { CMD_INVON, 0, 0, NULL },
         { CMD_SLPOUT, 0, 120, NULL },
-        { CMD_DISPON, 0, 20, NULL },
     };
     /* clang-format on */
     const size_t step_count = sizeof( init_steps ) / sizeof( init_steps[0] );
@@ -322,6 +321,19 @@ hal_status_t display_blit(
             write_pixel_row( &pixels[( size_t )row * w], w );
         }
         cs_select( false );
+        status = HAL_OK;
+    }
+    return status;
+}
+
+hal_status_t display_on( void )
+{
+    hal_status_t status = HAL_ERR_INVALID;
+
+    if ( ready )
+    {
+        write_cmd( CMD_DISPON );
+        hal_delay_ms( 20u );
         status = HAL_OK;
     }
     return status;

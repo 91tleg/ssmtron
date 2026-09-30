@@ -174,6 +174,19 @@ static void test_centered_text_is_centered_to_the_pixel( void )
     CHECK_EQ( last, 4 );
 }
 
+/* The update page's clock is m:ss, so the colon must be drawn. */
+static void test_font_colon_is_drawn( void )
+{
+    const font_glyph_t * g = font_glyph( ':' );
+    unsigned lit           = 0;
+
+    for ( size_t row = 0; row < FONT_H; row++ )
+    {
+        lit += ( g->rows[row] != 0u ) ? 1u : 0u;
+    }
+    CHECK( lit > 0u );
+}
+
 static void test_font_unknown_is_blank( void )
 {
     const font_glyph_t * unknown = font_glyph( '~' );
@@ -204,6 +217,7 @@ int main( void )
     test_poll_skips_unchanged_text();
     test_poll_redraws_on_change();
     test_centered_text_is_centered_to_the_pixel();
+    test_font_colon_is_drawn();
     test_font_unknown_is_blank();
     test_font_lowercase_matches_uppercase();
     test_font_digits_differ();

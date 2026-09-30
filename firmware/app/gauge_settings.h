@@ -18,12 +18,17 @@ bool gauge_settings_load_theme(
     size_t * out
 );
 
-/* Stores both values, writing only the one that differs from what is
+/* The ECU profile the saved parameter belongs to: the low 16 bits of its
+ * ROM ID. A saved parameter index only means something for that profile. */
+bool gauge_settings_load_profile( size_t * out );
+
+/* Stores all three values, writing only the ones that differ from what is
  * already stored. False if any write was needed and failed; a failed value
  * is tried again on the next save. */
 bool gauge_settings_save(
     size_t param_idx,
-    size_t theme_idx
+    size_t theme_idx,
+    size_t profile_key
 );
 
 #endif /* GAUGE_SETTINGS_H */
