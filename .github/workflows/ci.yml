@@ -143,5 +143,5 @@ jobs:
             -I firmware/app \
             -I firmware/bsp/nrf52840dk \
             -i firmware/app/fw_info.c \
-            firmware/lib/ssm1 firmware/lib/fmt firmware/lib/ui \
+            firmware/lib/ssm1 firmware/lib/fmt firmware/lib/textfit firmware/lib/ui \
             firmware/lib/display firmware/app

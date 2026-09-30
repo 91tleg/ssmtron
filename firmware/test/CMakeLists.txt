@@ -17,6 +17,7 @@ include_directories(${CMAKE_CURRENT_LIST_DIR}/..)
 add_subdirectory(../lib/ecu ecu)
 add_subdirectory(../lib/ssm1 ssm1)
 add_subdirectory(../lib/fmt fmt)
+add_subdirectory(../lib/textfit textfit)
 
 enable_testing()
 foreach(t ssm1_cmd ssm1_rx ssm1_romid ssm1_decode ssm1_params ssm1)
@@ -34,33 +35,37 @@ add_executable(test_fmt test_fmt.c)
 target_link_libraries(test_fmt PRIVATE fmt)
 add_test(NAME fmt COMMAND test_fmt)
 
+add_executable(test_textfit test_textfit.c)
+target_link_libraries(test_textfit PRIVATE textfit)
+add_test(NAME textfit COMMAND test_textfit)
+
 add_executable(test_ble_log test_ble_log.c ../app/ble_log.c)
 target_include_directories(test_ble_log PRIVATE ../app ../hal)
 target_link_libraries(test_ble_log PRIVATE fmt)
 add_test(NAME ble_log COMMAND test_ble_log)
 
-add_executable(test_gauge test_gauge.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_update.c ../app/gauge_settings.c ../app/gauge_sweep.c)
+add_executable(test_gauge test_gauge.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_number.c ../app/gauge_update.c ../app/gauge_settings.c ../app/gauge_sweep.c)
 target_include_directories(test_gauge PRIVATE ../app ../hal ../lib/display
                                                ../lib/ui)
-target_link_libraries(test_gauge PRIVATE fmt)
+target_link_libraries(test_gauge PRIVATE fmt textfit)
 add_test(NAME gauge COMMAND test_gauge)
 
-add_executable(test_gauge_watch_log test_gauge_watch_log.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_update.c ../app/gauge_settings.c ../app/gauge_sweep.c)
+add_executable(test_gauge_watch_log test_gauge_watch_log.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_number.c ../app/gauge_update.c ../app/gauge_settings.c ../app/gauge_sweep.c)
 target_include_directories(test_gauge_watch_log
                             PRIVATE ../app ../hal ../lib/display ../lib/ui)
-target_link_libraries(test_gauge_watch_log PRIVATE fmt)
+target_link_libraries(test_gauge_watch_log PRIVATE fmt textfit)
 add_test(NAME gauge_watch_log COMMAND test_gauge_watch_log)
 
-add_executable(test_gauge_dial test_gauge_dial.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_update.c ../app/gauge_settings.c ../app/gauge_sweep.c)
+add_executable(test_gauge_dial test_gauge_dial.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_number.c ../app/gauge_update.c ../app/gauge_settings.c ../app/gauge_sweep.c)
 target_include_directories(test_gauge_dial
                             PRIVATE ../app ../hal ../lib/display ../lib/ui)
-target_link_libraries(test_gauge_dial PRIVATE fmt)
+target_link_libraries(test_gauge_dial PRIVATE fmt textfit)
 add_test(NAME gauge_dial COMMAND test_gauge_dial)
 
-add_executable(test_gauge_flags test_gauge_flags.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_update.c ../app/gauge_settings.c ../app/gauge_sweep.c)
+add_executable(test_gauge_flags test_gauge_flags.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_number.c ../app/gauge_update.c ../app/gauge_settings.c ../app/gauge_sweep.c)
 target_include_directories(test_gauge_flags
                             PRIVATE ../app ../hal ../lib/display ../lib/ui)
-target_link_libraries(test_gauge_flags PRIVATE fmt)
+target_link_libraries(test_gauge_flags PRIVATE fmt textfit)
 add_test(NAME gauge_flags COMMAND test_gauge_flags)
 
 add_executable(test_gauge_input test_gauge_input.c ../app/gauge_input.c)
@@ -82,6 +87,7 @@ add_executable(test_dial_region test_dial_region.c ../lib/ui/font.c
                ../lib/ui/dial_motion.c)
 target_include_directories(test_dial_region PRIVATE ../lib/ui ../lib/display
                                                      ../hal)
+target_link_libraries(test_dial_region PRIVATE textfit)
 add_test(NAME dial_region COMMAND test_dial_region)
 
 # The same code compiled for a 360 x 360 panel, to keep it free of hard-coded
@@ -90,16 +96,17 @@ add_executable(test_dial_region_360 test_dial_region.c ../lib/ui/font.c
                ../lib/ui/dial_motion.c)
 target_include_directories(test_dial_region_360 PRIVATE ../lib/ui
                            ../lib/display ../hal)
+target_link_libraries(test_dial_region_360 PRIVATE textfit)
 target_compile_definitions(test_dial_region_360 PRIVATE DISPLAY_WIDTH=360u
                                                         DISPLAY_HEIGHT=360u)
 add_test(NAME dial_region_360 COMMAND test_dial_region_360)
 
 add_executable(test_gauge_flags_360
-  test_gauge_flags.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_update.c
+  test_gauge_flags.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_info.c ../app/gauge_input.c ../app/gauge_number.c ../app/gauge_update.c
   ../app/gauge_settings.c ../app/gauge_sweep.c)
 target_include_directories(test_gauge_flags_360
                             PRIVATE ../app ../hal ../lib/display ../lib/ui)
-target_link_libraries(test_gauge_flags_360 PRIVATE fmt)
+target_link_libraries(test_gauge_flags_360 PRIVATE fmt textfit)
 target_compile_definitions(test_gauge_flags_360 PRIVATE DISPLAY_WIDTH=360u
                                                         DISPLAY_HEIGHT=360u)
 add_test(NAME gauge_flags_360 COMMAND test_gauge_flags_360)
@@ -113,6 +120,18 @@ target_include_directories(test_gauge_info_360 PRIVATE ../app ../hal)
 target_compile_definitions(test_gauge_info_360 PRIVATE DISPLAY_WIDTH=360u
                                                        DISPLAY_HEIGHT=360u)
 add_test(NAME gauge_info_360 COMMAND test_gauge_info_360)
+
+add_executable(test_gauge_number test_gauge_number.c ../app/gauge_number.c)
+target_include_directories(test_gauge_number PRIVATE ../app ../hal)
+target_link_libraries(test_gauge_number PRIVATE fmt textfit)
+add_test(NAME gauge_number COMMAND test_gauge_number)
+
+add_executable(test_gauge_number_360 test_gauge_number.c ../app/gauge_number.c)
+target_include_directories(test_gauge_number_360 PRIVATE ../app ../hal)
+target_compile_definitions(test_gauge_number_360 PRIVATE DISPLAY_WIDTH=360u
+                                                         DISPLAY_HEIGHT=360u)
+target_link_libraries(test_gauge_number_360 PRIVATE fmt textfit)
+add_test(NAME gauge_number_360 COMMAND test_gauge_number_360)
 
 add_executable(test_gauge_update test_gauge_update.c ../app/gauge_update.c)
 target_include_directories(test_gauge_update PRIVATE ../app ../hal)
@@ -138,7 +157,13 @@ add_test(NAME text COMMAND test_text)
 add_executable(test_dial test_dial.c ../lib/ui/dial.c ../lib/ui/font.c
                ../lib/ui/dial_motion.c)
 target_include_directories(test_dial PRIVATE ../lib/ui ../lib/display ../hal)
+target_link_libraries(test_dial PRIVATE textfit)
 add_test(NAME dial COMMAND test_dial)
+
+# The page modules build their rows with the shared text fitting.
+foreach(t gauge_info gauge_info_360 gauge_update gauge_update_360)
+  target_link_libraries(test_${t} PRIVATE textfit)
+endforeach()
 
 add_executable(test_dial_motion test_dial_motion.c ../lib/ui/dial_motion.c)
 add_test(NAME dial_motion COMMAND test_dial_motion)

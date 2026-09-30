@@ -4,9 +4,13 @@
 #include <string.h>
 
 #include "lib/display/display.h"
+#include "lib/textfit/textfit.h"
 #include "lib/ui/font.h"
 #include "lib/ui/dial_motion.h"
 #include "lib/ui/ui_geom.h"
+
+/* A label's buffer: DIAL_TEXT_MAX characters and the NUL. */
+#define DIAL_LABEL_BUF ( DIAL_TEXT_MAX + 1u )
 
 #define DIAL_PANEL_W ( ( int )DISPLAY_WIDTH )
 #define DIAL_PANEL_H ( ( int )DISPLAY_HEIGHT )
@@ -82,7 +86,7 @@ typedef struct
     int16_t x;
     int16_t y;
     uint8_t scale;
-    char text[DIAL_TEXT_MAX + 1u];
+    char text[DIAL_LABEL_BUF];
 } dial_label_t;
 
 static void angle_vec(
@@ -230,22 +234,6 @@ static int16_t rest_deg( const dial_cfg_t * cfg )
     return value_to_deg( cfg, ( cfg->min_value < 0 ) ? 0 : cfg->min_value );
 }
 
-/* Truncate labels to fit the fixed buffer. */
-static void copy_bounded(
-    char * dst,
-    const char * src
-)
-{
-    size_t n = strlen( src );
-
-    if ( n > DIAL_TEXT_MAX )
-    {
-        n = DIAL_TEXT_MAX;
-    }
-    ( void )memcpy( dst, src, n );
-    dst[n] = '\0';
-}
-
 static int32_t label_width(
     size_t length,
     uint8_t scale
@@ -332,7 +320,7 @@ static void build_ticks(
         {
             int32_t sin_m;
             int32_t cos_m;
-            char text[DIAL_TEXT_MAX + 1u];
+            char text[DIAL_LABEL_BUF];
             size_t len;
             int32_t x;
             int32_t y;
@@ -348,7 +336,7 @@ static void build_ticks(
             labels[nl].x     = ( int16_t )x;
             labels[nl].y     = ( int16_t )y;
             labels[nl].scale = DIAL_LABEL_SCALE;
-            copy_bounded( labels[nl].text, text );
+            ( void )textfit_copy( labels[nl].text, DIAL_LABEL_BUF, text );
             nl++;
         }
         value += minor_step;
@@ -375,7 +363,7 @@ static void add_fixed_labels(
                              / 2 ) );
         labels[n].y     = ( int16_t )( DIAL_CY - UI_LEN( 259 ) );
         labels[n].scale = DIAL_FIXED_SCALE;
-        copy_bounded( labels[n].text, cfg->label );
+        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->label );
         n++;
     }
 
@@ -384,7 +372,7 @@ static void add_fixed_labels(
         labels[n].x     = ( int16_t )( DIAL_CX + UI_LEN( 325 ) );
         labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 42 ) );
         labels[n].scale = DIAL_FIXED_SCALE;
-        copy_bounded( labels[n].text, cfg->unit_pos );
+        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->unit_pos );
         n++;
     }
 
@@ -393,7 +381,7 @@ static void add_fixed_labels(
         labels[n].x     = ( int16_t )( DIAL_CX - UI_LEN( 550 ) );
         labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 192 ) );
         labels[n].scale = DIAL_FIXED_SCALE;
-        copy_bounded( labels[n].text, cfg->unit_neg );
+        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->unit_neg );
         n++;
     }
     *label_count = n;
