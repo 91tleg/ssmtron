@@ -142,7 +142,6 @@ jobs:
             -I firmware/lib/display \
             -I firmware/app \
             -I firmware/bsp/nrf52840dk \
-            -DPROVISION_PASSKEY=0 \
             -i firmware/app/fw_info.c \
             firmware/lib/ssm1 firmware/lib/fmt firmware/lib/ui \
-            firmware/lib/display firmware/app firmware/provision
+            firmware/lib/display firmware/app

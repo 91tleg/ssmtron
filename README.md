@@ -13,7 +13,7 @@ At power-on, the needle of the first dial sweeps to full scale and settles on th
 
 The target is the nRF52840 DK. The ECU link uses UART1 through a suitable level shifter; do not connect the car-side signal directly to a 3.3 V pin. The display uses SPI2, and the two controls use the DK's onboard buttons. Pin assignments are in [`firmware/bsp/nrf52840dk/board.overlay`](firmware/bsp/nrf52840dk/board.overlay).
 
-The SSM1 session, ECU profiles, and decoders live in `firmware/lib/ssm1/`. `firmware/app/` connects them to the display and buttons, while `firmware/hal/nrf52/` provides the board-facing drivers. Bluetooth is used only for authenticated firmware updates and is off until update mode starts; the gauge does not stream ECU values over Bluetooth. Update mode uses a new random passkey each time and keeps no pairing, so `firmware/provision/`, which stored a fixed per-unit passkey, is no longer needed.
+The SSM1 session, ECU profiles, and decoders live in `firmware/lib/ssm1/`. `firmware/app/` connects them to the display and buttons, while `firmware/hal/nrf52/` provides the board-facing drivers. Bluetooth is used only for authenticated firmware updates and is off until update mode starts; the gauge does not stream ECU values over Bluetooth. Update mode uses a new random passkey each time and keeps no pairing.
 
 ## Updating the firmware
 
