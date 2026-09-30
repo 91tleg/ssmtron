@@ -2,8 +2,8 @@
 #ifndef GAUGE_H
 #define GAUGE_H
 
-#include "display.h"
-#include "hal_gpio.h"
+#include "hal/hal_gpio.h"
+#include "lib/display/display.h"
 
 /* Starts the panel on the given pins and draws the initial screen.
  * next_btn: a tap cycles the shown parameter, a hold saves it as the

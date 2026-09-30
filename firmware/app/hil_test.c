@@ -1,6 +1,6 @@
 /* Only ever built when CONFIG_APP_HIL_TEST is on (see CMakeLists.txt);
  * never part of a production image. */
-#include "hil_test.h"
+#include "app/hil_test.h"
 
 #if defined( CONFIG_APP_HIL_TEST )
 #include <zephyr/device.h>

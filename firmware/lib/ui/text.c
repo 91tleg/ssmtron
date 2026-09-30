@@ -1,15 +1,14 @@
 /* Render one pixel row at a time to keep the scratch buffer small. */
-#include "text.h"
+#include "lib/ui/text.h"
 
 #include <stdbool.h>
 #include <string.h>
 
-#include "display.h"
-#include "font.h"
+#include "lib/display/display.h"
+#include "lib/ui/font.h"
 
-/* The widest panel this engine has been sized for; gc9a01 (240) is the
- * only display driver today. Bump this if a wider panel is ever added. */
-#define TEXT_MAX_ROW_PX 240u
+/* The widest row it ever draws is the panel's width. */
+#define TEXT_MAX_ROW_PX ( DISPLAY_WIDTH )
 
 static void draw_widget(
     const text_widget_t * w,

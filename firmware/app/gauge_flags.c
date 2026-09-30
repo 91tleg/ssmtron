@@ -1,8 +1,9 @@
-#include "gauge_flags.h"
+#include "app/gauge_flags.h"
 
 #include <string.h>
 
-#include "text.h"
+#include "lib/ui/text.h"
+#include "lib/ui/ui_geom.h"
 
 /* The selected byte is 8 flags, one row per flag. Every name is always
  * printed, followed by that flag's state as 1 or 0, or - while the byte is
@@ -12,6 +13,12 @@
 #define FLAG_NAME_W   ( 11u )
 #define FLAG_TITLE_W  ( 20u )
 #define FLAG_STATUS_W ( 20u )
+
+/* The same widths as plain ints, for sizing the widgets' rects. A row is
+ * the name, a space and the state. */
+#define FLAG_TITLE_CHARS  ( ( int )FLAG_TITLE_W )
+#define FLAG_STATUS_CHARS ( ( int )FLAG_STATUS_W )
+#define FLAG_ROW_CHARS    ( ( int )FLAG_NAME_W + 2 )
 
 /* One dot per step, so the wait shows the unit has not hung. The clear
  * takes tens of seconds. The font has no | or \, so a spinning bar is not
@@ -187,19 +194,85 @@ static void row7( char * buf )
 }
 
 /* Colors are set by gauge_flags_set_colors before the page is drawn.
- * Rows use the title's size: 13 glyphs of 6 px, 16 px apart, all inside
- * the round panel. The status line sits below the last row. */
+ * Rows use the title's size and sit 134 thousandths of the radius apart,
+ * with the first 600 above the center. The status line sits below the last
+ * row. All of it fits inside the round panel. */
+#define ROW_Y( n ) ( UI_CY - UI_LEN( 600 ) + ( ( n ) * UI_LEN( 134 ) ) )
+
+/* The flags page is all one text size, chosen for the 240 px panel. */
+#define FLAGS_SCALE UI_TEXT_SCALE( 1 )
+
 static text_widget_t page[] = {
-    { { 60, 24, 120, 7 }, 1, 0u, 0u, title_text, { 0 }, TEXT_ALIGN_LEFT },
-    { { 81, 48, 78, 7 }, 1, 0u, 0u, row0, { 0 }, TEXT_ALIGN_LEFT },
-    { { 81, 64, 78, 7 }, 1, 0u, 0u, row1, { 0 }, TEXT_ALIGN_LEFT },
-    { { 81, 80, 78, 7 }, 1, 0u, 0u, row2, { 0 }, TEXT_ALIGN_LEFT },
-    { { 81, 96, 78, 7 }, 1, 0u, 0u, row3, { 0 }, TEXT_ALIGN_LEFT },
-    { { 81, 112, 78, 7 }, 1, 0u, 0u, row4, { 0 }, TEXT_ALIGN_LEFT },
-    { { 81, 128, 78, 7 }, 1, 0u, 0u, row5, { 0 }, TEXT_ALIGN_LEFT },
-    { { 81, 144, 78, 7 }, 1, 0u, 0u, row6, { 0 }, TEXT_ALIGN_LEFT },
-    { { 81, 160, 78, 7 }, 1, 0u, 0u, row7, { 0 }, TEXT_ALIGN_LEFT },
-    { { 60, 186, 120, 7 }, 1, 0u, 0u, status_text, { 0 }, TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_TITLE_CHARS, FLAGS_SCALE, UI_CY - UI_LEN( 800 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      title_text,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 0 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      row0,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 1 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      row1,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 2 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      row2,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 3 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      row3,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 4 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      row4,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 5 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      row5,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 6 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      row6,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 7 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      row7,
+      { 0 },
+      TEXT_ALIGN_LEFT },
+    { UI_CENTERED_RECT( FLAG_STATUS_CHARS, FLAGS_SCALE, UI_CY + UI_LEN( 550 ) ),
+      FLAGS_SCALE,
+      0u,
+      0u,
+      status_text,
+      { 0 },
+      TEXT_ALIGN_LEFT },
 };
 #define PAGE_COUNT ( sizeof( page ) / sizeof( page[0] ) )
 

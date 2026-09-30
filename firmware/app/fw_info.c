@@ -1,4 +1,4 @@
-#include "fw_info.h"
+#include "app/fw_info.h"
 
 #include <app_version.h>
 

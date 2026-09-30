@@ -1,16 +1,17 @@
-#include "gauge.h"
+#include "app/gauge.h"
 
 #include <stdint.h>
 #include <string.h>
 
-#include "dial.h"
-#include "ecu.h"
-#include "fmt.h"
-#include "gauge_flags.h"
-#include "gauge_input.h"
-#include "gauge_settings.h"
-#include "hal_log.h"
-#include "text.h"
+#include "app/gauge_flags.h"
+#include "app/gauge_input.h"
+#include "app/gauge_settings.h"
+#include "hal/hal_log.h"
+#include "lib/ecu/ecu.h"
+#include "lib/fmt/fmt.h"
+#include "lib/ui/dial.h"
+#include "lib/ui/text.h"
+#include "lib/ui/ui_geom.h"
 
 /* Two looks. Dark is a black face with the light theme's numbers inverted;
  * the needle stays red in both. The page colors match the dial's face and
@@ -301,12 +302,43 @@ static void link_text( char * buf )
 
 /* The screen: rects are kept a safe margin inside the round panel's 120
  * px radius, not tiled edge-to-edge like a square display would allow. */
+/* Text sizes on the number-only screen, chosen for the 240 px panel. */
+#define NAME_SCALE  UI_TEXT_SCALE( 1 )
+#define VALUE_SCALE UI_TEXT_SCALE( 4 )
+#define UNIT_SCALE  UI_TEXT_SCALE( 2 )
+#define LINK_SCALE  UI_TEXT_SCALE( 1 )
+
 static text_widget_t screen[] = {
-    /* The name sits where the dials put their label (centered, y = 89). */
-    { { 48, 89, 144, 7 }, 1, FG, BG, name_text, { 0 }, TEXT_ALIGN_CENTER },
-    { { 24, 104, 192, 28 }, 4, FG, BG, value_text, { 0 }, TEXT_ALIGN_CENTER },
-    { { 48, 140, 144, 14 }, 2, FG, BG, unit_text, { 0 }, TEXT_ALIGN_CENTER },
-    { { 48, 175, 144, 7 }, 1, FG, BG, link_text, { 0 }, TEXT_ALIGN_CENTER },
+    /* The name sits where the dials put their label: centered, above the
+     * center. */
+    { UI_CENTERED_RECT( 24, NAME_SCALE, UI_CY - UI_LEN( 259 ) ),
+      NAME_SCALE,
+      FG,
+      BG,
+      name_text,
+      { 0 },
+      TEXT_ALIGN_CENTER },
+    { UI_CENTERED_RECT( 8, VALUE_SCALE, UI_CY - UI_LEN( 134 ) ),
+      VALUE_SCALE,
+      FG,
+      BG,
+      value_text,
+      { 0 },
+      TEXT_ALIGN_CENTER },
+    { UI_CENTERED_RECT( 12, UNIT_SCALE, UI_CY + UI_LEN( 167 ) ),
+      UNIT_SCALE,
+      FG,
+      BG,
+      unit_text,
+      { 0 },
+      TEXT_ALIGN_CENTER },
+    { UI_CENTERED_RECT( 24, LINK_SCALE, UI_CY + UI_LEN( 459 ) ),
+      LINK_SCALE,
+      FG,
+      BG,
+      link_text,
+      { 0 },
+      TEXT_ALIGN_CENTER },
 };
 #define SCREEN_COUNT ( sizeof( screen ) / sizeof( screen[0] ) )
 

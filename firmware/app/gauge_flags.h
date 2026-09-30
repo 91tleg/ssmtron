@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "ecu.h"
+#include "lib/ecu/ecu.h"
 
 /* What the line under the flags says. */
 typedef enum

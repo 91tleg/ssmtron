@@ -6,9 +6,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "hal_gpio.h"
-#include "hal_spi.h"
-#include "hal_status.h"
+#include "hal/hal_gpio.h"
+#include "hal/hal_spi.h"
+#include "hal/hal_status.h"
+
+/* The panel's size in pixels. A build for a panel of another size sets
+ * these (for example with -DDISPLAY_WIDTH=360 -DDISPLAY_HEIGHT=360); everything
+ * above the driver follows. The driver checks them against its own chip. */
+#ifndef DISPLAY_WIDTH
+#define DISPLAY_WIDTH ( 240u )
+#endif
+#ifndef DISPLAY_HEIGHT
+#define DISPLAY_HEIGHT ( 240u )
+#endif
 
 /* Which bus and control lines the panel is wired to. The board (BSP) knows
  * these ids; the driver does not. backlight is only touched when

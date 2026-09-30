@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "lib/ui/font.h"
+
 /* Longest string any widget may produce, not counting the NUL. A widget
  * needing more should be given its own wider rect, not a longer cache. */
 #define TEXT_MAX 24u
@@ -17,6 +19,13 @@ typedef struct
     uint16_t w;
     uint16_t h; /* must be FONT_H * scale; see font.h */
 } text_rect_t;
+
+/* The size of a rect that holds this many glyphs at this scale, so a
+ * widget's rect follows its text size instead of a hand-counted number.
+ * chars and scale are plain int constants. */
+#define TEXT_RECT_W( chars, scale )                                            \
+    ( ( chars ) * ( ( int )FONT_W + 1 ) * ( scale ) )
+#define TEXT_RECT_H( scale ) ( ( int )FONT_H * ( scale ) )
 
 typedef enum
 {

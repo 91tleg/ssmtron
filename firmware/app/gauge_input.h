@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "hal_gpio.h"
+#include "hal/hal_gpio.h"
 
 typedef enum
 {
