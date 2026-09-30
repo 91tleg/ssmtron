@@ -1,7 +1,7 @@
 /* Check redraw pacing, idle behavior, and needle movement. */
-#include "dial.h"
-#include "display.h"
-#include "minitest.h"
+#include "lib/ui/dial.h"
+#include "lib/display/display.h"
+#include "test/minitest.h"
 
 static unsigned blit_calls;
 static unsigned clear_calls;
@@ -11,7 +11,7 @@ static uint16_t last_blit_h;
 /* Mirrors every blit into absolute panel coordinates, so a test can ask
  * "what color is actually on screen at (row, col) right now" regardless
  * of whether it got there via a full draw_frame or a small draw_region. */
-#define SHADOW_DIM 240u
+#define SHADOW_DIM ( 240u )
 static uint16_t shadow[SHADOW_DIM][SHADOW_DIM];
 
 hal_status_t display_blit(
@@ -70,13 +70,13 @@ static bool shadow_has_color(
 }
 
 #define PANEL_H                                                                \
-    240u /* one blit per row, only for the full-panel draw_frame               \
-          * path (dial_init, and a box-too-big fallback) */
+    ( 240u ) /* one blit per row, only for the full-panel draw_frame           \
+              * path (dial_init, and a box-too-big fallback) */
 
-/* 0..100 over the full 135..435 sweep, with no face label or units. 300
- * degrees / 10 per frame = exactly 30 frames end to end. */
+/* 0..100 over the full 135..435 sweep, with no face label or units. Its top
+ * speed is 300 degrees per second, a full sweep in one second. */
 static const dial_cfg_t test_cfg = {
-    0, 100, 25, 0u, NULL, NULL, NULL, 1u, 2u, 3u, 10u, DIAL_STYLE_DEFAULT
+    0, 100, 25, 0u, NULL, NULL, NULL, 1u, 2u, 3u, 300u, DIAL_STYLE_DEFAULT
 };
 
 static void reset( void )
@@ -125,24 +125,45 @@ static void test_value_change_within_frame_interval_waits( void )
     CHECK_EQ( blit_calls, 0u );
 }
 
+/* Polls every frame interval until the needle settles. Returns the number
+ * of polls it took, or 0 if it never settled within limit polls. */
+static unsigned settle(
+    dial_widget_t * d,
+    uint32_t * now,
+    bool has_value,
+    int32_t value,
+    unsigned limit
+)
+{
+    unsigned polls = 0u;
+
+    do
+    {
+        *now += 33u;
+        dial_poll( d, *now, has_value, value );
+        polls++;
+    } while ( !dial_settled( d ) && ( polls < limit ) );
+    return dial_settled( d ) ? polls : 0u;
+}
+
 static void test_big_jump_sweeps_over_multiple_frames( void )
 {
     dial_widget_t d;
     uint32_t now = 0u;
+    unsigned polls;
 
     dial_init( &d, &test_cfg, now );
     reset();
 
-    /* Full-scale jump, one frame interval apart each time: must take
-     * more than one redraw to get there (a real sweep, not a teleport),
-     * and exactly 30 (300 degrees / 10 per frame). Each redraw is one
-     * dirty-rect blit now (see draw_region), not one per row. */
-    for ( int i = 0; i < 40; i++ )
-    {
-        now += 33u;
-        dial_poll( &d, now, true, 100 );
-    }
-    CHECK_EQ( blit_calls, 30u );
+    /* Full-scale jump: a real sweep, not a teleport. At 300 degrees per
+     * second the 300 degrees take about a second, plus a short tail while
+     * the needle closes on the value. Each redraw is one dirty-rect blit
+     * (see draw_region), not one per row. */
+    polls = settle( &d, &now, true, 100, 100u );
+    CHECK( polls >= 30u );
+    CHECK( polls <= 45u );
+    CHECK( blit_calls > 1u );
+    CHECK( blit_calls <= polls );
     CHECK_EQ( d.displayed_deg, d.target_deg );
 
     /* The dirty rect actually is a small fraction of the panel, not the
@@ -163,24 +184,43 @@ static void test_value_loss_sweeps_back_to_rest( void )
 
     dial_init( &d, &test_cfg, now );
     /* Drive it to max first. */
-    for ( int i = 0; i < 30; i++ )
-    {
-        now += 33u;
-        dial_poll( &d, now, true, 100 );
-    }
+    CHECK( settle( &d, &now, true, 100, 100u ) > 0u );
     CHECK_EQ( d.displayed_deg, d.target_deg );
 
     /* ECU value disappears: must sweep back to min_value's angle, not
      * freeze at the last reading. */
     reset();
-    for ( int i = 0; i < 30; i++ )
-    {
-        now += 33u;
-        dial_poll( &d, now, false, 0 );
-    }
+    CHECK( settle( &d, &now, false, 0, 100u ) > 0u );
     CHECK( blit_calls > 1u ); /* took more than one redraw */
     CHECK_EQ( d.displayed_deg, d.target_deg );
     CHECK_EQ( d.target_deg, 135 );
+}
+
+static void test_frames_come_at_a_steady_interval( void )
+{
+    dial_widget_t d;
+    uint32_t stamps[20];
+    unsigned found = 0u;
+    unsigned seen;
+
+    dial_init( &d, &test_cfg, 0u );
+    reset();
+    seen = blit_calls;
+    /* Polled every millisecond, as the main loop does. */
+    for ( uint32_t t = 1u; ( t < 1500u ) && ( found < 20u ); t++ )
+    {
+        dial_poll( &d, t, true, 100 );
+        if ( blit_calls != seen )
+        {
+            seen            = blit_calls;
+            stamps[found++] = t;
+        }
+    }
+    CHECK_EQ( found, 20u );
+    for ( unsigned i = 1u; i < found; i++ )
+    {
+        CHECK_EQ( stamps[i] - stamps[i - 1u], 33u );
+    }
 }
 
 static void test_needle_draws_over_label_and_uncovers_it( void )
@@ -203,7 +243,7 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
         0x1111u,
         0x2222u,
         0x3333u,
-        5u,
+        150u,
         DIAL_STYLE_DEFAULT
     };
     const uint16_t label_y0 = 89u;
@@ -260,7 +300,7 @@ static void test_default_scale_and_rest( void )
         1u,
         2u,
         3u,
-        30u,
+        900u,
         DIAL_STYLE_DEFAULT
     };
     dial_widget_t d;
@@ -281,7 +321,7 @@ static void test_default_scale_and_rest( void )
 static void test_rpm_face_scale( void )
 {
     static const dial_cfg_t cfg = {
-        0, 8, 1, 0u, "RPM", "x1000", NULL, 1u, 2u, 3u, 30u, DIAL_STYLE_DEFAULT
+        0, 8, 1, 0u, "RPM", "x1000", NULL, 1u, 2u, 3u, 900u, DIAL_STYLE_DEFAULT
     };
     dial_widget_t d;
 
@@ -302,6 +342,7 @@ int main( void )
     test_value_change_within_frame_interval_waits();
     test_big_jump_sweeps_over_multiple_frames();
     test_value_loss_sweeps_back_to_rest();
+    test_frames_come_at_a_steady_interval();
     test_needle_draws_over_label_and_uncovers_it();
     test_default_scale_and_rest();
     test_rpm_face_scale();

@@ -535,7 +535,7 @@ static dial_cfg_t boost_dial_cfg = {
     0xEF5Bu,
     0x632Cu,
     NEEDLE_RED,
-    30u,
+    900u,
     DIAL_STYLE_DEFAULT
 };
 
@@ -551,7 +551,7 @@ static dial_cfg_t rpm_dial_cfg = {
     0xEF5Bu,
     0x632Cu,
     NEEDLE_RED,
-    40u,
+    1200u,
     DIAL_STYLE_DEFAULT
 };
 

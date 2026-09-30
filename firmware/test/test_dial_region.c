@@ -56,7 +56,7 @@ static const dial_cfg_t cfg = {
     0xEF5Bu,
     0x632Cu,
     0xF922u,
-    30u,
+    900u,
     DIAL_STYLE_DEFAULT
 };
 
@@ -69,6 +69,7 @@ static void full_frame_at(
 {
     d->displayed_deg = deg;
     d->target_deg    = deg;
+    dial_motion_init( &d->motion, deg, now );
     draw_frame( d );
 }
 
@@ -91,17 +92,26 @@ static unsigned differences( void )
     return bad;
 }
 
-/* Draws at from, moves to to by one poll, and compares with a fresh frame at
- * to. Returns the number of stale or wrong pixels. */
+/* Draws at from, moves to to over as many frames as it takes, and compares with
+ * a fresh frame at to. Returns the number of stale or wrong pixels. */
 static unsigned move_and_compare(
     dial_widget_t * d,
     int16_t from,
     int16_t to
 )
 {
+    unsigned polls = 0u;
+
     full_frame_at( d, from );
-    now += 100u;
-    dial_poll( d, now, true, to - 135 );
+    /* The move takes several frames; every partial redraw on the way must
+     * leave the panel right, not just the last. */
+
+    do
+    {
+        now += 33u;
+        dial_poll( d, now, true, to - 135 );
+        polls++;
+    } while ( !dial_settled( d ) && ( polls < 200u ) );
     ( void )memcpy( partial, shadow, sizeof( shadow ) );
     full_frame_at( d, to );
     return differences();

@@ -1,4 +1,4 @@
-set(UI_SOURCES text.c font.c dial.c)
+set(UI_SOURCES text.c font.c dial.c dial_motion.c)
 
 if(COMMAND zephyr_library_named)
   zephyr_library_named(ui)

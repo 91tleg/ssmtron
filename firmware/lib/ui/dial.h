@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "lib/ui/dial_motion.h"
+
 /* Maximum visible characters in a dial label. */
 #define DIAL_TEXT_MAX ( 8u )
 
@@ -31,17 +33,17 @@ typedef struct
     uint16_t face_bg;
     uint16_t tick_fg; /* also used for tick numbers, label, and units */
     uint16_t needle_fg;
-    uint16_t max_step_deg; /* needle's sweep rate limit, degrees/redraw;
-                            * must be > 0 or the needle can never move */
+    uint16_t max_deg_per_s; /* needle's fastest speed, degrees per second;
+                             * must be > 0 or the needle can never move */
     dial_style_t style;
 } dial_cfg_t;
 
 typedef struct
 {
     const dial_cfg_t * cfg;
-    int16_t displayed_deg; /* the angle actually drawn */
+    int16_t displayed_deg; /* the angle actually drawn, in whole degrees */
     int16_t target_deg;    /* the angle the latest value maps to */
-    uint32_t last_frame_ms;
+    dial_motion_t motion;  /* its motion, see dial_motion.h */
 } dial_widget_t;
 
 /* True once the needle has reached the value it was last given. */
@@ -54,8 +56,11 @@ void dial_init(
     uint32_t now_ms
 );
 
-/* Move toward value by at most max_step_deg per frame. Redraw only while
- * moving. If has_value is false, return to min_value. */
+/* Move toward value like a damped needle: it closes on the value smoothly
+ * and is never faster than max_deg_per_s. Motion follows the time that has
+ * passed, so a late frame moves it further instead of slowing it. Frames
+ * come at a steady interval and are drawn only when the needle's whole
+ * degree changes. If has_value is false, return to min_value. */
 void dial_poll(
     dial_widget_t * d,
     uint32_t now_ms,

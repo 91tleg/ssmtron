@@ -7,7 +7,18 @@
 
 /* A scale of -30 to 20, like the boost dial. */
 static const dial_cfg_t cfg = {
-    -30, 20, 10, 4u, "TURBO", "PSI", "INHG", 0u, 0u, 0u, 30u, DIAL_STYLE_DEFAULT
+    -30,
+    20,
+    10,
+    4u,
+    "TURBO",
+    "PSI",
+    "INHG",
+    0u,
+    0u,
+    0u,
+    900u,
+    DIAL_STYLE_DEFAULT
 };
 
 static void test_it_aims_at_full_scale_then_hands_over( void )
