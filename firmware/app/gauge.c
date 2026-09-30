@@ -6,15 +6,13 @@
 #include "app/gauge_flags.h"
 #include "app/gauge_info.h"
 #include "app/gauge_input.h"
+#include "app/gauge_number.h"
 #include "app/gauge_settings.h"
 #include "app/gauge_sweep.h"
 #include "app/gauge_update.h"
 #include "hal/hal_log.h"
 #include "lib/ecu/ecu.h"
-#include "lib/fmt/fmt.h"
 #include "lib/ui/dial.h"
-#include "lib/ui/text.h"
-#include "lib/ui/ui_geom.h"
 
 /* Two looks. Dark is a black face with the light theme's numbers inverted;
  * the needle stays red in both. The page colors match the dial's face and
@@ -32,10 +30,6 @@ static const theme_t themes[THEME_COUNT] = {
     { 0xEF5Bu, 0x632Cu }, /* light */
     { 0x0000u, 0x9CD3u }, /* dark: black face, inverted ink */
 };
-
-/* Widgets start in the light colors; apply_theme() sets the real ones. */
-#define FG ( 0x632Cu )
-#define BG ( 0xEF5Bu )
 
 /* How long the SAVED or SAVE FAILED notice replaces the gauge face. */
 #define SAVE_NOTICE_MS ( 1000u )
@@ -68,41 +62,6 @@ static size_t selected_idx;
 /* The info page follows the last parameter in the cycle. While it is shown,
  * selected_idx keeps the last parameter, which the ECU keeps streaming. */
 static bool info_shown;
-
-/* Find the fresh value from the ECU's single active stream. */
-static bool current_value(
-    const ecu_param_info_t ** info,
-    int32_t * value
-)
-{
-    bool found = false;
-
-    for ( size_t i = 0; !found && ( i < ecu_param_count() ); i++ )
-    {
-        if ( ecu_get_value( i, value ) )
-        {
-            *info = ecu_param_info( i );
-            found = true;
-        }
-    }
-    return found;
-}
-
-/* Copy and terminate up to TEXT_MAX bytes. */
-static void copy_capped(
-    char * buf,
-    const char * s
-)
-{
-    size_t n = strlen( s );
-
-    if ( n > TEXT_MAX )
-    {
-        n = TEXT_MAX;
-    }
-    ( void )memcpy( buf, s, n );
-    buf[n] = '\0';
-}
 
 /* Restore the saved page. */
 static void restore_selected_idx( void )
@@ -383,101 +342,31 @@ static void poll_action( uint32_t now )
     }
 }
 
-static void name_text( char * buf )
+/* The save result as a notice line, or nothing while there is none. */
+static const char * save_notice_text( void )
 {
-    const ecu_param_info_t * info = selected_info();
+    const char * text = "";
 
     if ( save_notice_active )
     {
-        copy_capped( buf, save_notice_ok ? "SAVED" : "SAVE FAILED" );
+        text = save_notice_ok ? "SAVED" : "SAVE FAILED";
     }
-    else
-    {
-        /* The page is named even before the ECU has sent a value. */
-        copy_capped( buf, ( info != NULL ) ? info->name : "" );
-    }
+    return text;
 }
-
-/* Dashes stand in for a value the ECU has not sent, as a dial rests. */
-static void value_text( char * buf )
-{
-    const ecu_param_info_t * info = selected_info();
-    int32_t value                 = 0;
-
-    if ( ( info != NULL ) && selected_value( &value ) )
-    {
-        ( void )fmt_value( buf, TEXT_MAX + 1u, info, value );
-    }
-    else
-    {
-        copy_capped( buf, "--" );
-    }
-}
-
-static void unit_text( char * buf )
-{
-    const ecu_param_info_t * info = selected_info();
-    int32_t value                 = 0;
-
-    copy_capped(
-        buf,
-        ( ( info != NULL ) && selected_value( &value ) )
-            ? ecu_unit( info, value )
-            : ""
-    );
-}
-
-/* The screen: rects are kept a safe margin inside the round panel's 120
- * px radius, not tiled edge-to-edge like a square display would allow. */
-/* Text sizes on the number-only screen, chosen for the 240 px panel. */
-#define NAME_SCALE  UI_TEXT_SCALE( 1 )
-#define VALUE_SCALE UI_TEXT_SCALE( 4 )
-#define UNIT_SCALE  UI_TEXT_SCALE( 2 )
-
-static text_widget_t screen[] = {
-    /* The name sits where the dials put their label: centered, above the
-     * center. */
-    { .rect  = UI_CENTERED_RECT( 24, NAME_SCALE, UI_CY - UI_LEN( 259 ) ),
-      .scale = NAME_SCALE,
-      .fg    = FG,
-      .bg    = BG,
-      .text  = name_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
-    { .rect  = UI_CENTERED_RECT( 8, VALUE_SCALE, UI_CY - UI_LEN( 134 ) ),
-      .scale = VALUE_SCALE,
-      .fg    = FG,
-      .bg    = BG,
-      .text  = value_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
-    { .rect  = UI_CENTERED_RECT( 12, UNIT_SCALE, UI_CY + UI_LEN( 167 ) ),
-      .scale = UNIT_SCALE,
-      .fg    = FG,
-      .bg    = BG,
-      .text  = unit_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
-};
-#define SCREEN_COUNT ( sizeof( screen ) / sizeof( screen[0] ) )
 
 /* What the info page shows under its rows. Holding ACTION there starts
  * update mode, so it says so while the button is held. */
 static const char * current_info_notice( void )
 {
-    const char * text = "";
+    const char * text;
 
     if ( clear_ui == CLEAR_UI_HOLDING )
     {
         text = "HOLD TO UPDATE";
     }
-    else if ( save_notice_active )
-    {
-        text = save_notice_ok ? "SAVED" : "SAVE FAILED";
-    }
     else
     {
-        /* Nothing to say. */
+        text = save_notice_text();
     }
     return text;
 }
@@ -554,7 +443,7 @@ static dial_cfg_t boost_dial_cfg = {
     0xEF5Bu,
     0x632Cu,
     NEEDLE_RED,
-    30u,
+    900u,
     DIAL_STYLE_DEFAULT
 };
 
@@ -570,7 +459,7 @@ static dial_cfg_t rpm_dial_cfg = {
     0xEF5Bu,
     0x632Cu,
     NEEDLE_RED,
-    40u,
+    1200u,
     DIAL_STYLE_DEFAULT
 };
 
@@ -584,11 +473,7 @@ static void apply_theme( void )
     rpm_dial_cfg.tick_fg   = t->ink;
     gauge_info_set_colors( t->face, t->ink );
     gauge_update_set_colors( t->face, t->ink );
-    for ( size_t i = 0; i < SCREEN_COUNT; i++ )
-    {
-        screen[i].bg = t->face;
-        screen[i].fg = t->ink;
-    }
+    gauge_number_set_colors( t->face, t->ink );
     gauge_flags_set_colors( t->face, t->ink );
 }
 
@@ -670,7 +555,7 @@ static void update_face( uint32_t now_ms )
         }
         else
         {
-            text_init( screen, SCREEN_COUNT, themes[theme_idx].face );
+            gauge_number_open( themes[theme_idx].face );
         }
         active_dial   = next_dial;
         flags_active  = want_flags;
@@ -684,7 +569,7 @@ static void update_face( uint32_t now_ms )
     {
         const ecu_param_info_t * info = NULL;
         int32_t value                 = 0;
-        bool has_value                = current_value( &info, &value );
+        bool has_value                = ecu_fresh_value( &info, &value );
         int32_t dial_value  = value / dial_table[active_dial].value_div;
         int32_t sweep_value = 0;
 
@@ -716,7 +601,11 @@ static void update_face( uint32_t now_ms )
     }
     else
     {
-        text_poll( screen, SCREEN_COUNT );
+        int32_t value = 0;
+
+        gauge_number_poll(
+            selected_info(), selected_value( &value ), value, save_notice_text()
+        );
     }
 }
 

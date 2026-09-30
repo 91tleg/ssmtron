@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "lib/textfit/textfit.h"
 #include "lib/ui/text.h"
 #include "lib/ui/ui_geom.h"
 
@@ -37,26 +38,6 @@ bool gauge_flags_handles( const ecu_param_info_t * info )
     return ( info != NULL ) && ( info->decode == ECU_DEC_FLAGS );
 }
 
-/* Center s in width columns; longer text is cut to width. */
-static void copy_centered(
-    char * buf,
-    const char * s,
-    size_t width
-)
-{
-    size_t len = strlen( s );
-    size_t pad;
-
-    if ( len > width )
-    {
-        len = width;
-    }
-    pad = ( width - len ) / 2u;
-    ( void )memset( buf, ' ', pad );
-    ( void )memcpy( &buf[pad], s, len );
-    buf[pad + len] = '\0';
-}
-
 /* The shown parameter if it is a flags byte, else NULL. */
 static const ecu_param_info_t * flags_info( void )
 {
@@ -80,7 +61,7 @@ static void title_text( char * buf )
     buf[0] = '\0';
     if ( info != NULL )
     {
-        copy_centered( buf, info->name, FLAG_TITLE_W );
+        ( void )textfit_center( buf, TEXT_MAX + 1u, info->name, FLAG_TITLE_W );
     }
 }
 
@@ -126,7 +107,7 @@ static void status_text( char * buf )
         default:
             break;
     }
-    copy_centered( buf, text, FLAG_STATUS_W );
+    ( void )textfit_center( buf, TEXT_MAX + 1u, text, FLAG_STATUS_W );
 }
 
 /* Blank for rows past the last flag of this byte. */

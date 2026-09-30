@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "ecu.h"
+#include "lib/ecu/ecu.h"
 
 /* Largest parameter count of any profile (compile-time checked). */
 #define SSM1_PARAM_MAX ( 32u )

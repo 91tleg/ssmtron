@@ -6,6 +6,7 @@
 
 #include "app/fw_info.h"
 #include "lib/ecu/ecu.h"
+#include "lib/textfit/textfit.h"
 #include "lib/ui/text.h"
 #include "lib/ui/ui_geom.h"
 
@@ -18,44 +19,25 @@
  * gauge_info_poll sets this before every redraw. */
 static const char * shown_notice = "";
 
-/* Writes label, padding and value into buf, cut to INFO_ROW_W glyphs. */
+/* The page's rows, cut to INFO_ROW_W glyphs. */
 static void put_row(
     char * buf,
     const char * label,
     const char * value
 )
 {
-    size_t label_len = strlen( label );
-    size_t value_len = strlen( value );
-
-    if ( label_len > INFO_LABEL_W )
-    {
-        label_len = INFO_LABEL_W;
-    }
-    if ( value_len > ( INFO_ROW_W - INFO_LABEL_W ) )
-    {
-        value_len = INFO_ROW_W - INFO_LABEL_W;
-    }
-    ( void )memcpy( buf, label, label_len );
-    ( void )memset( &buf[label_len], ' ', INFO_LABEL_W - label_len );
-    ( void )memcpy( &buf[INFO_LABEL_W], value, value_len );
-    buf[INFO_LABEL_W + value_len] = '\0';
+    ( void )textfit_row(
+        buf, INFO_ROW_W + 1u, INFO_LABEL_W, INFO_ROW_W, label, value
+    );
 }
 
-/* Copies s, cut to INFO_ROW_W glyphs. Its widget centers it. */
+/* Text cut to INFO_ROW_W glyphs. Its widget centers it. */
 static void put_text(
     char * buf,
     const char * s
 )
 {
-    size_t len = strlen( s );
-
-    if ( len > INFO_ROW_W )
-    {
-        len = INFO_ROW_W;
-    }
-    ( void )memcpy( buf, s, len );
-    buf[len] = '\0';
+    ( void )textfit_copy( buf, INFO_ROW_W + 1u, s );
 }
 
 static void info_title_text( char * buf )

@@ -1,4 +1,4 @@
-set(UI_SOURCES text.c font.c dial.c)
+set(UI_SOURCES text.c font.c dial.c dial_motion.c)
 
 if(COMMAND zephyr_library_named)
   zephyr_library_named(ui)
@@ -12,4 +12,4 @@ else()
 endif()
 
 target_include_directories(ui PUBLIC ${CMAKE_CURRENT_LIST_DIR})
-target_link_libraries(ui PUBLIC display)
+target_link_libraries(ui PUBLIC display textfit)

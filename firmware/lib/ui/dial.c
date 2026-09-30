@@ -4,8 +4,13 @@
 #include <string.h>
 
 #include "lib/display/display.h"
+#include "lib/textfit/textfit.h"
 #include "lib/ui/font.h"
+#include "lib/ui/dial_motion.h"
 #include "lib/ui/ui_geom.h"
+
+/* A label's buffer: DIAL_TEXT_MAX characters and the NUL. */
+#define DIAL_LABEL_BUF ( DIAL_TEXT_MAX + 1u )
 
 #define DIAL_PANEL_W ( ( int )DISPLAY_WIDTH )
 #define DIAL_PANEL_H ( ( int )DISPLAY_HEIGHT )
@@ -28,10 +33,10 @@
 
 /* Line thicknesses are half-widths, so 1 is a line 3 px wide. They follow
  * the panel size, rounded down. */
-#define DIAL_TICK_HALF_W       UI_LEN( 9 )
-#define DIAL_TICK_MAJOR_HALF_W UI_LEN( 17 )
-#define DIAL_NEEDLE_HALF_W     UI_LEN( 34 )
-#define DIAL_TAIL_HALF_W       UI_LEN( 42 )
+#define DIAL_TICK_HALF_W        UI_LEN( 9 )
+#define DIAL_TICK_MAJOR_HALF_W  UI_LEN( 17 )
+#define DIAL_DIAL_MOTION_HALF_W UI_LEN( 34 )
+#define DIAL_TAIL_HALF_W        UI_LEN( 42 )
 
 /* The hub: a ring with a lighter disc inside it. */
 #define DIAL_HUB_R       UI_LEN( 100 )
@@ -48,8 +53,6 @@
 /* Where the tick numbers sit, from the center. */
 #define DIAL_LABEL_R UI_LEN( 584 )
 
-#define DIAL_FRAME_INTERVAL_MS ( 33u ) /* ~30 fps */
-
 #define DIAL_MAX_TICKS  ( 32u )
 #define DIAL_MAX_LABELS ( 16u )
 
@@ -57,7 +60,7 @@
  * whole face (ticks/labels/face don't change between frames): one blit
  * instead of one per row, and only the pixels near the needle. This bounds
  * the biggest side that box can be; a jump that would exceed it (should
- * never happen at any sane max_step_deg) falls back to a full draw_frame.
+ * never happen at any sane top speed) falls back to a full draw_frame.
  * DIAL_DEFAULT_TAIL_R is the counterweight's reach behind center. */
 #define DIAL_REGION_PERMILLE ( 1067 )
 #define DIAL_REGION_MAX      UI_LEN( DIAL_REGION_PERMILLE )
@@ -67,8 +70,8 @@
  * pixel of rounding slack. A smaller margin leaves stale pixels of the old
  * needle behind (test_dial_region checks this). */
 #define DIAL_HALF_W_MAX                                                        \
-    ( ( DIAL_NEEDLE_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_NEEDLE_HALF_W           \
-                                                : DIAL_TAIL_HALF_W )
+    ( ( DIAL_DIAL_MOTION_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_DIAL_MOTION_HALF_W \
+                                                     : DIAL_TAIL_HALF_W )
 #define DIAL_REGION_MARGIN  ( DIAL_HALF_W_MAX + 1 )
 #define DIAL_DEFAULT_TAIL_R UI_LEN( 259 )
 
@@ -83,7 +86,7 @@ typedef struct
     int16_t x;
     int16_t y;
     uint8_t scale;
-    char text[DIAL_TEXT_MAX + 1u];
+    char text[DIAL_LABEL_BUF];
 } dial_label_t;
 
 static void angle_vec(
@@ -231,46 +234,6 @@ static int16_t rest_deg( const dial_cfg_t * cfg )
     return value_to_deg( cfg, ( cfg->min_value < 0 ) ? 0 : cfg->min_value );
 }
 
-static int16_t step_toward(
-    int16_t current,
-    int16_t target,
-    uint16_t max_step
-)
-{
-    int16_t diff = ( int16_t )( target - current );
-    int16_t result;
-
-    if ( diff > ( int16_t )max_step )
-    {
-        result = ( int16_t )( current + ( int16_t )max_step );
-    }
-    else if ( diff < -( int16_t )max_step )
-    {
-        result = ( int16_t )( current - ( int16_t )max_step );
-    }
-    else
-    {
-        result = target;
-    }
-    return result;
-}
-
-/* Truncate labels to fit the fixed buffer. */
-static void copy_bounded(
-    char * dst,
-    const char * src
-)
-{
-    size_t n = strlen( src );
-
-    if ( n > DIAL_TEXT_MAX )
-    {
-        n = DIAL_TEXT_MAX;
-    }
-    ( void )memcpy( dst, src, n );
-    dst[n] = '\0';
-}
-
 static int32_t label_width(
     size_t length,
     uint8_t scale
@@ -357,7 +320,7 @@ static void build_ticks(
         {
             int32_t sin_m;
             int32_t cos_m;
-            char text[DIAL_TEXT_MAX + 1u];
+            char text[DIAL_LABEL_BUF];
             size_t len;
             int32_t x;
             int32_t y;
@@ -373,7 +336,7 @@ static void build_ticks(
             labels[nl].x     = ( int16_t )x;
             labels[nl].y     = ( int16_t )y;
             labels[nl].scale = DIAL_LABEL_SCALE;
-            copy_bounded( labels[nl].text, text );
+            ( void )textfit_copy( labels[nl].text, DIAL_LABEL_BUF, text );
             nl++;
         }
         value += minor_step;
@@ -400,7 +363,7 @@ static void add_fixed_labels(
                              / 2 ) );
         labels[n].y     = ( int16_t )( DIAL_CY - UI_LEN( 259 ) );
         labels[n].scale = DIAL_FIXED_SCALE;
-        copy_bounded( labels[n].text, cfg->label );
+        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->label );
         n++;
     }
 
@@ -409,7 +372,7 @@ static void add_fixed_labels(
         labels[n].x     = ( int16_t )( DIAL_CX + UI_LEN( 325 ) );
         labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 42 ) );
         labels[n].scale = DIAL_FIXED_SCALE;
-        copy_bounded( labels[n].text, cfg->unit_pos );
+        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->unit_pos );
         n++;
     }
 
@@ -418,7 +381,7 @@ static void add_fixed_labels(
         labels[n].x     = ( int16_t )( DIAL_CX - UI_LEN( 550 ) );
         labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 192 ) );
         labels[n].scale = DIAL_FIXED_SCALE;
-        copy_bounded( labels[n].text, cfg->unit_neg );
+        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->unit_neg );
         n++;
     }
     *label_count = n;
@@ -518,7 +481,7 @@ static uint16_t pixel_color(
              needle_cos,
              0,
              DIAL_NEEDLE_LEN,
-             DIAL_NEEDLE_HALF_W
+             DIAL_DIAL_MOTION_HALF_W
          ) )
     {
         color = cfg->needle_fg;
@@ -731,7 +694,7 @@ static void draw_frame( const dial_widget_t * d )
 
 bool dial_settled( const dial_widget_t * d )
 {
-    return d->displayed_deg == d->target_deg;
+    return dial_motion_reached( &d->motion, d->target_deg );
 }
 
 void dial_init(
@@ -743,9 +706,51 @@ void dial_init(
     d->cfg           = cfg;
     d->displayed_deg = rest_deg( cfg );
     d->target_deg    = d->displayed_deg;
-    d->last_frame_ms = now_ms;
+    dial_motion_init( &d->motion, d->displayed_deg, now_ms );
     ( void )display_clear( cfg->face_bg );
     draw_frame( d );
+}
+
+/* Only the needle moved: redraw the union of where it was and where it is
+ * now, not the whole face (see draw_region). A box bigger than the scratch
+ * buffer can hold (never expected at any sane speed) falls back to a full
+ * redraw instead of clipping it. */
+static void redraw_needle(
+    const dial_widget_t * d,
+    int16_t old_deg
+)
+{
+    int16_t ox0;
+    int16_t oy0;
+    int16_t ox1;
+    int16_t oy1;
+    int16_t nx0;
+    int16_t ny0;
+    int16_t nx1;
+    int16_t ny1;
+    int16_t x0;
+    int16_t y0;
+    int16_t x1;
+    int16_t y1;
+
+    needle_extent( old_deg, &ox0, &oy0, &ox1, &oy1 );
+    needle_extent( d->displayed_deg, &nx0, &ny0, &nx1, &ny1 );
+    x0 = ( ox0 < nx0 ) ? ox0 : nx0;
+    y0 = ( oy0 < ny0 ) ? oy0 : ny0;
+    x1 = ( ox1 > nx1 ) ? ox1 : nx1;
+    y1 = ( oy1 > ny1 ) ? oy1 : ny1;
+    clamp_box( &x0, &y0, &x1, &y1 );
+
+    if ( ( x0 < x1 ) && ( y0 < y1 )
+         && ( ( x1 - x0 ) <= ( int16_t )DIAL_REGION_MAX )
+         && ( ( y1 - y0 ) <= ( int16_t )DIAL_REGION_MAX ) )
+    {
+        draw_region( d, x0, y0, x1, y1 );
+    }
+    else
+    {
+        draw_frame( d );
+    }
 }
 
 void dial_poll(
@@ -755,53 +760,18 @@ void dial_poll(
     int32_t value
 )
 {
+    int16_t old_deg = d->displayed_deg;
+
     d->target_deg =
         has_value ? value_to_deg( d->cfg, value ) : rest_deg( d->cfg );
-
-    if ( ( d->displayed_deg != d->target_deg )
-         && ( ( now_ms - d->last_frame_ms ) >= DIAL_FRAME_INTERVAL_MS ) )
+    if ( dial_motion_poll(
+             &d->motion,
+             now_ms,
+             d->target_deg,
+             d->cfg->max_deg_per_s,
+             &d->displayed_deg
+         ) )
     {
-        int16_t old_deg = d->displayed_deg;
-        int16_t ox0;
-        int16_t oy0;
-        int16_t ox1;
-        int16_t oy1;
-        int16_t nx0;
-        int16_t ny0;
-        int16_t nx1;
-        int16_t ny1;
-        int16_t x0;
-        int16_t y0;
-        int16_t x1;
-        int16_t y1;
-
-        d->displayed_deg = step_toward(
-            d->displayed_deg, d->target_deg, d->cfg->max_step_deg
-        );
-
-        /* Only the needle moved: redraw the union of where it was and
-         * where it is now, not the whole face (see draw_region). A box
-         * bigger than the scratch buffer can hold (never expected at any
-         * sane max_step_deg) falls back to a full redraw instead of
-         * clipping it. */
-        needle_extent( old_deg, &ox0, &oy0, &ox1, &oy1 );
-        needle_extent( d->displayed_deg, &nx0, &ny0, &nx1, &ny1 );
-        x0 = ( ox0 < nx0 ) ? ox0 : nx0;
-        y0 = ( oy0 < ny0 ) ? oy0 : ny0;
-        x1 = ( ox1 > nx1 ) ? ox1 : nx1;
-        y1 = ( oy1 > ny1 ) ? oy1 : ny1;
-        clamp_box( &x0, &y0, &x1, &y1 );
-
-        if ( ( x0 < x1 ) && ( y0 < y1 )
-             && ( ( x1 - x0 ) <= ( int16_t )DIAL_REGION_MAX )
-             && ( ( y1 - y0 ) <= ( int16_t )DIAL_REGION_MAX ) )
-        {
-            draw_region( d, x0, y0, x1, y1 );
-        }
-        else
-        {
-            draw_frame( d );
-        }
-        d->last_frame_ms = now_ms;
+        redraw_needle( d, old_deg );
     }
 }

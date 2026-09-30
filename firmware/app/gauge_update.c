@@ -6,6 +6,7 @@
 #include "hal/hal_ble.h"
 #include "hal/hal_dfu.h"
 #include "hal/hal_random.h"
+#include "lib/textfit/textfit.h"
 #include "lib/ui/text.h"
 #include "lib/ui/ui_geom.h"
 
@@ -74,44 +75,25 @@ void gauge_update_exit( void )
     update_state = UPDATE_OFF; /* only reached where a restart is faked */
 }
 
-/* Writes label, padding and value into buf, cut to UPDATE_ROW_W glyphs. */
+/* The page's rows, cut to UPDATE_ROW_W glyphs. */
 static void update_put_row(
     char * buf,
     const char * label,
     const char * value
 )
 {
-    size_t label_len = strlen( label );
-    size_t value_len = strlen( value );
-
-    if ( label_len > UPDATE_LABEL_W )
-    {
-        label_len = UPDATE_LABEL_W;
-    }
-    if ( value_len > ( UPDATE_ROW_W - UPDATE_LABEL_W ) )
-    {
-        value_len = UPDATE_ROW_W - UPDATE_LABEL_W;
-    }
-    ( void )memcpy( buf, label, label_len );
-    ( void )memset( &buf[label_len], ' ', UPDATE_LABEL_W - label_len );
-    ( void )memcpy( &buf[UPDATE_LABEL_W], value, value_len );
-    buf[UPDATE_LABEL_W + value_len] = '\0';
+    ( void )textfit_row(
+        buf, UPDATE_ROW_W + 1u, UPDATE_LABEL_W, UPDATE_ROW_W, label, value
+    );
 }
 
-/* Copies s, cut to UPDATE_ROW_W glyphs. Its widget centers it. */
+/* Text cut to UPDATE_ROW_W glyphs. Its widget centers it. */
 static void update_put_text(
     char * buf,
     const char * s
 )
 {
-    size_t len = strlen( s );
-
-    if ( len > UPDATE_ROW_W )
-    {
-        len = UPDATE_ROW_W;
-    }
-    ( void )memcpy( buf, s, len );
-    buf[len] = '\0';
+    ( void )textfit_copy( buf, UPDATE_ROW_W + 1u, s );
 }
 
 static void update_title_text( char * buf )

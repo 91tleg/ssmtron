@@ -60,13 +60,8 @@ typedef struct
     int32_t offset;
     const int16_t * lookup;   /* 256 entries, ECU_DEC_LOOKUP */
     const ecu_flag_t * flags; /* ECU_DEC_FLAGS */
-    /* Thresholds use ecu_get_value units. Without verified thresholds,
-     * the display must not color-code a value. */
-    int32_t warn_value;
-    int32_t redline_value;
     uint8_t decimals;
     uint8_t flag_count;
-    bool has_thresholds;
     /* A flags byte whose bits are trouble codes: the only pages the clear
      * command applies to. Switch bytes and values are false. */
     bool trouble_codes;
@@ -89,32 +84,6 @@ static inline bool ecu_flag_set(
     bool masked = ( ( raw & flag->mask ) != 0u );
 
     return masked == flag->active_high;
-}
-
-/* Higher is worse (redline is always an upper bound: rpm, temp, boost),
- * matching what "redline" means everywhere else. A parameter with no
- * verified thresholds (has_thresholds false) is always ECU_LEVEL_NORMAL.
- */
-typedef enum
-{
-    ECU_LEVEL_NORMAL,
-    ECU_LEVEL_WARN,
-    ECU_LEVEL_REDLINE
-} ecu_level_t;
-
-static inline ecu_level_t ecu_level(
-    const ecu_param_info_t * info,
-    int32_t value
-)
-{
-    ecu_level_t level = ECU_LEVEL_NORMAL;
-
-    if ( info->has_thresholds && ( value >= info->warn_value ) )
-    {
-        level = ( value >= info->redline_value ) ? ECU_LEVEL_REDLINE
-                                                 : ECU_LEVEL_WARN;
-    }
-    return level;
 }
 
 typedef enum
@@ -173,6 +142,26 @@ bool ecu_get_value(
     size_t idx,
     int32_t * out
 );
+
+/* The ECU streams one parameter at a time, so at most one has a fresh value:
+ * the selected one. Finds it; false if none is fresh. */
+static inline bool ecu_fresh_value(
+    const ecu_param_info_t ** info,
+    int32_t * value
+)
+{
+    bool found = false;
+
+    for ( size_t i = 0; !found && ( i < ecu_param_count() ); i++ )
+    {
+        if ( ecu_get_value( i, value ) )
+        {
+            *info = ecu_param_info( i );
+            found = true;
+        }
+    }
+    return found;
+}
 
 /* Clear the ECU's stored trouble codes. Interrupts monitoring, then goes
  * back to the selected parameter. False if not identified, unsupported or
