@@ -67,6 +67,31 @@ add_executable(test_gauge_settings test_gauge_settings.c
 target_include_directories(test_gauge_settings PRIVATE ../app ../hal)
 add_test(NAME gauge_settings COMMAND test_gauge_settings)
 
+# Includes dial.c itself, to reach its static full-frame draw.
+add_executable(test_dial_region test_dial_region.c ../lib/ui/font.c)
+target_include_directories(test_dial_region PRIVATE ../lib/ui ../lib/display
+                                                     ../hal)
+add_test(NAME dial_region COMMAND test_dial_region)
+
+# The same code compiled for a 360 x 360 panel, to keep it free of hard-coded
+# 240 px assumptions. This checks correctness only, not how it looks.
+add_executable(test_dial_region_360 test_dial_region.c ../lib/ui/font.c)
+target_include_directories(test_dial_region_360 PRIVATE ../lib/ui
+                           ../lib/display ../hal)
+target_compile_definitions(test_dial_region_360 PRIVATE DISPLAY_WIDTH=360u
+                                                        DISPLAY_HEIGHT=360u)
+add_test(NAME dial_region_360 COMMAND test_dial_region_360)
+
+add_executable(test_gauge_flags_360
+  test_gauge_flags.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_input.c
+  ../app/gauge_settings.c)
+target_include_directories(test_gauge_flags_360
+                            PRIVATE ../app ../hal ../lib/display ../lib/ui)
+target_link_libraries(test_gauge_flags_360 PRIVATE fmt)
+target_compile_definitions(test_gauge_flags_360 PRIVATE DISPLAY_WIDTH=360u
+                                                        DISPLAY_HEIGHT=360u)
+add_test(NAME gauge_flags_360 COMMAND test_gauge_flags_360)
+
 # Compile text/font sources directly with a fake display; HAL has no host
 # backend.
 add_executable(test_text test_text.c ../lib/ui/text.c ../lib/ui/font.c)

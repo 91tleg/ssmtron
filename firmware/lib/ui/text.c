@@ -7,9 +7,8 @@
 #include "display.h"
 #include "font.h"
 
-/* The widest panel this engine has been sized for; gc9a01 (240) is the
- * only display driver today. Bump this if a wider panel is ever added. */
-#define TEXT_MAX_ROW_PX 240u
+/* The widest row it ever draws is the panel's width. */
+#define TEXT_MAX_ROW_PX ( DISPLAY_WIDTH )
 
 static void draw_widget(
     const text_widget_t * w,

@@ -5,11 +5,12 @@
 
 #include "display.h"
 #include "font.h"
+#include "ui_geom.h"
 
-#define DIAL_PANEL_W ( 240 )
-#define DIAL_PANEL_H ( 240 )
-#define DIAL_CX      ( 120 )
-#define DIAL_CY      ( 120 )
+#define DIAL_PANEL_W ( ( int )DISPLAY_WIDTH )
+#define DIAL_PANEL_H ( ( int )DISPLAY_HEIGHT )
+#define DIAL_CX      UI_CX
+#define DIAL_CY      UI_CY
 
 /* 270 degree sweep, with zero straight up and positive clockwise. */
 #define DIAL_SWEEP_MIN_DEG ( -135 )
@@ -20,13 +21,32 @@
 #define DIAL_DEFAULT_MIN_DEG  ( 135 )
 #define DIAL_DEFAULT_ZERO_DEG ( 270 )
 #define DIAL_DEFAULT_MAX_DEG  ( 435 )
-#define DIAL_DEFAULT_TICK_R   ( 99 )
+#define DIAL_DEFAULT_TICK_R   UI_LEN( 825 )
 
-#define DIAL_TICK_MAJOR_LEN ( 16 )
-#define DIAL_TICK_MINOR_LEN ( 8 )
-#define DIAL_TICK_HALF_W    ( 1 )
+#define DIAL_TICK_MAJOR_LEN UI_LEN( 134 )
+#define DIAL_TICK_MINOR_LEN UI_LEN( 67 )
 
-#define DIAL_NEEDLE_LEN ( 78 )
+/* Line thicknesses are half-widths, so 1 is a line 3 px wide. They follow
+ * the panel size, rounded down. */
+#define DIAL_TICK_HALF_W       UI_LEN( 9 )
+#define DIAL_TICK_MAJOR_HALF_W UI_LEN( 17 )
+#define DIAL_NEEDLE_HALF_W     UI_LEN( 34 )
+#define DIAL_TAIL_HALF_W       UI_LEN( 42 )
+
+/* The hub: a ring with a lighter disc inside it. */
+#define DIAL_HUB_R       UI_LEN( 100 )
+#define DIAL_HUB_INNER_R UI_LEN( 75 )
+
+#define DIAL_NEEDLE_LEN UI_LEN( 650 )
+
+/* The label and units around the center use this text size. */
+#define DIAL_FIXED_SCALE UI_TEXT_SCALE( 1 )
+
+/* Tick numbers are drawn at this text size, chosen for the 240 px panel. */
+#define DIAL_LABEL_SCALE UI_TEXT_SCALE( 2 )
+
+/* Where the tick numbers sit, from the center. */
+#define DIAL_LABEL_R UI_LEN( 584 )
 
 #define DIAL_FRAME_INTERVAL_MS ( 33u ) /* ~30 fps */
 
@@ -35,13 +55,22 @@
 
 /* Per-frame redraw covers only the needle's old and new position, not the
  * whole face (ticks/labels/face don't change between frames): one blit
- * instead of 240, and a few thousand pixels instead of 57600. This bounds
+ * instead of one per row, and only the pixels near the needle. This bounds
  * the biggest side that box can be; a jump that would exceed it (should
  * never happen at any sane max_step_deg) falls back to a full draw_frame.
  * DIAL_DEFAULT_TAIL_R is the counterweight's reach behind center. */
-#define DIAL_REGION_MAX     ( 128 )
-#define DIAL_REGION_MARGIN  ( 3 ) /* half-width padding plus rounding slack */
-#define DIAL_DEFAULT_TAIL_R ( 31 )
+#define DIAL_REGION_PERMILLE ( 1067 )
+#define DIAL_REGION_MAX      UI_LEN( DIAL_REGION_PERMILLE )
+#define DIAL_REGION_PIXELS                                                     \
+    ( UI_LEN_U( DIAL_REGION_PERMILLE ) * UI_LEN_U( DIAL_REGION_PERMILLE ) )
+/* The box must cover the widest line the needle shape draws, plus one
+ * pixel of rounding slack. A smaller margin leaves stale pixels of the old
+ * needle behind (test_dial_region checks this). */
+#define DIAL_HALF_W_MAX                                                        \
+    ( ( DIAL_NEEDLE_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_NEEDLE_HALF_W           \
+                                                : DIAL_TAIL_HALF_W )
+#define DIAL_REGION_MARGIN  ( DIAL_HALF_W_MAX + 1 )
+#define DIAL_DEFAULT_TAIL_R UI_LEN( 259 )
 
 typedef struct
 {
@@ -332,19 +361,18 @@ static void build_ticks(
             size_t len;
             int32_t x;
             int32_t y;
-            uint8_t label_scale = 2u;
-            int32_t label_h     = ( int32_t )FONT_H * ( int32_t )label_scale;
+            int32_t label_h = ( int32_t )FONT_H * ( int32_t )DIAL_LABEL_SCALE;
 
             angle_vec( deg, &sin_m, &cos_m );
             len             = format_int( value, text );
-            int32_t label_r = 70;
+            int32_t label_r = DIAL_LABEL_R;
 
             x = DIAL_CX + ( ( label_r * sin_m ) / 1000 )
-                - ( label_width( len, label_scale ) / 2 );
+                - ( label_width( len, DIAL_LABEL_SCALE ) / 2 );
             y = DIAL_CY - ( ( label_r * cos_m ) / 1000 ) - ( label_h / 2 );
             labels[nl].x     = ( int16_t )x;
             labels[nl].y     = ( int16_t )y;
-            labels[nl].scale = label_scale;
+            labels[nl].scale = DIAL_LABEL_SCALE;
             copy_bounded( labels[nl].text, text );
             nl++;
         }
@@ -366,27 +394,30 @@ static void add_fixed_labels(
     {
         labels[n].x =
             ( int16_t )( DIAL_CX
-                         - ( label_width( strlen( cfg->label ), 1u ) / 2 ) );
-        labels[n].y     = 89;
-        labels[n].scale = 1u;
+                         - ( label_width(
+                                 strlen( cfg->label ), DIAL_FIXED_SCALE
+                             )
+                             / 2 ) );
+        labels[n].y     = ( int16_t )( DIAL_CY - UI_LEN( 259 ) );
+        labels[n].scale = DIAL_FIXED_SCALE;
         copy_bounded( labels[n].text, cfg->label );
         n++;
     }
 
     if ( ( cfg->unit_pos != NULL ) && ( n < DIAL_MAX_LABELS ) )
     {
-        labels[n].x     = 159;
-        labels[n].y     = 125;
-        labels[n].scale = 1u;
+        labels[n].x     = ( int16_t )( DIAL_CX + UI_LEN( 325 ) );
+        labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 42 ) );
+        labels[n].scale = DIAL_FIXED_SCALE;
         copy_bounded( labels[n].text, cfg->unit_pos );
         n++;
     }
 
     if ( ( cfg->unit_neg != NULL ) && ( n < DIAL_MAX_LABELS ) )
     {
-        labels[n].x     = 54;
-        labels[n].y     = 143;
-        labels[n].scale = 1u;
+        labels[n].x     = ( int16_t )( DIAL_CX - UI_LEN( 550 ) );
+        labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 192 ) );
+        labels[n].scale = DIAL_FIXED_SCALE;
         copy_bounded( labels[n].text, cfg->unit_neg );
         n++;
     }
@@ -458,14 +489,22 @@ static uint16_t pixel_color(
     uint16_t color  = cfg->face_bg;
     bool set        = false;
 
-    if ( dist_sq <= ( 12 * 12 ) )
+    if ( dist_sq <= ( DIAL_HUB_R * DIAL_HUB_R ) )
     {
-        color = ( dist_sq <= ( 9 * 9 ) ) ? 0xE73Cu : 0xA514u;
+        color = ( dist_sq <= ( DIAL_HUB_INNER_R * DIAL_HUB_INNER_R ) )
+                    ? 0xE73Cu
+                    : 0xA514u;
         set   = true;
     }
 
     if ( on_radial_line(
-             dx, dy, -needle_sin, -needle_cos, 0, DIAL_DEFAULT_TAIL_R, 5
+             dx,
+             dy,
+             -needle_sin,
+             -needle_cos,
+             0,
+             DIAL_DEFAULT_TAIL_R,
+             DIAL_TAIL_HALF_W
          ) )
     {
         color = 0xCE79u;
@@ -473,7 +512,13 @@ static uint16_t pixel_color(
     }
     if ( !set
          && on_radial_line(
-             dx, dy, needle_sin, needle_cos, 0, DIAL_NEEDLE_LEN, 4
+             dx,
+             dy,
+             needle_sin,
+             needle_cos,
+             0,
+             DIAL_NEEDLE_LEN,
+             DIAL_NEEDLE_HALF_W
          ) )
     {
         color = cfg->needle_fg;
@@ -505,7 +550,7 @@ static uint16_t pixel_color(
                  cos_m,
                  outer_r - len,
                  outer_r,
-                 ticks[i].major ? 2 : DIAL_TICK_HALF_W
+                 ticks[i].major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
              ) )
         {
             color = cfg->tick_fg;
@@ -596,8 +641,7 @@ static void draw_region(
     int16_t y1
 )
 {
-    static uint16_t
-        region_buf[( size_t )DIAL_REGION_MAX * ( size_t )DIAL_REGION_MAX];
+    static uint16_t region_buf[DIAL_REGION_PIXELS];
     dial_tick_t ticks[DIAL_MAX_TICKS];
     dial_label_t labels[DIAL_MAX_LABELS];
     size_t tick_count;

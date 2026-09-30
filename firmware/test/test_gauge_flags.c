@@ -4,14 +4,15 @@
  * see what would be drawn. */
 #include <string.h>
 
-#include "dial.h"
-#include "ecu.h"
 #include "gauge.h"
 #include "hal_gpio.h"
 #include "hal_log.h"
 #include "hal_nvm.h"
-#include "minitest.h"
+#include "display.h"
+#include "ecu.h"
+#include "dial.h"
 #include "text.h"
+#include "minitest.h"
 
 #define NEXT_ID   ( ( hal_gpio_id_t )1u )
 #define ACTION_ID ( ( hal_gpio_id_t )2u )
@@ -250,12 +251,33 @@ static const char * row( size_t i )
     return buf;
 }
 
+/* Every widget of the page on screen must lie inside the panel. A rect
+ * that hangs off an edge wraps when it is stored as an unsigned position
+ * and then draws nothing. */
+static void check_widgets_fit_the_panel( void )
+{
+    for ( size_t i = 0; i < page_count; i++ )
+    {
+        CHECK( ( uint32_t )page[i].rect.x + page[i].rect.w <= DISPLAY_WIDTH );
+        CHECK( ( uint32_t )page[i].rect.y + page[i].rect.h <= DISPLAY_HEIGHT );
+        CHECK( page[i].rect.w > 0u );
+    }
+}
+
+static void test_number_screen_fits_the_panel( void )
+{
+    /* gauge_init drew the number screen, the first page. */
+    CHECK_EQ( page_count, 4u );
+    check_widgets_fit_the_panel();
+}
+
 static void test_flags_page_is_shown_for_a_flags_byte( void )
 {
     raw_byte    = 0x02u; /* Knock set, Test Mode bit clear */
     value_fresh = true;
     tick( 1 );
     CHECK_EQ( page_count, 10u ); /* title, eight rows and a status line */
+    check_widgets_fit_the_panel();
 }
 
 static void test_title_is_centered( void )
@@ -406,6 +428,7 @@ int main( void )
 
     ( void )gauge_init( &pins, NEXT_ID, ACTION_ID );
 
+    test_number_screen_fits_the_panel();
     test_flags_page_is_shown_for_a_flags_byte();
     test_title_is_centered();
     test_status_line_is_blank_when_idle();

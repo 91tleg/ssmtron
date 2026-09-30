@@ -3,13 +3,20 @@
  * hardware; gamma and voltage settings can vary between panels. */
 #include <stddef.h>
 
-#include "display.h"
 #include "hal_time.h"
+#include "display.h"
 
-#define PANEL_W     ( 240u )
-#define PANEL_H     ( 240u )
-#define PANEL_MAX_X ( 239u )
-#define PANEL_MAX_Y ( 239u )
+/* The GC9A01 is a 240 x 240 chip; a different size needs a different
+ * driver, so a mismatch stops the build instead of drawing wrongly. */
+#if ( DISPLAY_WIDTH != 240u ) || ( DISPLAY_HEIGHT != 240u )
+#error                                                                         \
+    "gc9a01 drives a 240 x 240 panel: set DISPLAY_WIDTH and DISPLAY_HEIGHT to 240"
+#endif
+
+#define PANEL_W     ( DISPLAY_WIDTH )
+#define PANEL_H     ( DISPLAY_HEIGHT )
+#define PANEL_MAX_X ( PANEL_W - 1u )
+#define PANEL_MAX_Y ( PANEL_H - 1u )
 
 /* Conservative speed until verified with the panel and wiring. */
 #define SPI_FREQ_HZ ( 8000000u )
