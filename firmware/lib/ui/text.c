@@ -1,11 +1,11 @@
 /* Render one pixel row at a time to keep the scratch buffer small. */
-#include "text.h"
+#include "lib/ui/text.h"
 
 #include <stdbool.h>
 #include <string.h>
 
-#include "display.h"
-#include "font.h"
+#include "lib/display/display.h"
+#include "lib/ui/font.h"
 
 /* The widest row it ever draws is the panel's width. */
 #define TEXT_MAX_ROW_PX ( DISPLAY_WIDTH )

@@ -133,6 +133,7 @@ jobs:
             --suppress=unusedFunction \
             --inline-suppr \
             --check-level=exhaustive \
+            -I firmware \
             -I firmware/hal \
             -I firmware/lib/ecu \
             -I firmware/lib/ssm1 \

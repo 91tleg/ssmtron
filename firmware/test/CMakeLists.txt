@@ -9,6 +9,11 @@ add_compile_options(-Wall -Wextra -Werror -Wconversion -Wshadow -pedantic
                     -fsanitize=address,undefined -fno-sanitize-recover=undefined -g)
 add_link_options(-fsanitize=address,undefined)
 
+# Headers are included by their path from firmware/, for example
+# "lib/ui/text.h". The per-directory include paths below still serve the
+# files that have not moved to that form yet.
+include_directories(${CMAKE_CURRENT_LIST_DIR}/..)
+
 add_subdirectory(../lib/ecu ecu)
 add_subdirectory(../lib/ssm1 ssm1)
 add_subdirectory(../lib/fmt fmt)

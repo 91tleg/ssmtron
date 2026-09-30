@@ -3,8 +3,8 @@
  * hardware; gamma and voltage settings can vary between panels. */
 #include <stddef.h>
 
-#include "hal_time.h"
-#include "display.h"
+#include "hal/hal_time.h"
+#include "lib/display/display.h"
 
 /* The GC9A01 is a 240 x 240 chip; a different size needs a different
  * driver, so a mismatch stops the build instead of drawing wrongly. */

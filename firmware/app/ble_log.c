@@ -1,8 +1,8 @@
-#include "ble_log.h"
+#include "app/ble_log.h"
 
-#include "ecu.h"
-#include "fmt.h"
-#include "hal_ble.h"
+#include "hal/hal_ble.h"
+#include "lib/ecu/ecu.h"
+#include "lib/fmt/fmt.h"
 
 #define LINE_MAX ( 64u )
 

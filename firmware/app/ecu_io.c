@@ -1,6 +1,6 @@
-#include "ecu_io.h"
+#include "app/ecu_io.h"
 
-#include "ecu.h"
+#include "lib/ecu/ecu.h"
 
 #define RX_BURST ( 64u ) /* per poll, so a flood cannot starve the loop */
 #define TX_MAX   ( 8u )

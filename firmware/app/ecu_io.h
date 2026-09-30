@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#include "hal_uart.h"
+#include "hal/hal_uart.h"
 
 /* Opens the UART with the serial settings the protocol asks for, then
  * starts the protocol (ecu_init). Single instance. */

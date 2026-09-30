@@ -15,6 +15,11 @@ set(DTC_OVERLAY_FILE ${CMAKE_CURRENT_LIST_DIR}/../bsp/${BSP_BOARD}/board.overlay
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(ssmtron)
 
+# Headers are included by their path from firmware/, for example
+# "lib/ui/text.h". The per-directory include paths below still serve the
+# files that have not moved to that form yet.
+zephyr_include_directories(${CMAKE_CURRENT_LIST_DIR}/..)
+
 add_subdirectory(../hal hal)
 add_subdirectory(../bsp bsp)
 add_subdirectory(../lib/ecu ecu)

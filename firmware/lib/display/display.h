@@ -6,9 +6,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "hal_gpio.h"
-#include "hal_spi.h"
-#include "hal_status.h"
+#include "hal/hal_gpio.h"
+#include "hal/hal_spi.h"
+#include "hal/hal_status.h"
 
 /* The panel's size in pixels. A build for a panel of another size sets
  * these (for example with -DDISPLAY_WIDTH=360 -DDISPLAY_HEIGHT=360); everything

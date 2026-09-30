@@ -1,8 +1,8 @@
-#include "gauge_settings.h"
+#include "app/gauge_settings.h"
 
 #include <stdint.h>
 
-#include "hal_nvm.h"
+#include "hal/hal_nvm.h"
 
 #define PARAM_IDX_KEY "param_idx"
 #define THEME_KEY     "theme"

@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../lib/ui/dial.c"
-#include "minitest.h"
+#include "lib/ui/dial.c"
+#include "test/minitest.h"
 
 static uint16_t shadow[DISPLAY_HEIGHT][DISPLAY_WIDTH];
 static uint16_t partial[DISPLAY_HEIGHT][DISPLAY_WIDTH];

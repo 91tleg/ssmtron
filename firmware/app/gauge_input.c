@@ -1,6 +1,6 @@
-#include "gauge_input.h"
+#include "app/gauge_input.h"
 
-#include "hal_log.h"
+#include "hal/hal_log.h"
 
 /* Mechanical switch settle time: a press/release edge must be stable
  * this long before it counts. */

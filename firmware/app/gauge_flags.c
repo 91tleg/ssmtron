@@ -1,9 +1,9 @@
-#include "gauge_flags.h"
+#include "app/gauge_flags.h"
 
 #include <string.h>
 
-#include "text.h"
-#include "ui_geom.h"
+#include "lib/ui/text.h"
+#include "lib/ui/ui_geom.h"
 
 /* The selected byte is 8 flags, one row per flag. Every name is always
  * printed, followed by that flag's state as 1 or 0, or - while the byte is

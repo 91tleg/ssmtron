@@ -4,15 +4,15 @@
  * see what would be drawn. */
 #include <string.h>
 
-#include "gauge.h"
-#include "hal_gpio.h"
-#include "hal_log.h"
-#include "hal_nvm.h"
-#include "display.h"
-#include "ecu.h"
-#include "dial.h"
-#include "text.h"
-#include "minitest.h"
+#include "app/gauge.h"
+#include "hal/hal_gpio.h"
+#include "hal/hal_log.h"
+#include "hal/hal_nvm.h"
+#include "lib/display/display.h"
+#include "lib/ecu/ecu.h"
+#include "lib/ui/dial.h"
+#include "lib/ui/text.h"
+#include "test/minitest.h"
 
 #define NEXT_ID   ( ( hal_gpio_id_t )1u )
 #define ACTION_ID ( ( hal_gpio_id_t )2u )

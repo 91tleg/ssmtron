@@ -1,11 +1,11 @@
 /* Render dial geometry into one row buffer; no bitmap is stored. */
-#include "dial.h"
+#include "lib/ui/dial.h"
 
 #include <string.h>
 
-#include "display.h"
-#include "font.h"
-#include "ui_geom.h"
+#include "lib/display/display.h"
+#include "lib/ui/font.h"
+#include "lib/ui/ui_geom.h"
 
 #define DIAL_PANEL_W ( ( int )DISPLAY_WIDTH )
 #define DIAL_PANEL_H ( ( int )DISPLAY_HEIGHT )

@@ -5,8 +5,8 @@
 #ifndef UI_GEOM_H
 #define UI_GEOM_H
 
-#include "display.h"
-#include "text.h"
+#include "lib/display/display.h"
+#include "lib/ui/text.h"
 
 /* The panel is round: the center and radius follow from its width. */
 #define UI_CX     ( ( ( int )DISPLAY_WIDTH ) / 2 )

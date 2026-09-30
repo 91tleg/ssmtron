@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "font.h"
+#include "lib/ui/font.h"
 
 /* Longest string any widget may produce, not counting the NUL. A widget
  * needing more should be given its own wider rect, not a longer cache. */

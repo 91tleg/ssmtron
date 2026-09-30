@@ -1,17 +1,17 @@
-#include "gauge.h"
+#include "app/gauge.h"
 
 #include <stdint.h>
 #include <string.h>
 
-#include "gauge_flags.h"
-#include "gauge_input.h"
-#include "gauge_settings.h"
-#include "hal_log.h"
-#include "ecu.h"
-#include "fmt.h"
-#include "dial.h"
-#include "text.h"
-#include "ui_geom.h"
+#include "app/gauge_flags.h"
+#include "app/gauge_input.h"
+#include "app/gauge_settings.h"
+#include "hal/hal_log.h"
+#include "lib/ecu/ecu.h"
+#include "lib/fmt/fmt.h"
+#include "lib/ui/dial.h"
+#include "lib/ui/text.h"
+#include "lib/ui/ui_geom.h"
 
 /* Two looks. Dark is a black face with the light theme's numbers inverted;
  * the needle stays red in both. The page colors match the dial's face and
