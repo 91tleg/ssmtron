@@ -3,58 +3,48 @@
 /* Addresses and scalings are for the 1990-94 Legacy ECUs. Verify against a
  * real car before shipping. */
 
-/* Leave thresholds unset until values are verified on a real car. */
 #define LIN( n, u, num, den, off, dec )                                        \
-    { .name           = ( n ),                                                 \
-      .unit           = ( u ),                                                 \
-      .unit_neg       = NULL,                                                  \
-      .decode         = ECU_DEC_LINEAR,                                        \
-      .scale_num      = ( num ),                                               \
-      .scale_den      = ( den ),                                               \
-      .offset         = ( off ),                                               \
-      .decimals       = ( dec ),                                               \
-      .lookup         = NULL,                                                  \
-      .flags          = NULL,                                                  \
-      .flag_count     = 0,                                                     \
-      .has_thresholds = false,                                                 \
-      .warn_value     = 0,                                                     \
-      .redline_value  = 0,                                                     \
-      .trouble_codes  = false }
+    { .name          = ( n ),                                                  \
+      .unit          = ( u ),                                                  \
+      .unit_neg      = NULL,                                                   \
+      .decode        = ECU_DEC_LINEAR,                                         \
+      .scale_num     = ( num ),                                                \
+      .scale_den     = ( den ),                                                \
+      .offset        = ( off ),                                                \
+      .decimals      = ( dec ),                                                \
+      .lookup        = NULL,                                                   \
+      .flags         = NULL,                                                   \
+      .flag_count    = 0,                                                      \
+      .trouble_codes = false }
 
 #define FLAGS( n, arr )                                                        \
-    { .name           = ( n ),                                                 \
-      .unit           = "",                                                    \
-      .unit_neg       = NULL,                                                  \
-      .decode         = ECU_DEC_FLAGS,                                         \
-      .scale_num      = 1,                                                     \
-      .scale_den      = 1,                                                     \
-      .offset         = 0,                                                     \
-      .decimals       = 0,                                                     \
-      .lookup         = NULL,                                                  \
-      .flags          = ( arr ),                                               \
-      .flag_count     = ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),   \
-      .has_thresholds = false,                                                 \
-      .warn_value     = 0,                                                     \
-      .redline_value  = 0,                                                     \
-      .trouble_codes  = false }
+    { .name          = ( n ),                                                  \
+      .unit          = "",                                                     \
+      .unit_neg      = NULL,                                                   \
+      .decode        = ECU_DEC_FLAGS,                                          \
+      .scale_num     = 1,                                                      \
+      .scale_den     = 1,                                                      \
+      .offset        = 0,                                                      \
+      .decimals      = 0,                                                      \
+      .lookup        = NULL,                                                   \
+      .flags         = ( arr ),                                                \
+      .flag_count    = ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),    \
+      .trouble_codes = false }
 
 /* The same, for the bytes whose bits are trouble codes. */
 #define CODES( n, arr )                                                        \
-    { .name           = ( n ),                                                 \
-      .unit           = "",                                                    \
-      .unit_neg       = NULL,                                                  \
-      .decode         = ECU_DEC_FLAGS,                                         \
-      .scale_num      = 1,                                                     \
-      .scale_den      = 1,                                                     \
-      .offset         = 0,                                                     \
-      .decimals       = 0,                                                     \
-      .lookup         = NULL,                                                  \
-      .flags          = ( arr ),                                               \
-      .flag_count     = ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),   \
-      .has_thresholds = false,                                                 \
-      .warn_value     = 0,                                                     \
-      .redline_value  = 0,                                                     \
-      .trouble_codes  = true }
+    { .name          = ( n ),                                                  \
+      .unit          = "",                                                     \
+      .unit_neg      = NULL,                                                   \
+      .decode        = ECU_DEC_FLAGS,                                          \
+      .scale_num     = 1,                                                      \
+      .scale_den     = 1,                                                      \
+      .offset        = 0,                                                      \
+      .decimals      = 0,                                                      \
+      .lookup        = NULL,                                                   \
+      .flags         = ( arr ),                                                \
+      .flag_count    = ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),    \
+      .trouble_codes = true }
 
 /* ---- flag bits --------------------------------------------------------
  */
@@ -194,21 +184,18 @@ static const ecu_param_info_t VSP_J =
     LIN( "Vehicle Speed", "mph", 125, 1, 0, 2 );
 static const ecu_param_info_t RPM  = LIN( "Engine Speed", "rpm", 25, 1, 0, 0 );
 static const ecu_param_info_t TW_H = {
-    .name           = "Coolant Temp",
-    .unit           = "F",
-    .unit_neg       = NULL,
-    .decode         = ECU_DEC_LOOKUP,
-    .scale_num      = 1,
-    .scale_den      = 1,
-    .offset         = 0,
-    .decimals       = 0,
-    .lookup         = coolant_hitachi,
-    .flags          = NULL,
-    .flag_count     = 0,
-    .has_thresholds = false,
-    .warn_value     = 0,
-    .redline_value  = 0,
-    .trouble_codes  = false
+    .name          = "Coolant Temp",
+    .unit          = "F",
+    .unit_neg      = NULL,
+    .decode        = ECU_DEC_LOOKUP,
+    .scale_num     = 1,
+    .scale_den     = 1,
+    .offset        = 0,
+    .decimals      = 0,
+    .lookup        = coolant_hitachi,
+    .flags         = NULL,
+    .flag_count    = 0,
+    .trouble_codes = false
 };
 static const ecu_param_info_t TW_J = LIN( "Coolant Temp", "F", 18, 1, -580, 1 );
 static const ecu_param_info_t ADVS =
@@ -230,21 +217,18 @@ static const ecu_param_info_t O2_J2 = LIN( "Oxygen Sensor", "V", 2, 1, 0, 2 );
 static const ecu_param_info_t TRIM =
     LIN( "Fuel Trim", "%", 10000, 128, -10000, 2 );
 static const ecu_param_info_t RTRD_H = {
-    .name           = "Timing Correction",
-    .unit           = "deg",
-    .unit_neg       = NULL,
-    .decode         = ECU_DEC_SIGNED,
-    .scale_num      = 1,
-    .scale_den      = 1,
-    .offset         = 0,
-    .decimals       = 0,
-    .lookup         = NULL,
-    .flags          = NULL,
-    .flag_count     = 0,
-    .has_thresholds = false,
-    .warn_value     = 0,
-    .redline_value  = 0,
-    .trouble_codes  = false
+    .name          = "Timing Correction",
+    .unit          = "deg",
+    .unit_neg      = NULL,
+    .decode        = ECU_DEC_SIGNED,
+    .scale_num     = 1,
+    .scale_den     = 1,
+    .offset        = 0,
+    .decimals      = 0,
+    .lookup        = NULL,
+    .flags         = NULL,
+    .flag_count    = 0,
+    .trouble_codes = false
 };
 static const ecu_param_info_t RTRD_J =
     LIN( "Timing Correction", "deg", 25, 1, -3200, 2 );
@@ -257,21 +241,18 @@ static const ecu_param_info_t BARO_T =
 static const ecu_param_info_t BARO_J =
     LIN( "Barometric Pressure", "torr", 8, 1, 0, 0 );
 static const ecu_param_info_t MANIP = {
-    .name           = "Boost/Vacuum",
-    .unit           = "psi",
-    .unit_neg       = "inHg",
-    .decode         = ECU_DEC_BOOST,
-    .scale_num      = 1,
-    .scale_den      = 1,
-    .offset         = 0,
-    .decimals       = 3,
-    .lookup         = NULL,
-    .flags          = NULL,
-    .flag_count     = 0,
-    .has_thresholds = false,
-    .warn_value     = 0,
-    .redline_value  = 0,
-    .trouble_codes  = false
+    .name          = "Boost/Vacuum",
+    .unit          = "psi",
+    .unit_neg      = "inHg",
+    .decode        = ECU_DEC_BOOST,
+    .scale_num     = 1,
+    .scale_den     = 1,
+    .offset        = 0,
+    .decimals      = 3,
+    .lookup        = NULL,
+    .flags         = NULL,
+    .flag_count    = 0,
+    .trouble_codes = false
 };
 static const ecu_param_info_t FA0_HN = FLAGS( "Input Switches", sw0_hitachi_n );
 static const ecu_param_info_t FA0_HT = FLAGS( "Input Switches", sw0_hitachi_t );

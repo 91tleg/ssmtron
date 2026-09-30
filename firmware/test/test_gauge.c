@@ -30,20 +30,17 @@ size_t ecu_param_count( void )
 const ecu_param_info_t * ecu_param_info( size_t idx )
 {
     static const ecu_param_info_t info = {
-        .name           = "RPM",
-        .unit           = "rpm",
-        .unit_neg       = NULL,
-        .decode         = ECU_DEC_LINEAR,
-        .scale_num      = 1,
-        .scale_den      = 1,
-        .offset         = 0,
-        .decimals       = 0,
-        .lookup         = NULL,
-        .flags          = NULL,
-        .flag_count     = 0,
-        .has_thresholds = false,
-        .warn_value     = 0,
-        .redline_value  = 0,
+        .name       = "RPM",
+        .unit       = "rpm",
+        .unit_neg   = NULL,
+        .decode     = ECU_DEC_LINEAR,
+        .scale_num  = 1,
+        .scale_den  = 1,
+        .offset     = 0,
+        .decimals   = 0,
+        .lookup     = NULL,
+        .flags      = NULL,
+        .flag_count = 0,
         .trouble_codes =
             true /* the clear applies: these tests exercise the buttons */
     };

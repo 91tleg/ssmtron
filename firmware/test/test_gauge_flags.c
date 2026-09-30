@@ -38,56 +38,47 @@ size_t ecu_param_count( void )
 const ecu_param_info_t * ecu_param_info( size_t idx )
 {
     static const ecu_param_info_t info = {
-        .name           = "Stored Codes 2/3",
-        .unit           = "",
-        .unit_neg       = NULL,
-        .decode         = ECU_DEC_FLAGS,
-        .scale_num      = 1,
-        .scale_den      = 1,
-        .offset         = 0,
-        .decimals       = 0,
-        .lookup         = NULL,
-        .flags          = test_flags,
-        .flag_count     = 2,
-        .has_thresholds = false,
-        .warn_value     = 0,
-        .redline_value  = 0,
-        .trouble_codes  = true /* trouble codes: the clear applies */
+        .name          = "Stored Codes 2/3",
+        .unit          = "",
+        .unit_neg      = NULL,
+        .decode        = ECU_DEC_FLAGS,
+        .scale_num     = 1,
+        .scale_den     = 1,
+        .offset        = 0,
+        .decimals      = 0,
+        .lookup        = NULL,
+        .flags         = test_flags,
+        .flag_count    = 2,
+        .trouble_codes = true /* trouble codes: the clear applies */
     };
     static const ecu_param_info_t switches = {
-        .name           = "Input Switches",
-        .unit           = "",
-        .unit_neg       = NULL,
-        .decode         = ECU_DEC_FLAGS,
-        .scale_num      = 1,
-        .scale_den      = 1,
-        .offset         = 0,
-        .decimals       = 0,
-        .lookup         = NULL,
-        .flags          = test_flags,
-        .flag_count     = 2,
-        .has_thresholds = false,
-        .warn_value     = 0,
-        .redline_value  = 0,
-        .trouble_codes  = false /* switches: nothing to clear */
+        .name          = "Input Switches",
+        .unit          = "",
+        .unit_neg      = NULL,
+        .decode        = ECU_DEC_FLAGS,
+        .scale_num     = 1,
+        .scale_den     = 1,
+        .offset        = 0,
+        .decimals      = 0,
+        .lookup        = NULL,
+        .flags         = test_flags,
+        .flag_count    = 2,
+        .trouble_codes = false /* switches: nothing to clear */
     };
 
     static const ecu_param_info_t load = {
-        .name           = "Load",
-        .unit           = "",
-        .unit_neg       = NULL,
-        .decode         = ECU_DEC_LINEAR,
-        .scale_num      = 1,
-        .scale_den      = 1,
-        .offset         = 0,
-        .decimals       = 0,
-        .lookup         = NULL,
-        .flags          = NULL,
-        .flag_count     = 0,
-        .has_thresholds = false,
-        .warn_value     = 0,
-        .redline_value  = 0,
-        .trouble_codes  = false /* a plain value: a number page */
+        .name          = "Load",
+        .unit          = "",
+        .unit_neg      = NULL,
+        .decode        = ECU_DEC_LINEAR,
+        .scale_num     = 1,
+        .scale_den     = 1,
+        .offset        = 0,
+        .decimals      = 0,
+        .lookup        = NULL,
+        .flags         = NULL,
+        .flag_count    = 0,
+        .trouble_codes = false /* a plain value: a number page */
     };
 
     if ( idx == 1u )
