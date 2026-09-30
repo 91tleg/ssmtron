@@ -143,6 +143,26 @@ bool ecu_get_value(
     int32_t * out
 );
 
+/* The ECU streams one parameter at a time, so at most one has a fresh value:
+ * the selected one. Finds it; false if none is fresh. */
+static inline bool ecu_fresh_value(
+    const ecu_param_info_t ** info,
+    int32_t * value
+)
+{
+    bool found = false;
+
+    for ( size_t i = 0; !found && ( i < ecu_param_count() ); i++ )
+    {
+        if ( ecu_get_value( i, value ) )
+        {
+            *info = ecu_param_info( i );
+            found = true;
+        }
+    }
+    return found;
+}
+
 /* Clear the ECU's stored trouble codes. Interrupts monitoring, then goes
  * back to the selected parameter. False if not identified, unsupported or
  * already running. */

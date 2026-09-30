@@ -69,25 +69,6 @@ static size_t selected_idx;
  * selected_idx keeps the last parameter, which the ECU keeps streaming. */
 static bool info_shown;
 
-/* Find the fresh value from the ECU's single active stream. */
-static bool current_value(
-    const ecu_param_info_t ** info,
-    int32_t * value
-)
-{
-    bool found = false;
-
-    for ( size_t i = 0; !found && ( i < ecu_param_count() ); i++ )
-    {
-        if ( ecu_get_value( i, value ) )
-        {
-            *info = ecu_param_info( i );
-            found = true;
-        }
-    }
-    return found;
-}
-
 /* Copy and terminate up to TEXT_MAX bytes. */
 static void copy_capped(
     char * buf,
@@ -684,7 +665,7 @@ static void update_face( uint32_t now_ms )
     {
         const ecu_param_info_t * info = NULL;
         int32_t value                 = 0;
-        bool has_value                = current_value( &info, &value );
+        bool has_value                = ecu_fresh_value( &info, &value );
         int32_t dial_value  = value / dial_table[active_dial].value_div;
         int32_t sweep_value = 0;
 
