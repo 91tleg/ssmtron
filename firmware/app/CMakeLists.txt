@@ -24,7 +24,7 @@ add_subdirectory(../lib/display display)
 add_subdirectory(../lib/display/gc9a01 gc9a01)
 add_subdirectory(../lib/ui ui)
 
-target_sources(app PRIVATE main.c ecu_io.c ble_log.c fw_info.c gauge.c)
+target_sources(app PRIVATE main.c ecu_io.c ble_log.c fw_info.c gauge.c gauge_flags.c gauge_input.c gauge_settings.c)
 target_link_libraries(app PRIVATE bsp fmt gc9a01 hal ssm1 ui)
 
 # See firmware/hil/: this file is absent from every normal build, not just

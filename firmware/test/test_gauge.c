@@ -254,7 +254,7 @@ static void test_release_before_threshold_cancels( void )
 {
     press_action( true );
     tick( 1 );   /* press observed */
-    tick( 35 );  /* past debounce: enters HOLDING */
+    tick( 35 );  /* past debounce: a press, not yet a hold */
     tick( 500 ); /* still short of the 2 s hold */
     press_action( false );
     tick( 1 );    /* released early: back to idle, no clear */
@@ -266,8 +266,9 @@ static void test_hold_past_threshold_triggers_clear( void )
 {
     press_action( true );
     tick( 1 );
-    tick( 35 );   /* HOLDING starts */
-    tick( 1965 ); /* crosses the 2 s hold */
+    tick( 35 );   /* undecided: a tap or a hold */
+    tick( 1965 ); /* past the tap window it became a hold, and 2 s is up */
+    tick( 1 );    /* the poll after: the clear starts */
     CHECK( clear_started );
 }
 
