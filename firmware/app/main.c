@@ -9,8 +9,9 @@
 #include "hal/hal_time.h"
 #include "hal/hal_wdt.h"
 
-/* A new firmware image is confirmed once it has run this long; if it
- * crashes sooner the bootloader goes back to the old one. */
+/* A new firmware image is confirmed once it has run this long with a working
+ * display; if it crashes sooner, or cannot bring the display up, the
+ * bootloader goes back to the old one. */
 #define CONFIRM_AFTER_MS ( 10000u )
 
 /* Allow for ECU and display startup before the first feed. */
@@ -34,6 +35,7 @@ int main( void )
     };
 
     hal_status_t ecu_status;
+    hal_status_t gauge_status;
     bool confirmed = false;
 
     /* Arm before any HAL call that could hang. */
@@ -54,7 +56,11 @@ int main( void )
 
     /* Draw the first frame before anything slow, so the gauge is showing
      * something almost as soon as it powers on. It runs without an ECU. */
-    ( void )gauge_init( &display_pins, BSP_GPIO_NEXT, BSP_GPIO_ACTION );
+    gauge_status = gauge_init( &display_pins, BSP_GPIO_NEXT, BSP_GPIO_ACTION );
+    if ( gauge_status != HAL_OK )
+    {
+        hal_log_write( "display not ready" );
+    }
 
     /* Bluetooth stays off until the user starts update mode from the info
      * page (see gauge_update.c), so it does not slow the start or sit open
@@ -74,7 +80,11 @@ int main( void )
         gauge_poll( now );
         hil_test_poll();
 
-        if ( !confirmed && ( now >= CONFIRM_AFTER_MS ) )
+        /* A unit that cannot show anything is not a good image: leaving it
+         * unconfirmed lets the bootloader revert at the next reset. The ECU
+         * is not part of the check, since a car that is off is normal. */
+        if ( !confirmed && ( gauge_status == HAL_OK )
+             && ( now >= CONFIRM_AFTER_MS ) )
         {
             hal_status_t status = hal_dfu_confirm();
 
