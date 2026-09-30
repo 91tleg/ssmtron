@@ -34,23 +34,38 @@ target_include_directories(test_ble_log PRIVATE ../app ../hal)
 target_link_libraries(test_ble_log PRIVATE fmt)
 add_test(NAME ble_log COMMAND test_ble_log)
 
-add_executable(test_gauge test_gauge.c ../app/gauge.c)
+add_executable(test_gauge test_gauge.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_input.c ../app/gauge_settings.c)
 target_include_directories(test_gauge PRIVATE ../app ../hal ../lib/display
                                                ../lib/ui)
 target_link_libraries(test_gauge PRIVATE fmt)
 add_test(NAME gauge COMMAND test_gauge)
 
-add_executable(test_gauge_watch_log test_gauge_watch_log.c ../app/gauge.c)
+add_executable(test_gauge_watch_log test_gauge_watch_log.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_input.c ../app/gauge_settings.c)
 target_include_directories(test_gauge_watch_log
                             PRIVATE ../app ../hal ../lib/display ../lib/ui)
 target_link_libraries(test_gauge_watch_log PRIVATE fmt)
 add_test(NAME gauge_watch_log COMMAND test_gauge_watch_log)
 
-add_executable(test_gauge_dial test_gauge_dial.c ../app/gauge.c)
+add_executable(test_gauge_dial test_gauge_dial.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_input.c ../app/gauge_settings.c)
 target_include_directories(test_gauge_dial
                             PRIVATE ../app ../hal ../lib/display ../lib/ui)
 target_link_libraries(test_gauge_dial PRIVATE fmt)
 add_test(NAME gauge_dial COMMAND test_gauge_dial)
+
+add_executable(test_gauge_flags test_gauge_flags.c ../app/gauge.c ../app/gauge_flags.c ../app/gauge_input.c ../app/gauge_settings.c)
+target_include_directories(test_gauge_flags
+                            PRIVATE ../app ../hal ../lib/display ../lib/ui)
+target_link_libraries(test_gauge_flags PRIVATE fmt)
+add_test(NAME gauge_flags COMMAND test_gauge_flags)
+
+add_executable(test_gauge_input test_gauge_input.c ../app/gauge_input.c)
+target_include_directories(test_gauge_input PRIVATE ../app ../hal)
+add_test(NAME gauge_input COMMAND test_gauge_input)
+
+add_executable(test_gauge_settings test_gauge_settings.c
+                                   ../app/gauge_settings.c)
+target_include_directories(test_gauge_settings PRIVATE ../app ../hal)
+add_test(NAME gauge_settings COMMAND test_gauge_settings)
 
 # Compile text/font sources directly with a fake display; HAL has no host
 # backend.

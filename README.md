@@ -4,10 +4,10 @@ SSMTron is an nRF52840-based gauge for Subaru ECUs that use the SSM1 protocol. I
 
 ## Controls
 
-- **NEXT (Button 1):** Cycle through the available ECU parameters. The selection is saved across restarts.
-- **ACTION (Button 2):** Hold for two seconds to clear trouble codes. A tap does nothing. After the result appears, release and press again to return to the gauge.
+- **NEXT (Button 1):** Tap to cycle through the available ECU parameters. Hold for 1.5 seconds to save the shown parameter and the theme as the power-on defaults; the display shows SAVED, or SAVE FAILED if the write fails. Tapping only browses and does not write flash.
+- **ACTION (Button 2):** Tap to switch between the light and dark theme. The theme is kept until the next restart unless you save it with a NEXT hold. Hold for two seconds to clear trouble codes; the clear prompt appears after half a second. After the result appears, release and press again to return to the gauge.
 
-The display shows the parameter name, decoded value, unit, and ECU link state. Available parameters depend on the detected ECU profile. The current profiles target 1990-94 Legacy ECUs; their addresses and conversions still need verification on a real car.
+The display shows the parameter name, decoded value, unit, and ECU link state. Switch and trouble-code bytes get a page of their own that lists every flag name with a 1 (asserted) or 0, or - while the byte is stale. Available parameters depend on the detected ECU profile. The current profiles target 1990-94 Legacy ECUs; their addresses and conversions still need verification on a real car.
 
 ## Hardware and firmware
 

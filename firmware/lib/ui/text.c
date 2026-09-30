@@ -23,6 +23,15 @@ static void draw_widget(
     uint16_t font_rows = ( uint16_t )( FONT_H * w->scale );
     uint16_t row_pixels =
         ( w->rect.w <= TEXT_MAX_ROW_PX ) ? w->rect.w : TEXT_MAX_ROW_PX;
+    /* The last glyph has no trailing gap, so it does not skew the center. */
+    uint16_t text_px =
+        ( text_len > 0u )
+            ? ( uint16_t )( ( text_len * cell_w ) - ( cell_w - glyph_px ) )
+            : 0u;
+    uint16_t x_off =
+        ( ( w->align == TEXT_ALIGN_CENTER ) && ( row_pixels > text_px ) )
+            ? ( uint16_t )( ( row_pixels - text_px ) / 2u )
+            : 0u;
 
     for ( uint16_t row = 0; row < w->rect.h; row++ )
     {
@@ -33,10 +42,11 @@ static void draw_widget(
         {
             uint16_t px = w->bg;
 
-            if ( in_font )
+            if ( in_font && ( col >= x_off ) )
             {
-                uint16_t glyph_index = ( uint16_t )( col / cell_w );
-                uint16_t within      = ( uint16_t )( col % cell_w );
+                uint16_t text_col    = ( uint16_t )( col - x_off );
+                uint16_t glyph_index = ( uint16_t )( text_col / cell_w );
+                uint16_t within      = ( uint16_t )( text_col % cell_w );
 
                 if ( ( glyph_index < ( uint16_t )text_len )
                      && ( within < glyph_px ) )

@@ -18,6 +18,12 @@ typedef struct
     uint16_t h; /* must be FONT_H * scale; see font.h */
 } text_rect_t;
 
+typedef enum
+{
+    TEXT_ALIGN_LEFT = 0, /* the default, so widgets may leave it out */
+    TEXT_ALIGN_CENTER    /* centered in the rect, to the pixel */
+} text_align_t;
+
 typedef struct
 {
     text_rect_t rect;
@@ -28,6 +34,7 @@ typedef struct
      * NUL-terminated. Called every text_poll: keep it cheap and pure. */
     void ( *text )( char * buf );
     char cache[TEXT_MAX + 1u]; /* last text actually drawn */
+    text_align_t align;        /* where the text sits in the rect */
 } text_widget_t;
 
 /* Clears the whole panel to page_bg, then draws every widget once,
