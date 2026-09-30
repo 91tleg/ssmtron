@@ -24,12 +24,12 @@ typedef enum
 
 typedef struct
 {
-    uint16_t rom_id; /* r0 | r1 << 8 */
     const char * name;
     const ssm1_param_t * params;
     size_t count;
-    uint16_t clear_addr;
     ssm1_clear_mode_t clear_mode;
+    uint16_t rom_id; /* r0 | r1 << 8 */
+    uint16_t clear_addr;
 } ssm1_profile_t;
 
 /* NULL if the ROM ID is not one we know. */

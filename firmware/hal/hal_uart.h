@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "hal_status.h"
+#include "hal/hal_status.h"
 
 typedef uint8_t hal_uart_id_t;
 
@@ -21,8 +21,8 @@ typedef enum
 typedef struct
 {
     uint32_t baud;
-    uint8_t data_bits;
     hal_uart_parity_t parity;
+    uint8_t data_bits;
     uint8_t stop_bits;
 } hal_uart_cfg_t;
 

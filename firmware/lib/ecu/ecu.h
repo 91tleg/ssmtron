@@ -24,8 +24,8 @@ typedef enum
 typedef struct
 {
     uint32_t baud;
-    uint8_t data_bits;
     ecu_parity_t parity;
+    uint8_t data_bits;
     uint8_t stop_bits;
 } ecu_link_cfg_t;
 
@@ -58,15 +58,15 @@ typedef struct
     int32_t scale_num;
     int32_t scale_den;
     int32_t offset;
-    uint8_t decimals;
     const int16_t * lookup;   /* 256 entries, ECU_DEC_LOOKUP */
     const ecu_flag_t * flags; /* ECU_DEC_FLAGS */
-    uint8_t flag_count;
     /* Thresholds use ecu_get_value units. Without verified thresholds,
      * the display must not color-code a value. */
-    bool has_thresholds;
     int32_t warn_value;
     int32_t redline_value;
+    uint8_t decimals;
+    uint8_t flag_count;
+    bool has_thresholds;
     /* A flags byte whose bits are trouble codes: the only pages the clear
      * command applies to. Switch bytes and values are false. */
     bool trouble_codes;

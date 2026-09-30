@@ -35,15 +35,15 @@ typedef enum
 
 typedef struct
 {
-    text_rect_t rect;
-    uint8_t scale; /* 1 = 5x7 px per glyph, 2 = 10x14, ... */
-    uint16_t fg;   /* RGB565 */
-    uint16_t bg;   /* RGB565; also what erases now-shorter stale text */
     /* Writes this widget's current text into buf (size TEXT_MAX + 1),
      * NUL-terminated. Called every text_poll: keep it cheap and pure. */
     void ( *text )( char * buf );
+    text_align_t align; /* where the text sits in the rect */
+    text_rect_t rect;
+    uint16_t fg;   /* RGB565 */
+    uint16_t bg;   /* RGB565; also what erases now-shorter stale text */
+    uint8_t scale; /* 1 = 5x7 px per glyph, 2 = 10x14, ... */
     char cache[TEXT_MAX + 1u]; /* last text actually drawn */
-    text_align_t align;        /* where the text sits in the rect */
 } text_widget_t;
 
 /* Clears the whole panel to page_bg, then draws every widget once,

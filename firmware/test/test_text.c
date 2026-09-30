@@ -1,10 +1,10 @@
 /* Verify that unchanged text skips blits and changed text redraws fully. */
 #include <string.h>
 
-#include "display.h"
-#include "minitest.h"
-#include "text.h"
-#include "font.h"
+#include "lib/display/display.h"
+#include "test/minitest.h"
+#include "lib/ui/text.h"
+#include "lib/ui/font.h"
 
 static unsigned blit_calls;
 static unsigned clear_calls;
@@ -57,13 +57,13 @@ static void reset( void )
 static void test_init_draws_and_clears( void )
 {
     text_widget_t w[1] = {
-        { { 0, 0, 40, FONT_H },
-          1,
-          0xFFFFu,
-          0x0000u,
-          one_text,
-          { 0 },
-          TEXT_ALIGN_LEFT },
+        { .rect  = { 0, 0, 40, FONT_H },
+          .scale = 1,
+          .fg    = 0xFFFFu,
+          .bg    = 0x0000u,
+          .text  = one_text,
+          .cache = { 0 },
+          .align = TEXT_ALIGN_LEFT },
     };
 
     reset();
@@ -76,13 +76,13 @@ static void test_init_draws_and_clears( void )
 static void test_poll_skips_unchanged_text( void )
 {
     text_widget_t w[1] = {
-        { { 0, 0, 40, FONT_H },
-          1,
-          0xFFFFu,
-          0x0000u,
-          one_text,
-          { 0 },
-          TEXT_ALIGN_LEFT },
+        { .rect  = { 0, 0, 40, FONT_H },
+          .scale = 1,
+          .fg    = 0xFFFFu,
+          .bg    = 0x0000u,
+          .text  = one_text,
+          .cache = { 0 },
+          .align = TEXT_ALIGN_LEFT },
     };
 
     reset();
@@ -97,13 +97,13 @@ static void test_poll_skips_unchanged_text( void )
 static void test_poll_redraws_on_change( void )
 {
     text_widget_t w[1] = {
-        { { 0, 0, 40, FONT_H },
-          1,
-          0xFFFFu,
-          0x0000u,
-          one_text,
-          { 0 },
-          TEXT_ALIGN_LEFT },
+        { .rect  = { 0, 0, 40, FONT_H },
+          .scale = 1,
+          .fg    = 0xFFFFu,
+          .bg    = 0x0000u,
+          .text  = one_text,
+          .cache = { 0 },
+          .align = TEXT_ALIGN_LEFT },
     };
 
     reset();
@@ -143,20 +143,20 @@ static void test_centered_text_is_centered_to_the_pixel( void )
     /* 'T' has a full top row, 5 px wide: in a 41 px rect it belongs at
      * columns 18 to 22, the same distance from both edges. */
     text_widget_t w[2] = {
-        { { 0, 0, 41, FONT_H },
-          1,
-          0xFFFFu,
-          0x0000u,
-          one_text,
-          { 0 },
-          TEXT_ALIGN_CENTER },
-        { { 0, 0, 41, FONT_H },
-          1,
-          0xFFFFu,
-          0x0000u,
-          one_text,
-          { 0 },
-          TEXT_ALIGN_LEFT },
+        { .rect  = { 0, 0, 41, FONT_H },
+          .scale = 1,
+          .fg    = 0xFFFFu,
+          .bg    = 0x0000u,
+          .text  = one_text,
+          .cache = { 0 },
+          .align = TEXT_ALIGN_CENTER },
+        { .rect  = { 0, 0, 41, FONT_H },
+          .scale = 1,
+          .fg    = 0xFFFFu,
+          .bg    = 0x0000u,
+          .text  = one_text,
+          .cache = { 0 },
+          .align = TEXT_ALIGN_LEFT },
     };
     int first;
     int last;

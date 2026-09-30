@@ -5,14 +5,14 @@
 #include "hal/hal_dfu.h"
 #include "hal/hal_ble.h"
 #include "app/fw_info.h"
-#include "dial.h"
-#include "ecu.h"
-#include "gauge.h"
-#include "hal_gpio.h"
-#include "hal_log.h"
-#include "hal_nvm.h"
-#include "minitest.h"
-#include "text.h"
+#include "lib/ui/dial.h"
+#include "lib/ecu/ecu.h"
+#include "app/gauge.h"
+#include "hal/hal_gpio.h"
+#include "hal/hal_log.h"
+#include "hal/hal_nvm.h"
+#include "test/minitest.h"
+#include "lib/ui/text.h"
 
 #define NEXT_ID   ( ( hal_gpio_id_t )1u )
 #define ACTION_ID ( ( hal_gpio_id_t )2u )
@@ -36,55 +36,55 @@ size_t ecu_param_count( void )
 const ecu_param_info_t * ecu_param_info( size_t idx )
 {
     static const ecu_param_info_t boost_info = {
-        "Boost/Vacuum",
-        "psi",
-        "inHg",
-        ECU_DEC_BOOST,
-        1,
-        1,
-        0,
-        3,
-        NULL,
-        NULL,
-        0,
-        false,
-        0,
-        0,
-        false
+        .name           = "Boost/Vacuum",
+        .unit           = "psi",
+        .unit_neg       = "inHg",
+        .decode         = ECU_DEC_BOOST,
+        .scale_num      = 1,
+        .scale_den      = 1,
+        .offset         = 0,
+        .decimals       = 3,
+        .lookup         = NULL,
+        .flags          = NULL,
+        .flag_count     = 0,
+        .has_thresholds = false,
+        .warn_value     = 0,
+        .redline_value  = 0,
+        .trouble_codes  = false
     };
     static const ecu_param_info_t rpm_info = {
-        "Engine Speed",
-        "rpm",
-        NULL,
-        ECU_DEC_LINEAR,
-        1,
-        1,
-        0,
-        0,
-        NULL,
-        NULL,
-        0,
-        false,
-        0,
-        0,
-        false
+        .name           = "Engine Speed",
+        .unit           = "rpm",
+        .unit_neg       = NULL,
+        .decode         = ECU_DEC_LINEAR,
+        .scale_num      = 1,
+        .scale_den      = 1,
+        .offset         = 0,
+        .decimals       = 0,
+        .lookup         = NULL,
+        .flags          = NULL,
+        .flag_count     = 0,
+        .has_thresholds = false,
+        .warn_value     = 0,
+        .redline_value  = 0,
+        .trouble_codes  = false
     };
     static const ecu_param_info_t load_info = {
-        "Load",
-        "",
-        NULL,
-        ECU_DEC_LINEAR,
-        1,
-        1,
-        0,
-        0,
-        NULL,
-        NULL,
-        0,
-        false,
-        0,
-        0,
-        false
+        .name           = "Load",
+        .unit           = "",
+        .unit_neg       = NULL,
+        .decode         = ECU_DEC_LINEAR,
+        .scale_num      = 1,
+        .scale_den      = 1,
+        .offset         = 0,
+        .decimals       = 0,
+        .lookup         = NULL,
+        .flags          = NULL,
+        .flag_count     = 0,
+        .has_thresholds = false,
+        .warn_value     = 0,
+        .redline_value  = 0,
+        .trouble_codes  = false
     };
     const ecu_param_info_t * info = NULL;
 
