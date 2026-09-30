@@ -1,42 +1,42 @@
 /* App glue: ECU values -> BLE lines, with fakes for both sides. */
 #include <string.h>
 
-#include "ble_log.h"
-#include "ecu.h"
-#include "hal_ble.h"
-#include "minitest.h"
+#include "app/ble_log.h"
+#include "lib/ecu/ecu.h"
+#include "hal/hal_ble.h"
+#include "test/minitest.h"
 
 static const ecu_param_info_t infos[2] = {
-    { "Engine Speed",
-      "rpm",
-      NULL,
-      ECU_DEC_LINEAR,
-      25,
-      1,
-      0,
-      0,
-      NULL,
-      NULL,
-      0,
-      false,
-      0,
-      0,
-      false },
-    { "System Voltage",
-      "V",
-      NULL,
-      ECU_DEC_LINEAR,
-      8,
-      1,
-      0,
-      2,
-      NULL,
-      NULL,
-      0,
-      false,
-      0,
-      0,
-      false },
+    { .name           = "Engine Speed",
+      .unit           = "rpm",
+      .unit_neg       = NULL,
+      .decode         = ECU_DEC_LINEAR,
+      .scale_num      = 25,
+      .scale_den      = 1,
+      .offset         = 0,
+      .decimals       = 0,
+      .lookup         = NULL,
+      .flags          = NULL,
+      .flag_count     = 0,
+      .has_thresholds = false,
+      .warn_value     = 0,
+      .redline_value  = 0,
+      .trouble_codes  = false },
+    { .name           = "System Voltage",
+      .unit           = "V",
+      .unit_neg       = NULL,
+      .decode         = ECU_DEC_LINEAR,
+      .scale_num      = 8,
+      .scale_den      = 1,
+      .offset         = 0,
+      .decimals       = 2,
+      .lookup         = NULL,
+      .flags          = NULL,
+      .flag_count     = 0,
+      .has_thresholds = false,
+      .warn_value     = 0,
+      .redline_value  = 0,
+      .trouble_codes  = false },
 };
 static bool fresh[2];
 static int32_t vals[2];

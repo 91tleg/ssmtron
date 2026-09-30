@@ -1,6 +1,6 @@
 /* GPIOs come from the board's devicetree: /zephyr,user { hal-gpios = <...>;
  * } */
-#include "hal_gpio.h"
+#include "hal/hal_gpio.h"
 
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
@@ -17,14 +17,14 @@ static const struct gpio_dt_spec gpios[] = {
 typedef struct
 {
     struct gpio_callback cb;
+    volatile uint32_t timestamp_ms;
+    volatile uint32_t press_ms;
     volatile bool level;
     volatile bool pending;
-    volatile uint32_t timestamp_ms;
     /* A press not yet handed out. A later release must not hide it, or a
      * tap shorter than the caller's poll gap would never be seen. It is a
      * flag, not a queue, so a burst of presses still reads as one. */
     volatile bool press_pending;
-    volatile uint32_t press_ms;
 } watch_t;
 
 static watch_t watches[HAL_GPIO_COUNT];

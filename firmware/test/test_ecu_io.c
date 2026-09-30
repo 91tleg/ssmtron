@@ -2,9 +2,9 @@
  * ECU library are both replaced by fakes defined here. */
 #include <string.h>
 
-#include "ecu.h"
-#include "ecu_io.h"
-#include "minitest.h"
+#include "lib/ecu/ecu.h"
+#include "app/ecu_io.h"
+#include "test/minitest.h"
 
 static char log_[256];
 static size_t log_len;
@@ -12,7 +12,9 @@ static uint8_t fed[64];
 static size_t fed_len;
 static uint32_t last_tick;
 static bool inited;
-static ecu_link_cfg_t link_cfg = { 1953u, 8u, ECU_PARITY_EVEN, 1u };
+static ecu_link_cfg_t link_cfg = {
+    .baud = 1953u, .data_bits = 8u, .parity = ECU_PARITY_EVEN, .stop_bits = 1u
+};
 static uint8_t next_tx[8];
 
 static void note( char c )
@@ -144,7 +146,10 @@ static void reset( void )
     written_len = 0;
     tx_len      = 0;
     last_tick   = 0;
-    link_cfg    = ( ecu_link_cfg_t ){ 1953u, 8u, ECU_PARITY_EVEN, 1u };
+    link_cfg    = ( ecu_link_cfg_t ){ .baud      = 1953u,
+                                      .data_bits = 8u,
+                                      .parity    = ECU_PARITY_EVEN,
+                                      .stop_bits = 1u };
 }
 
 static void queue_byte( uint8_t b )

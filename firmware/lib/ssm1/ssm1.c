@@ -6,12 +6,12 @@
  * Identification reads 0xFFFE to select a profile. Failures restart the
  * cycle; repeated failures pause before retrying. Time arithmetic handles
  * counter wraparound. */
-#include "ecu.h"
-#include "ssm1_cmd.h"
-#include "ssm1_decode.h"
-#include "ssm1_params.h"
-#include "ssm1_romid.h"
-#include "ssm1_rx.h"
+#include "lib/ecu/ecu.h"
+#include "lib/ssm1/ssm1_cmd.h"
+#include "lib/ssm1/ssm1_decode.h"
+#include "lib/ssm1/ssm1_params.h"
+#include "lib/ssm1/ssm1_romid.h"
+#include "lib/ssm1/ssm1_rx.h"
 
 #define QUIET_MS       ( 80u )   /* line silence required after a stop */
 #define STOP_SETTLE_MS ( 1000u ) /* give up waiting for silence after this */
@@ -56,24 +56,24 @@ typedef struct
     uint32_t last_sample;
     size_t want;   /* slot being read; == profile count for the clear addr */
     size_t resume; /* parameter to return to after a clear */
+    const ssm1_profile_t * profile;
+    uint32_t rom_id;
+    uint32_t id_cmd_at;
+    ecu_clear_t clear;
+    uint32_t clear_start;
+    uint32_t clear_last;
+    ssm1_rx_t rx;
+    ssm1_romid_t romid;
+    uint32_t stamp[SLOTS];
     uint8_t fails;
     bool ident; /* this cycle identifies the ECU */
     bool any_sample;
     bool skip_first; /* first sample after a read may be our own echo */
-    const ssm1_profile_t * profile;
-    uint32_t rom_id;
     bool identified;
-    uint32_t id_cmd_at;
     bool id_cmd_due;
-    ecu_clear_t clear;
-    uint32_t clear_start;
-    uint32_t clear_last;
     uint8_t clear_writes;
     uint8_t clear_data;
-    ssm1_rx_t rx;
-    ssm1_romid_t romid;
     uint8_t raw[SLOTS];
-    uint32_t stamp[SLOTS];
     bool have[SLOTS];
 } session_t;
 
@@ -212,7 +212,12 @@ static void clear_tick( void )
 
 const ecu_link_cfg_t * ecu_link_config( void )
 {
-    static const ecu_link_cfg_t link_cfg = { 1953u, 8u, ECU_PARITY_EVEN, 1u };
+    static const ecu_link_cfg_t link_cfg = {
+        .baud      = 1953u,
+        .data_bits = 8u,
+        .parity    = ECU_PARITY_EVEN,
+        .stop_bits = 1u
+    };
 
     return &link_cfg;
 }
