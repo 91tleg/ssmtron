@@ -24,10 +24,12 @@
 #define LOAD_IDX  2u
 
 static size_t selected         = BOOST_IDX;
-static int32_t boost_raw_value = 15000; /* milli-psi: 15.000 psi */
-static int32_t rpm_raw_value   = 3000;
+static int32_t boost_raw_value = 15250; /* milli-psi: 15.250 psi */
+static int32_t rpm_raw_value   = 3975;
 static bool value_available    = true;
-
+/* Another parameter, left over from the page before, still has a fresh value.
+ */
+static bool other_also_fresh;
 size_t ecu_param_count( void )
 {
     return 3u;
@@ -109,7 +111,8 @@ bool ecu_get_value(
     int32_t * out
 )
 {
-    bool found = value_available && ( idx == selected );
+    bool found = ( value_available && ( idx == selected ) )
+                 || ( other_also_fresh && ( idx != selected ) );
 
     if ( found )
     {
@@ -395,17 +398,17 @@ int main( void )
     /* The power-on sweep aims the needle at full scale (boost tops out at
      * 20) before the reading is used. It starts with that first frame. */
     CHECK( last_dial_has_value );
-    CHECK_EQ( last_dial_value, 20 );
+    CHECK_EQ( last_dial_value, 20000 );
     tick( 1 );
     CHECK_EQ( dial_init_count, 1u ); /* the dial is not drawn again */
     CHECK_EQ( text_init_count, 0u );
-    CHECK_EQ( last_dial_value, 20 );
+    CHECK_EQ( last_dial_value, 20000 );
     tick( 1 ); /* still travelling: still full scale */
-    CHECK_EQ( last_dial_value, 20 );
+    CHECK_EQ( last_dial_value, 20000 );
     fake_dial_settled = true; /* the needle got there */
     tick( 1 );
     CHECK( last_dial_has_value );
-    CHECK_EQ( last_dial_value, 15 ); /* 15000 milli-psi -> 15 psi */
+    CHECK_EQ( last_dial_value, 15250 ); /* the ECU's milli-psi, every digit */
 
     /* Staying on the same parameter must not re-enter the dial. */
     tick( 1 );
@@ -416,9 +419,20 @@ int main( void )
     CHECK_EQ( selected, RPM_IDX );
     CHECK_EQ( text_init_count, 0u ); /* still no digital screen */
     CHECK_EQ( dial_init_count, 2u );
-    CHECK_EQ( last_dial_value, 3 ); /* thousands of rpm */
+    CHECK_EQ( last_dial_value, 3975 ); /* rpm itself: the scale is in rpm */
     rpm_cfg = last_dial_cfg;
     CHECK( rpm_cfg != boost_cfg );
+
+    /* The page just left is still fresh for a while. The dial must show its
+     * own parameter, which has nothing, not that one's reading. */
+    value_available  = false;
+    other_also_fresh = true;
+    tick( 1 );
+    CHECK( !last_dial_has_value );
+    other_also_fresh = false;
+    value_available  = true;
+    tick( 1 );
+    CHECK( last_dial_has_value );
 
     /* NEXT selects load: not a dial, back to digital. */
     tap_next();

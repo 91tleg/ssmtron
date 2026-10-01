@@ -29,6 +29,9 @@ ecu_link_t ecu_link( void )
 static text_widget_t * page;
 static size_t page_count;
 
+/* What each widget said at the moment text_init drew the first frame. */
+static char first_frame[8][TEXT_MAX + 1u];
+
 void text_init(
     text_widget_t * widgets,
     size_t count,
@@ -38,6 +41,10 @@ void text_init(
     ( void )page_bg;
     page       = widgets;
     page_count = count;
+    for ( size_t i = 0; ( i < count ) && ( i < 8u ); i++ )
+    {
+        widgets[i].text( first_frame[i] );
+    }
 }
 
 void text_poll(
@@ -61,7 +68,7 @@ static const char * row( size_t i )
 static void test_the_page_has_a_title_three_rows_and_a_notice( void )
 {
     gauge_info_set_colors( 0x1234u, 0x5678u );
-    gauge_info_open( 0x1234u );
+    gauge_info_open( 0x1234u, "" );
     CHECK_EQ( page_count, 5u );
     CHECK( strcmp( row( 0 ), "INFO" ) == 0 );
     CHECK_EQ( page[1].bg, 0x1234u );
@@ -102,6 +109,17 @@ static void test_notice_line_follows_what_the_caller_says( void )
     CHECK( strcmp( row( 4 ), "" ) == 0 );
 }
 
+/* The first draw shows the notice it was given, not the one an earlier visit
+ * left behind. */
+static void test_the_first_frame_shows_the_notice_it_was_given( void )
+{
+    gauge_info_poll( "OLD" );
+    gauge_info_open( 0x1234u, "SAVED" );
+    CHECK( strcmp( first_frame[4], "SAVED" ) == 0 );
+    gauge_info_open( 0x1234u, "" );
+    CHECK( strcmp( first_frame[4], "" ) == 0 );
+}
+
 /* Every widget must lie inside the panel, at whatever size it is built for. */
 static void test_widgets_fit_the_panel( void )
 {
@@ -120,6 +138,7 @@ int main( void )
     test_rom_id_is_dashes_before_identification();
     test_rom_id_shows_the_three_bytes_in_order();
     test_notice_line_follows_what_the_caller_says();
+    test_the_first_frame_shows_the_notice_it_was_given();
     test_widgets_fit_the_panel();
 
     return MT_RESULT();

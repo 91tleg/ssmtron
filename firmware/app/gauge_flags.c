@@ -273,8 +273,26 @@ void gauge_flags_set_colors(
     }
 }
 
-void gauge_flags_open( uint16_t face )
+/* The callbacks draw from these, so they are set before anything is drawn. */
+static void flags_show(
+    size_t idx,
+    flags_status_t status,
+    uint32_t now_ms
+)
 {
+    shown_idx    = idx;
+    shown_status = status;
+    shown_now_ms = now_ms;
+}
+
+void gauge_flags_open(
+    uint16_t face,
+    size_t idx,
+    flags_status_t status,
+    uint32_t now_ms
+)
+{
+    flags_show( idx, status, now_ms );
     text_init( page, PAGE_COUNT, face );
 }
 
@@ -284,8 +302,6 @@ void gauge_flags_poll(
     uint32_t now_ms
 )
 {
-    shown_idx    = idx;
-    shown_status = status;
-    shown_now_ms = now_ms;
+    flags_show( idx, status, now_ms );
     text_poll( page, PAGE_COUNT );
 }

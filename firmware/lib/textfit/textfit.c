@@ -40,7 +40,7 @@ size_t textfit_row(
 
     if ( max > 0u )
     {
-        size_t cap         = max - 1u;
+        size_t cap         = min_size( max - 1u, row_w );
         size_t label_cols  = min_size( label_w, cap );
         size_t label_len   = min_size( strlen( label ), label_cols );
         size_t value_limit = ( row_w > label_w ) ? ( row_w - label_w ) : 0u;

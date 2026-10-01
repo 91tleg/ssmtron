@@ -16,8 +16,16 @@ void gauge_number_set_colors(
     uint16_t ink
 );
 
-/* Clears the panel to face and draws the whole page. */
-void gauge_number_open( uint16_t face );
+/* Clears the panel to face and draws the whole page. The content arguments
+ * are those of gauge_number_poll, so the first draw already shows them and
+ * not what an earlier page left behind. */
+void gauge_number_open(
+    uint16_t face,
+    const ecu_param_info_t * info,
+    bool has_value,
+    int32_t value,
+    const char * notice
+);
 
 /* Redraws only what changed. info is the shown parameter, or NULL before the
  * ECU has any; it names the page even while there is no value. has_value says

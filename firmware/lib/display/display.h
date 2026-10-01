@@ -38,7 +38,8 @@ typedef struct
  * user never sees noise. */
 hal_status_t display_init( const display_pins_t * pins );
 
-/* Turns the panel on. HAL_ERR_INVALID before display_init succeeds. */
+/* Turns the panel on, and the backlight too when there is one. HAL_ERR_INVALID
+ * before display_init succeeds. */
 hal_status_t display_on( void );
 
 /* Writes a w x h block of RGB565 pixels, row-major, top-left at (x, y).

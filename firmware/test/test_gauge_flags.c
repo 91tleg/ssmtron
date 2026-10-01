@@ -295,6 +295,9 @@ static uint16_t last_page_bg;
 static text_widget_t * page;
 static size_t page_count;
 
+/* What each widget said at the moment text_init drew the first frame. */
+static char first_frame[16][TEXT_MAX + 1u];
+
 void text_init(
     text_widget_t * widgets,
     size_t count,
@@ -305,6 +308,10 @@ void text_init(
     page         = widgets;
     page_count   = count;
     frames_drawn++;
+    for ( size_t i = 0; ( i < count ) && ( i < 16u ); i++ )
+    {
+        widgets[i].text( first_frame[i] );
+    }
 }
 
 void text_poll(
@@ -480,7 +487,8 @@ static void test_clear_hold_prompts_on_the_flags_page( void )
     CHECK( strcmp( row( 1 ), "22 Knock    0" ) == 0 ); /* flags still drawn */
 
     press_action( false );
-    tick( 1 ); /* released early: back to idle */
+    tick( 1 );
+    tick( 35 ); /* the release settles: released early, back to idle */
     CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) );
 }
 
@@ -515,6 +523,7 @@ static void test_clear_result_is_shown_on_the_page( void )
     /* Dismiss with a fresh press. */
     press_action( false );
     tick( 1 );
+    tick( 35 ); /* the release settles */
     press_action( true );
     tick( 1 );
     tick( 35 ); /* settled: this dismisses the result */
@@ -535,6 +544,7 @@ static void tap_action( void )
     tick( 35 );
     press_action( false );
     tick( 1 );
+    tick( 35 ); /* the release has to settle too */
 }
 
 /* One debounced NEXT tap: on to the next page on release. */
@@ -546,6 +556,28 @@ static void tap_next( void )
     press_next( false );
     tick( 1 );
     tick( 35 );
+}
+
+/* Every page the gauge draws must show its own content on the first frame,
+ * not what the page before it left behind: the first frame is checked
+ * against what the page says once it is polled. Walks NEXT once round the
+ * whole cycle, back to where it began: the code and switch pages, the number
+ * page and the info page. */
+static void test_each_page_draws_its_own_content_first( void )
+{
+    for ( int step = 0; step < 4; step++ )
+    {
+        unsigned before = frames_drawn;
+
+        tap_next();
+        if ( frames_drawn != before )
+        {
+            for ( size_t i = 0; ( i < page_count ) && ( i < 16u ); i++ )
+            {
+                CHECK( strcmp( first_frame[i], row( i ) ) == 0 );
+            }
+        }
+    }
 }
 
 /* A switch page has no trouble codes to clear: holding ACTION there does
@@ -667,9 +699,44 @@ static void test_a_refused_clear_is_reported_as_refused( void )
     /* Release, then a fresh press dismisses the result as usual. */
     press_action( false );
     tick( 1 );
+    tick( 35 );
     press_action( true );
     tick( 1 );
     tick( 35 );
+    press_action( false );
+    tick( 1 );
+    tick( 35 );
+    CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) );
+    clear_start_ok = true;
+}
+
+/* While the button is still held from the clear, a bounce of the contact is
+ * not a release: the result stays until a real release and a fresh press. */
+static void test_a_release_bounce_does_not_dismiss_a_result( void )
+{
+    clear_start_ok = false;
+    press_action( true );
+    tick( 1 );
+    tick( 35 );
+    tick( 2600 );
+    tick( 1 );
+    CHECK( strcmp( row( 9 ), "    CLEAR FAILED" ) == 0 );
+
+    press_action( false ); /* the contact opens for a moment... */
+    tick( 1 );
+    press_action( true ); /* ...and closes again */
+    tick( 1 );
+    tick( 35 );
+    tick( 100 );
+    CHECK( strcmp( row( 9 ), "    CLEAR FAILED" ) == 0 ); /* still shown */
+
+    press_action( false ); /* a real release... */
+    tick( 1 );
+    tick( 35 );
+    press_action( true ); /* ...and a fresh press dismisses it */
+    tick( 1 );
+    tick( 35 );
+    tick( 1 );
     press_action( false );
     tick( 1 );
     tick( 35 );
@@ -730,6 +797,8 @@ int main( void )
     test_clearing_shows_dots_that_advance();
     test_clear_result_is_shown_on_the_page();
     test_a_refused_clear_is_reported_as_refused();
+    test_a_release_bounce_does_not_dismiss_a_result();
+    test_each_page_draws_its_own_content_first();
     test_hold_on_a_switch_page_does_nothing();
     test_action_tap_switches_to_dark_and_back();
     test_theme_is_saved_only_by_a_next_hold();

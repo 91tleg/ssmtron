@@ -11,6 +11,7 @@ static const dial_cfg_t cfg = {
     20,
     10,
     4u,
+    1,
     "TURBO",
     "PSI",
     "INHG",

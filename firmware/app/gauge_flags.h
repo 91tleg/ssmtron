@@ -31,8 +31,15 @@ void gauge_flags_set_colors(
     uint16_t ink
 );
 
-/* Clears the panel to face and draws the whole page. */
-void gauge_flags_open( uint16_t face );
+/* Clears the panel to face and draws the whole page. The other arguments are
+ * those of gauge_flags_poll, so the first draw already shows the selected
+ * parameter and not the one an earlier visit showed. */
+void gauge_flags_open(
+    uint16_t face,
+    size_t idx,
+    flags_status_t status,
+    uint32_t now_ms
+);
 
 /* Redraws only what changed. idx is the selected parameter, status the
  * line under the flags, now_ms the poll time (for the clearing dots). */

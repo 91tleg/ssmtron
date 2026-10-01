@@ -239,8 +239,12 @@ void gauge_update_set_colors(
     }
 }
 
-void gauge_update_open( uint16_t face )
+void gauge_update_open(
+    uint16_t face,
+    uint32_t now_ms
+)
 {
+    update_now_ms = now_ms;
     text_init( update_page, UPDATE_PAGE_COUNT, face );
 }
 

@@ -140,6 +140,7 @@ add_test(NAME gauge_update_zeros COMMAND test_gauge_update zeros)
 add_test(NAME gauge_update_failed COMMAND test_gauge_update failed)
 add_test(NAME gauge_update_norandom COMMAND test_gauge_update norandom)
 add_test(NAME gauge_update_exit COMMAND test_gauge_update exit)
+add_test(NAME gauge_update_firstframe COMMAND test_gauge_update firstframe)
 add_test(NAME gauge_update_fit COMMAND test_gauge_update fit)
 
 add_executable(test_gauge_update_360 test_gauge_update.c ../app/gauge_update.c)
@@ -167,3 +168,9 @@ endforeach()
 
 add_executable(test_dial_motion test_dial_motion.c ../lib/ui/dial_motion.c)
 add_test(NAME dial_motion COMMAND test_dial_motion)
+
+# The display driver against fake HAL calls. Its panel size comes from
+# lib/display/display.h.
+add_executable(test_gc9a01 test_gc9a01.c ../lib/display/gc9a01/gc9a01.c)
+target_include_directories(test_gc9a01 PRIVATE ../lib/display ../hal)
+add_test(NAME gc9a01 COMMAND test_gc9a01)

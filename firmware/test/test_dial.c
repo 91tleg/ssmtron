@@ -76,7 +76,7 @@ static bool shadow_has_color(
 /* 0..100 over the full 135..435 sweep, with no face label or units. Its top
  * speed is 300 degrees per second, a full sweep in one second. */
 static const dial_cfg_t test_cfg = {
-    0, 100, 25, 0u, NULL, NULL, NULL, 1u, 2u, 3u, 300u, DIAL_STYLE_DEFAULT
+    0, 100, 25, 0u, 1, NULL, NULL, NULL, 1u, 2u, 3u, 300u, DIAL_STYLE_DEFAULT
 };
 
 static void reset( void )
@@ -237,6 +237,7 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
         100,
         25,
         0u,
+        1,
         "TURBO",
         NULL,
         NULL,
@@ -287,6 +288,37 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
     );
 }
 
+/* A scale in thousandths keeps the digits a whole-unit one would drop: 3000
+ * and 3975 rpm are different needle positions, not both the 3 mark. */
+static void test_a_fine_scale_keeps_its_precision( void )
+{
+    static const dial_cfg_t cfg = {
+        0,
+        8000,
+        1000,
+        0u,
+        1000,
+        "RPM",
+        "x1000",
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_DEFAULT
+    };
+    dial_widget_t d;
+    int16_t at_3000;
+
+    dial_init( &d, &cfg, 0u );
+    dial_poll( &d, 0u, true, 3000 );
+    at_3000 = d.target_deg;
+    dial_poll( &d, 0u, true, 3975 );
+    CHECK( d.target_deg > at_3000 );
+    CHECK_EQ( at_3000, 135 + ( 3000 * 300 / 8000 ) );
+    CHECK_EQ( d.target_deg, 135 + ( 3975 * 300 / 8000 ) );
+}
+
 static void test_default_scale_and_rest( void )
 {
     static const dial_cfg_t cfg = {
@@ -294,6 +326,7 @@ static void test_default_scale_and_rest( void )
         20,
         10,
         4u,
+        1,
         "TURBO",
         "PSI",
         "INHG",
@@ -321,7 +354,19 @@ static void test_default_scale_and_rest( void )
 static void test_rpm_face_scale( void )
 {
     static const dial_cfg_t cfg = {
-        0, 8, 1, 0u, "RPM", "x1000", NULL, 1u, 2u, 3u, 900u, DIAL_STYLE_DEFAULT
+        0,
+        8,
+        1,
+        0u,
+        1,
+        "RPM",
+        "x1000",
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_DEFAULT
     };
     dial_widget_t d;
 
@@ -344,6 +389,7 @@ int main( void )
     test_value_loss_sweeps_back_to_rest();
     test_frames_come_at_a_steady_interval();
     test_needle_draws_over_label_and_uncovers_it();
+    test_a_fine_scale_keeps_its_precision();
     test_default_scale_and_rest();
     test_rpm_face_scale();
 

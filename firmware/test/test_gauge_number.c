@@ -13,6 +13,9 @@
 static text_widget_t * page;
 static size_t page_count;
 
+/* What each widget said at the moment text_init drew the first frame. */
+static char first_frame[4][TEXT_MAX + 1u];
+
 void text_init(
     text_widget_t * widgets,
     size_t count,
@@ -22,6 +25,10 @@ void text_init(
     ( void )page_bg;
     page       = widgets;
     page_count = count;
+    for ( size_t i = 0; ( i < count ) && ( i < 4u ); i++ )
+    {
+        widgets[i].text( first_frame[i] );
+    }
 }
 
 void text_poll(
@@ -57,7 +64,7 @@ static const ecu_param_info_t load = {
 static void test_the_page_has_a_name_a_value_and_a_unit( void )
 {
     gauge_number_set_colors( 0x1234u, 0x5678u );
-    gauge_number_open( 0x1234u );
+    gauge_number_open( 0x1234u, NULL, false, 0, "" );
     CHECK_EQ( page_count, 3u );
     CHECK_EQ( page[0].bg, 0x1234u );
     CHECK_EQ( page[2].fg, 0x5678u );
@@ -69,6 +76,22 @@ static void test_a_value_shows_with_its_unit( void )
     CHECK( strcmp( row( 0 ), "Load" ) == 0 );
     CHECK( strcmp( row( 1 ), "42" ) == 0 );
     CHECK( strcmp( row( 2 ), "%" ) == 0 );
+}
+
+/* The first draw already shows the new content, not what the page showed
+ * last time. text_init draws through the callbacks, and the fake keeps what
+ * they said at that moment, before any poll can put it right. */
+static void test_open_shows_the_new_state_on_the_first_frame( void )
+{
+    gauge_number_poll( &load, true, 99, "OLD" ); /* the previous content */
+    gauge_number_open( 0x1234u, &load, true, 7, "" );
+    CHECK( strcmp( first_frame[0], "Load" ) == 0 );
+    CHECK( strcmp( first_frame[1], "7" ) == 0 );
+    CHECK( strcmp( first_frame[2], "%" ) == 0 );
+
+    gauge_number_open( 0x1234u, NULL, false, 0, "SAVED" );
+    CHECK( strcmp( first_frame[0], "SAVED" ) == 0 );
+    CHECK( strcmp( first_frame[1], "--" ) == 0 );
 }
 
 /* The unit follows the sign, as the ECU interface defines it. */
@@ -121,6 +144,7 @@ int main( void )
 {
     test_the_page_has_a_name_a_value_and_a_unit();
     test_a_value_shows_with_its_unit();
+    test_open_shows_the_new_state_on_the_first_frame();
     test_the_unit_follows_the_sign();
     test_no_value_shows_dashes_and_the_name();
     test_no_parameter_at_all_is_blank_with_dashes();

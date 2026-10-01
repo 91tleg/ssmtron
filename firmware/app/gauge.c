@@ -326,7 +326,12 @@ static void poll_action( uint32_t now )
              * (it may still be held from the original 2 s press). */
             if ( !gauge_input_action_down() )
             {
-                clear_result_released = true;
+                /* A release that has settled: contact bounce while the
+                 * button is still held does not count. */
+                if ( gauge_input_action_settled( now ) )
+                {
+                    clear_result_released = true;
+                }
             }
             else if ( clear_result_released
                       && gauge_input_action_settled( now ) )
@@ -352,6 +357,30 @@ static const char * save_notice_text( void )
         text = save_notice_ok ? "SAVED" : "SAVE FAILED";
     }
     return text;
+}
+
+/* The number page shows the selected parameter. The value is fetched before
+ * the call, since an argument list does not say what is evaluated first. */
+static void number_page_open( void )
+{
+    int32_t value  = 0;
+    bool has_value = selected_value( &value );
+
+    gauge_number_open(
+        themes[theme_idx].face,
+        selected_info(),
+        has_value,
+        value,
+        save_notice_text()
+    );
+}
+
+static void number_page_poll( void )
+{
+    int32_t value  = 0;
+    bool has_value = selected_value( &value );
+
+    gauge_number_poll( selected_info(), has_value, value, save_notice_text() );
 }
 
 /* What the info page shows under its rows. Holding ACTION there starts
@@ -422,7 +451,6 @@ typedef struct
 {
     bool ( *matches )( const ecu_param_info_t * info );
     const dial_cfg_t * cfg;
-    int32_t value_div; /* ecu_get_value units per dial unit */
 } dial_entry_t;
 
 /* Dials are picked by index into the table. Their widgets live in a
@@ -430,13 +458,16 @@ typedef struct
 #define DIAL_COUNT ( 2u )
 #define NO_DIAL    ( SIZE_MAX )
 
-/* Keep the existing pressure units with the default-style face. Colors
- * are set by apply_theme(), so these are not const. */
+/* The scales are in the ECU's own units, so the needle keeps every digit of
+ * the reading: thousandths of a psi or inHg here, rpm below. label_div makes
+ * the tick numbers whole units. Colors are set by apply_theme(), so these are
+ * not const. */
 static dial_cfg_t boost_dial_cfg = {
-    -30,
-    20,
-    10,
+    -30000,
+    20000,
+    10000,
     4u,
+    1000,
     "TURBO",
     "PSI",
     "INHG",
@@ -450,9 +481,10 @@ static dial_cfg_t boost_dial_cfg = {
 /* The tachometer displays thousands of rpm on the same face. */
 static dial_cfg_t rpm_dial_cfg = {
     0,
-    8,
-    1,
+    8000,
+    1000,
     0u,
+    1000,
     "RPM",
     "x1000",
     NULL,
@@ -484,8 +516,8 @@ static void update_face( uint32_t now_ms )
 {
     static dial_widget_t dial_widgets[DIAL_COUNT];
     static const dial_entry_t dial_table[DIAL_COUNT] = {
-        { is_boost, &boost_dial_cfg, 1000 }, /* milli-psi/inHg */
-        { is_rpm, &rpm_dial_cfg, 1000 },
+        { is_boost, &boost_dial_cfg },
+        { is_rpm, &rpm_dial_cfg },
     };
     static size_t active_dial = NO_DIAL;
 
@@ -543,19 +575,21 @@ static void update_face( uint32_t now_ms )
         }
         else if ( want_update )
         {
-            gauge_update_open( themes[theme_idx].face );
+            gauge_update_open( themes[theme_idx].face, now_ms );
         }
         else if ( want_info )
         {
-            gauge_info_open( themes[theme_idx].face );
+            gauge_info_open( themes[theme_idx].face, current_info_notice() );
         }
         else if ( want_flags )
         {
-            gauge_flags_open( themes[theme_idx].face );
+            gauge_flags_open(
+                themes[theme_idx].face, selected_idx, flags_status(), now_ms
+            );
         }
         else
         {
-            gauge_number_open( themes[theme_idx].face );
+            number_page_open();
         }
         active_dial   = next_dial;
         flags_active  = want_flags;
@@ -567,10 +601,10 @@ static void update_face( uint32_t now_ms )
 
     if ( active_dial != NO_DIAL )
     {
-        const ecu_param_info_t * info = NULL;
-        int32_t value                 = 0;
-        bool has_value                = ecu_fresh_value( &info, &value );
-        int32_t dial_value  = value / dial_table[active_dial].value_div;
+        /* The selected parameter's own reading, not another's that has not
+         * gone stale yet. The dial takes it in the ECU's units. */
+        int32_t dial_value  = 0;
+        bool has_value      = selected_value( &dial_value );
         int32_t sweep_value = 0;
 
         /* At power-on the needle sweeps to full scale first; the live
@@ -601,11 +635,7 @@ static void update_face( uint32_t now_ms )
     }
     else
     {
-        int32_t value = 0;
-
-        gauge_number_poll(
-            selected_info(), selected_value( &value ), value, save_notice_text()
-        );
+        number_page_poll();
     }
 }
 
