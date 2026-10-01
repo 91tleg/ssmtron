@@ -57,6 +57,48 @@ static void test_copy( void )
     CHECK( guard_intact( 0u ) );
 }
 
+static void test_int( void )
+{
+    char * buf = fresh();
+
+    CHECK_EQ( textfit_int( buf, 16u, 0 ), 1u );
+    CHECK( strcmp( buf, "0" ) == 0 );
+    CHECK_EQ( textfit_int( buf, 16u, 7 ), 1u );
+    CHECK( strcmp( buf, "7" ) == 0 );
+    CHECK_EQ( textfit_int( buf, 16u, 10 ), 2u );
+    CHECK( strcmp( buf, "10" ) == 0 );
+    CHECK_EQ( textfit_int( buf, 16u, -30 ), 3u );
+    CHECK( strcmp( buf, "-30" ) == 0 );
+    CHECK_EQ( textfit_int( buf, 16u, 1234567890 ), 10u );
+    CHECK( strcmp( buf, "1234567890" ) == 0 );
+
+    /* The extremes of a 32-bit value, the most negative one included. */
+    CHECK_EQ( textfit_int( buf, 16u, 2147483647 ), 10u );
+    CHECK( strcmp( buf, "2147483647" ) == 0 );
+    CHECK_EQ( textfit_int( buf, 16u, ( -2147483647 - 1 ) ), 11u );
+    CHECK( strcmp( buf, "-2147483648" ) == 0 );
+
+    /* Exactly full, then one too long: cut, with a NUL, and nothing written
+     * past the size given. */
+    buf = fresh();
+    CHECK_EQ( textfit_int( buf, 4u, -30 ), 3u );
+    CHECK( strcmp( buf, "-30" ) == 0 );
+    CHECK( guard_intact( 4u ) );
+    buf = fresh();
+    CHECK_EQ( textfit_int( buf, 4u, 12345 ), 3u );
+    CHECK( strcmp( buf, "123" ) == 0 );
+    CHECK( guard_intact( 4u ) );
+    buf = fresh();
+    CHECK_EQ(
+        textfit_int( buf, 9u, ( -2147483647 - 1 ) ), 8u
+    ); /* a dial label */
+    CHECK( guard_intact( 9u ) );
+
+    buf = fresh();
+    CHECK_EQ( textfit_int( buf, 0u, 5 ), 0u );
+    CHECK( guard_intact( 0u ) );
+}
+
 static void test_row( void )
 {
     char * buf = fresh();
@@ -145,6 +187,7 @@ static void test_center( void )
 int main( void )
 {
     test_copy();
+    test_int();
     test_row();
     test_center();
     return MT_RESULT();

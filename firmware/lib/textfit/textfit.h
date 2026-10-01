@@ -7,12 +7,21 @@
 #define TEXTFIT_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 /* Copies s. */
 size_t textfit_copy(
     char * buf,
     size_t max,
     const char * s
+);
+
+/* Writes v in decimal, with a leading '-' when negative. Cut like the others
+ * if it does not fit. */
+size_t textfit_int(
+    char * buf,
+    size_t max,
+    int32_t v
 );
 
 /* Writes label, spaces up to label_w columns, then value. The whole row is

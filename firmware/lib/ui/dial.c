@@ -272,24 +272,24 @@ static int32_t label_width(
     return characters * glyph_width * ( int32_t )scale;
 }
 
-static size_t format_int(
-    int32_t v,
-    char * buf
+/* Test a radial segment without square root or angle calculations. */
+static bool on_radial_line(
+    int32_t dx,
+    int32_t dy,
+    int32_t sin_milli,
+    int32_t cos_milli,
+    int32_t inner_r,
+    int32_t outer_r,
+    int32_t half_w
 )
 {
-    char tmp[12];
-    size_t n   = 0;
-    bool neg   = ( v < 0 );
-    uint32_t u = neg ? ( uint32_t )( -v ) : ( uint32_t )v;
+    int32_t proj = ( dx * sin_milli ) - ( dy * cos_milli );
+    int32_t perp = ( dx * cos_milli ) + ( dy * sin_milli );
 
-    do
-    {
-        tmp[n] = ( char )( '0' + ( u % 10u ) );
-        u /= 10u;
-        n++;
-    } while ( u != 0u );
-    if ( neg )
-    {
+    return ( proj >= ( inner_r * 1000 ) ) && ( proj <= ( outer_r * 1000 ) )
+           && ( perp <= ( half_w * 1000 ) ) && ( perp >= -( half_w * 1000 ) );
+}
+
 /* The needle: a straight bar of constant width from the hub, ending in a
  * triangle that narrows to a point. The point keeps half a pixel of width on
  * each side, so it never thins out to nothing. */
@@ -319,35 +319,6 @@ static bool on_needle(
         hit = across <= room;
     }
     return hit;
-}
-
-        tmp[n] = '-';
-        n++;
-    }
-    for ( size_t i = 0; i < n; i++ )
-    {
-        buf[i] = tmp[n - 1u - i];
-    }
-    buf[n] = '\0';
-    return n;
-}
-
-/* Test a radial segment without square root or angle calculations. */
-static bool on_radial_line(
-    int32_t dx,
-    int32_t dy,
-    int32_t sin_milli,
-    int32_t cos_milli,
-    int32_t inner_r,
-    int32_t outer_r,
-    int32_t half_w
-)
-{
-    int32_t proj = ( dx * sin_milli ) - ( dy * cos_milli );
-    int32_t perp = ( dx * cos_milli ) + ( dy * sin_milli );
-
-    return ( proj >= ( inner_r * 1000 ) ) && ( proj <= ( outer_r * 1000 ) )
-           && ( perp <= ( half_w * 1000 ) ) && ( perp >= -( half_w * 1000 ) );
 }
 
 static void build_ticks(
@@ -385,7 +356,7 @@ static void build_ticks(
             int32_t label_h = ( int32_t )FONT_H * ( int32_t )DIAL_LABEL_SCALE;
 
             angle_vec( deg, &sin_m, &cos_m );
-            len             = format_int( value / cfg->label_div, text );
+            len = textfit_int( text, DIAL_LABEL_BUF, value / cfg->label_div );
             int32_t label_r = DIAL_LABEL_R;
 
             x = DIAL_CX + ( ( label_r * sin_m ) / 1000 )
