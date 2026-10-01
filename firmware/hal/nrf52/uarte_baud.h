@@ -29,9 +29,12 @@ static inline bool uarte_baud_to_reg(
     }
     if ( ok )
     {
-        uint64_t actual = ( v * UARTE_BASE_HZ ) >> 32;
-        uint64_t err    = actual > baud ? actual - baud : baud - actual;
-        ok = err * 100u <= ( uint64_t )baud * UARTE_BAUD_MAX_ERR_PCT;
+        /* Both sides are scaled by 2^32, so nothing is rounded away: a
+         * truncated rate would hide the error at very low baud. */
+        uint64_t actual = v * UARTE_BASE_HZ;
+        uint64_t wanted = ( uint64_t )baud << 32;
+        uint64_t err    = actual > wanted ? actual - wanted : wanted - actual;
+        ok              = err * 100u <= wanted * UARTE_BAUD_MAX_ERR_PCT;
     }
     if ( ok )
     {
