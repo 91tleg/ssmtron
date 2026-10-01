@@ -418,25 +418,61 @@ void hal_log_write( const char * text )
     ( void )text;
 }
 
+/* Bluetooth, the random source and the restart, all under the test's
+ * control: what update mode asked for, and what it is told in return. */
+static unsigned ble_opens;
+static hal_status_t ble_open_result = HAL_OK;
+static uint32_t ble_passkey;
+static char ble_name[32];
+static hal_ble_evt_t ble_events[4];
+static size_t ble_event_count;
+static uint32_t random_value = 1u;
+static bool random_ok        = true;
+static unsigned reboots;
+
 hal_status_t hal_ble_open( const hal_ble_cfg_t * cfg )
 {
-    ( void )cfg;
-    return HAL_OK;
+    ble_opens++;
+    ble_passkey = cfg->passkey;
+    ( void )strncpy( ble_name, cfg->name, sizeof( ble_name ) - 1u );
+    return ble_open_result;
 }
 
 hal_ble_evt_t hal_ble_poll_event( void )
 {
-    return HAL_BLE_EVT_NONE;
+    hal_ble_evt_t evt = HAL_BLE_EVT_NONE;
+
+    if ( ble_event_count > 0u )
+    {
+        evt = ble_events[0];
+        for ( size_t i = 1u; i < ble_event_count; i++ )
+        {
+            ble_events[i - 1u] = ble_events[i];
+        }
+        ble_event_count--;
+    }
+    return evt;
+}
+
+/* A phone connecting or leaving, for the next poll to find. */
+static inline void ble_send( hal_ble_evt_t evt )
+{
+    ble_events[ble_event_count] = evt;
+    ble_event_count++;
 }
 
 hal_status_t hal_random_u32( uint32_t * out )
 {
-    *out = 1u;
-    return HAL_OK;
+    if ( random_ok )
+    {
+        *out = random_value;
+    }
+    return random_ok ? HAL_OK : HAL_ERR_IO;
 }
 
 void hal_dfu_reboot( void )
 {
+    reboots++;
 }
 
 static unsigned frames_drawn;
