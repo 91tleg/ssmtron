@@ -23,26 +23,34 @@
 #define DIAL_ANGLE_COUNT   ( 271u )
 
 /* Unwrapped angles keep the needle on the lower arc. */
-#define DIAL_DEFAULT_MIN_DEG  ( 135 )
-#define DIAL_DEFAULT_ZERO_DEG ( 270 )
-#define DIAL_DEFAULT_MAX_DEG  ( 435 )
-#define DIAL_DEFAULT_TICK_R   UI_LEN( 825 )
+#define DIAL_FULL_MIN_DEG  ( 135 )
+#define DIAL_FULL_ZERO_DEG ( 270 )
+#define DIAL_FULL_MAX_DEG  ( 435 )
+#define DIAL_UPPER_MIN_DEG ( -75 )
+#define DIAL_UPPER_MAX_DEG ( 75 )
+
+#define DIAL_TICK_R UI_LEN( 825 )
 
 #define DIAL_TICK_MAJOR_LEN UI_LEN( 134 )
 #define DIAL_TICK_MINOR_LEN UI_LEN( 67 )
 
 /* Line thicknesses are half-widths, so 1 is a line 3 px wide. They follow
  * the panel size, rounded down. */
-#define DIAL_TICK_HALF_W        UI_LEN( 9 )
-#define DIAL_TICK_MAJOR_HALF_W  UI_LEN( 17 )
-#define DIAL_DIAL_MOTION_HALF_W UI_LEN( 34 )
-#define DIAL_TAIL_HALF_W        UI_LEN( 42 )
+#define DIAL_TICK_HALF_W       UI_LEN( 9 )
+#define DIAL_TICK_MAJOR_HALF_W UI_LEN( 26 )
+#define DIAL_NEEDLE_HALF_W     UI_LEN( 34 )
+#define DIAL_TAIL_HALF_W       UI_LEN( 42 )
 
 /* The hub: a ring with a lighter disc inside it. */
 #define DIAL_HUB_R       UI_LEN( 100 )
 #define DIAL_HUB_INNER_R UI_LEN( 75 )
 
-#define DIAL_NEEDLE_LEN UI_LEN( 650 )
+/* The needle's tip reaches the middle of a long tick, so it points at the
+ * mark and not at the gap beside it. */
+#define DIAL_NEEDLE_LEN ( DIAL_TICK_R - ( DIAL_TICK_MAJOR_LEN / 2 ) )
+
+/* How much of the needle's end is the triangle. */
+#define DIAL_NEEDLE_TIP_LEN UI_LEN( 100 )
 
 /* The label and units around the center use this text size. */
 #define DIAL_FIXED_SCALE UI_TEXT_SCALE( 1 )
@@ -53,7 +61,7 @@
 /* Where the tick numbers sit, from the center. */
 #define DIAL_LABEL_R UI_LEN( 584 )
 
-#define DIAL_MAX_TICKS  ( 32u )
+#define DIAL_MAX_TICKS  ( 48u )
 #define DIAL_MAX_LABELS ( 16u )
 
 /* Per-frame redraw covers only the needle's old and new position, not the
@@ -61,8 +69,8 @@
  * instead of one per row, and only the pixels near the needle. This bounds
  * the biggest side that box can be; a jump that would exceed it (should
  * never happen at any sane top speed) falls back to a full draw_frame.
- * DIAL_DEFAULT_TAIL_R is the counterweight's reach behind center. */
-#define DIAL_REGION_PERMILLE ( 1067 )
+ * DIAL_TAIL_R is the counterweight's reach behind center. */
+#define DIAL_REGION_PERMILLE ( 1150 )
 #define DIAL_REGION_MAX      UI_LEN( DIAL_REGION_PERMILLE )
 #define DIAL_REGION_PIXELS                                                     \
     ( UI_LEN_U( DIAL_REGION_PERMILLE ) * UI_LEN_U( DIAL_REGION_PERMILLE ) )
@@ -70,10 +78,10 @@
  * pixel of rounding slack. A smaller margin leaves stale pixels of the old
  * needle behind (test_dial_region checks this). */
 #define DIAL_HALF_W_MAX                                                        \
-    ( ( DIAL_DIAL_MOTION_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_DIAL_MOTION_HALF_W \
-                                                     : DIAL_TAIL_HALF_W )
-#define DIAL_REGION_MARGIN  ( DIAL_HALF_W_MAX + 1 )
-#define DIAL_DEFAULT_TAIL_R UI_LEN( 259 )
+    ( ( DIAL_NEEDLE_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_NEEDLE_HALF_W           \
+                                                : DIAL_TAIL_HALF_W )
+#define DIAL_REGION_MARGIN ( DIAL_HALF_W_MAX + 1 )
+#define DIAL_TAIL_R        UI_LEN( 259 )
 
 typedef struct
 {
@@ -193,23 +201,42 @@ static int16_t value_to_deg(
     {
         /* Keep the value unchanged. */
     }
-    if ( ( cfg->min_value < 0 ) && ( cfg->max_value > 0 ) )
+    if ( cfg->style == DIAL_STYLE_UPPER_ARC )
+    {
+        int32_t span = cfg->max_value - cfg->min_value;
+
+        offset =
+            ( span != 0 )
+                ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                                 * ( DIAL_UPPER_MAX_DEG - DIAL_UPPER_MIN_DEG ) )
+                               / span )
+                : 0;
+        deg = ( int16_t )( DIAL_UPPER_MIN_DEG + offset );
+    }
+    else if ( ( cfg->min_value < 0 ) && ( cfg->max_value > 0 ) )
     {
         if ( clamped <= 0 )
         {
-            offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                    * ( DIAL_DEFAULT_ZERO_DEG
-                                        - DIAL_DEFAULT_MIN_DEG ) )
-                                  / -cfg->min_value );
-            deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
+            offset =
+                ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                               * ( DIAL_FULL_ZERO_DEG - DIAL_FULL_MIN_DEG ) )
+                             / -cfg->min_value );
+            deg = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
         }
         else
         {
-            offset = ( int32_t )( ( ( int64_t )clamped
-                                    * ( DIAL_DEFAULT_MAX_DEG
-                                        - DIAL_DEFAULT_ZERO_DEG ) )
-                                  / cfg->max_value );
-            deg    = ( int16_t )( DIAL_DEFAULT_ZERO_DEG + offset );
+            /* The same degrees per unit as below zero, so the ticks are as
+             * far apart on both sides. The positive side ends where its
+             * scale does, not at the end of the sweep. */
+            offset =
+                ( int32_t )( ( ( int64_t )clamped
+                               * ( DIAL_FULL_ZERO_DEG - DIAL_FULL_MIN_DEG ) )
+                             / -cfg->min_value );
+            deg = ( int16_t )( DIAL_FULL_ZERO_DEG + offset );
+            if ( deg > DIAL_FULL_MAX_DEG )
+            {
+                deg = ( int16_t )DIAL_FULL_MAX_DEG;
+            }
         }
     }
     else
@@ -217,13 +244,13 @@ static int16_t value_to_deg(
         int32_t span = cfg->max_value - cfg->min_value;
 
         /* An empty scale has nowhere to sweep: rest at the low end. */
-        offset = ( span != 0 )
-                     ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                      * ( DIAL_DEFAULT_MAX_DEG
-                                          - DIAL_DEFAULT_MIN_DEG ) )
-                                    / span )
-                     : 0;
-        deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
+        offset =
+            ( span != 0 )
+                ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                                 * ( DIAL_FULL_MAX_DEG - DIAL_FULL_MIN_DEG ) )
+                               / span )
+                : 0;
+        deg = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
     }
     return deg;
 }
@@ -245,35 +272,6 @@ static int32_t label_width(
     return characters * glyph_width * ( int32_t )scale;
 }
 
-static size_t format_int(
-    int32_t v,
-    char * buf
-)
-{
-    char tmp[12];
-    size_t n   = 0;
-    bool neg   = ( v < 0 );
-    uint32_t u = neg ? ( uint32_t )( -v ) : ( uint32_t )v;
-
-    do
-    {
-        tmp[n] = ( char )( '0' + ( u % 10u ) );
-        u /= 10u;
-        n++;
-    } while ( u != 0u );
-    if ( neg )
-    {
-        tmp[n] = '-';
-        n++;
-    }
-    for ( size_t i = 0; i < n; i++ )
-    {
-        buf[i] = tmp[n - 1u - i];
-    }
-    buf[n] = '\0';
-    return n;
-}
-
 /* Test a radial segment without square root or angle calculations. */
 static bool on_radial_line(
     int32_t dx,
@@ -290,6 +288,37 @@ static bool on_radial_line(
 
     return ( proj >= ( inner_r * 1000 ) ) && ( proj <= ( outer_r * 1000 ) )
            && ( perp <= ( half_w * 1000 ) ) && ( perp >= -( half_w * 1000 ) );
+}
+
+/* The needle: a straight bar of constant width from the hub, ending in a
+ * triangle that narrows to a point. The point keeps half a pixel of width on
+ * each side, so it never thins out to nothing. */
+static bool on_needle(
+    int32_t dx,
+    int32_t dy,
+    int32_t sin_milli,
+    int32_t cos_milli
+)
+{
+    int32_t proj = ( dx * sin_milli ) - ( dy * cos_milli );
+    int32_t len  = DIAL_NEEDLE_LEN;
+    bool hit     = false;
+
+    if ( ( proj >= 0 ) && ( proj <= ( len * 1000 ) ) )
+    {
+        int32_t perp   = ( dx * cos_milli ) + ( dy * sin_milli );
+        int32_t across = ( perp < 0 ) ? -perp : perp;
+        int32_t room   = ( DIAL_NEEDLE_HALF_W * ( ( len * 1000 ) - proj ) )
+                           / DIAL_NEEDLE_TIP_LEN
+                       + 500;
+
+        if ( room > ( DIAL_NEEDLE_HALF_W * 1000 ) )
+        {
+            room = DIAL_NEEDLE_HALF_W * 1000; /* the straight part */
+        }
+        hit = across <= room;
+    }
+    return hit;
 }
 
 static void build_ticks(
@@ -316,7 +345,7 @@ static void build_ticks(
         ticks[nt].major = is_major;
         nt++;
 
-        if ( is_major && ( nl < DIAL_MAX_LABELS ) && ( value != 0 ) )
+        if ( is_major && ( nl < DIAL_MAX_LABELS ) )
         {
             int32_t sin_m;
             int32_t cos_m;
@@ -327,7 +356,7 @@ static void build_ticks(
             int32_t label_h = ( int32_t )FONT_H * ( int32_t )DIAL_LABEL_SCALE;
 
             angle_vec( deg, &sin_m, &cos_m );
-            len             = format_int( value / cfg->label_div, text );
+            len = textfit_int( text, DIAL_LABEL_BUF, value / cfg->label_div );
             int32_t label_r = DIAL_LABEL_R;
 
             x = DIAL_CX + ( ( label_r * sin_m ) / 1000 )
@@ -361,7 +390,10 @@ static void add_fixed_labels(
                                  strlen( cfg->label ), DIAL_FIXED_SCALE
                              )
                              / 2 ) );
-        labels[n].y     = ( int16_t )( DIAL_CY - UI_LEN( 259 ) );
+        labels[n].y     = ( int16_t )( DIAL_CY
+                                   - ( ( cfg->style == DIAL_STYLE_UPPER_ARC )
+                                               ? UI_LEN( 300 )
+                                               : UI_LEN( 259 ) ) );
         labels[n].scale = DIAL_FIXED_SCALE;
         ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->label );
         n++;
@@ -369,8 +401,17 @@ static void add_fixed_labels(
 
     if ( ( cfg->unit_pos != NULL ) && ( n < DIAL_MAX_LABELS ) )
     {
-        labels[n].x     = ( int16_t )( DIAL_CX + UI_LEN( 325 ) );
-        labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 42 ) );
+        labels[n].x     = ( int16_t )( ( cfg->style == DIAL_STYLE_UPPER_ARC )
+                                           ? DIAL_CX
+                                             - ( label_width(
+                                                     strlen( cfg->unit_pos ),
+                                                     DIAL_FIXED_SCALE
+                                                 )
+                                                 / 2 )
+                                           : DIAL_CX + UI_LEN( 325 ) );
+        labels[n].y     = ( int16_t )( ( cfg->style == DIAL_STYLE_UPPER_ARC )
+                                           ? DIAL_CY - UI_LEN( 192 )
+                                           : DIAL_CY + UI_LEN( 42 ) );
         labels[n].scale = DIAL_FIXED_SCALE;
         ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->unit_pos );
         n++;
@@ -461,28 +502,13 @@ static uint16_t pixel_color(
     }
 
     if ( on_radial_line(
-             dx,
-             dy,
-             -needle_sin,
-             -needle_cos,
-             0,
-             DIAL_DEFAULT_TAIL_R,
-             DIAL_TAIL_HALF_W
+             dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
          ) )
     {
         color = 0xCE79u;
         set   = true;
     }
-    if ( !set
-         && on_radial_line(
-             dx,
-             dy,
-             needle_sin,
-             needle_cos,
-             0,
-             DIAL_NEEDLE_LEN,
-             DIAL_DIAL_MOTION_HALF_W
-         ) )
+    if ( !set && on_needle( dx, dy, needle_sin, needle_cos ) )
     {
         color = cfg->needle_fg;
         set   = true;
@@ -503,7 +529,7 @@ static uint16_t pixel_color(
         int32_t cos_m;
         int32_t len =
             ticks[i].major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN;
-        int32_t outer_r = DIAL_DEFAULT_TICK_R;
+        int32_t outer_r = DIAL_TICK_R;
 
         angle_vec( ticks[i].deg, &sin_m, &cos_m );
         if ( on_radial_line(
@@ -525,7 +551,7 @@ static uint16_t pixel_color(
 
 /* Bounding box (x0 <= x < x1) of the needle shape at deg: the forward tip
  * at DIAL_NEEDLE_LEN, and the counterweight tail reaching
- * DIAL_DEFAULT_TAIL_R behind center. Both lie on the same line through the
+ * DIAL_TAIL_R behind center. Both lie on the same line through the
  * center, so covering both endpoints covers the whole shape. */
 static void needle_extent(
     int16_t deg,
@@ -537,7 +563,7 @@ static void needle_extent(
 {
     int32_t sin_m;
     int32_t cos_m;
-    int32_t back_r = DIAL_DEFAULT_TAIL_R;
+    int32_t back_r = DIAL_TAIL_R;
     int32_t fwd_x;
     int32_t fwd_y;
     int32_t back_x;

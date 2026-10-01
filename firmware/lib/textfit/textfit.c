@@ -27,6 +27,35 @@ size_t textfit_copy(
     return len;
 }
 
+/* The longest 32-bit value: a sign and ten digits. */
+#define INT_CHARS_MAX ( 11u )
+
+size_t textfit_int(
+    char * buf,
+    size_t max,
+    int32_t v
+)
+{
+    char tmp[INT_CHARS_MAX + 1u];
+    size_t n = INT_CHARS_MAX;
+    /* Negated as an unsigned value, so the most negative number works. */
+    uint32_t u = ( v < 0 ) ? ( 0u - ( uint32_t )v ) : ( uint32_t )v;
+
+    tmp[n] = '\0';
+    do
+    {
+        n--;
+        tmp[n] = ( char )( '0' + ( u % 10u ) );
+        u /= 10u;
+    } while ( u != 0u );
+    if ( v < 0 )
+    {
+        n--;
+        tmp[n] = '-';
+    }
+    return textfit_copy( buf, max, &tmp[n] );
+}
+
 size_t textfit_row(
     char * buf,
     size_t max,

@@ -293,6 +293,56 @@ static void test_it_keeps_its_rhythm_across_the_timer_wrap( void )
     CHECK( frames <= 19u );
 }
 
+/* Angles below zero, as on an arc that swings either side of the top: the
+ * needle must settle on the exact target, not one degree toward zero. */
+static void test_it_settles_exactly_on_a_negative_target( void )
+{
+    static const int16_t targets[] = { -75, -74, -30, -1 };
+
+    for ( size_t i = 0; i < ( sizeof( targets ) / sizeof( targets[0] ) ); i++ )
+    {
+        rig_t r;
+        uint32_t now = 0u;
+
+        r.deg = 0;
+        dial_motion_init( &r.motion, r.deg, now );
+        for ( int k = 0; k < 60; k++ )
+        {
+            now += DIAL_MOTION_FRAME_MS;
+            ( void )rig_poll( &r, now, targets[i], SLOW_DPS );
+        }
+        CHECK( dial_motion_reached( &r.motion, targets[i] ) );
+        CHECK_EQ( r.deg, targets[i] );
+        CHECK_EQ( r.motion.pos_q, targets[i] * 64 );
+    }
+}
+
+/* From one end of an arc to the other, through zero, and back. */
+static void test_it_crosses_zero_and_lands_on_both_ends( void )
+{
+    rig_t r;
+    uint32_t now = 0u;
+
+    r.deg = -75;
+    dial_motion_init( &r.motion, r.deg, now );
+    for ( int k = 0; k < 60; k++ )
+    {
+        now += DIAL_MOTION_FRAME_MS;
+        ( void )rig_poll( &r, now, 75, SLOW_DPS );
+    }
+    CHECK_EQ( r.deg, 75 );
+    for ( int k = 0; k < 60; k++ )
+    {
+        int16_t before = r.deg;
+
+        now += DIAL_MOTION_FRAME_MS;
+        ( void )rig_poll( &r, now, -75, SLOW_DPS );
+        CHECK( r.deg <= before ); /* straight down, never back up */
+    }
+    CHECK_EQ( r.deg, -75 );
+    CHECK( dial_motion_reached( &r.motion, -75 ) );
+}
+
 int main( void )
 {
     test_a_needle_at_rest_stays_put();
@@ -309,5 +359,7 @@ int main( void )
     test_the_rhythm_does_not_drift_when_polls_are_late();
     test_a_stall_drops_frames_instead_of_bursting();
     test_it_keeps_its_rhythm_across_the_timer_wrap();
+    test_it_settles_exactly_on_a_negative_target();
+    test_it_crosses_zero_and_lands_on_both_ends();
     return MT_RESULT();
 }

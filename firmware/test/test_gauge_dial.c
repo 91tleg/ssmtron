@@ -30,9 +30,10 @@ static bool value_available    = true;
 /* Another parameter, left over from the page before, still has a fresh value.
  */
 static bool other_also_fresh;
+static bool extra_params;
 size_t ecu_param_count( void )
 {
-    return 3u;
+    return extra_params ? 6u : 3u;
 }
 
 const ecu_param_info_t * ecu_param_info( size_t idx )
@@ -79,6 +80,15 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
         .flag_count    = 0,
         .trouble_codes = false
     };
+    static const ecu_param_info_t coolant_whole = {
+        .name = "Coolant Temp", .unit = "F", .decimals = 0
+    };
+    static const ecu_param_info_t coolant_tenths = {
+        .name = "Coolant Temp", .unit = "F", .decimals = 1
+    };
+    static const ecu_param_info_t voltage = {
+        .name = "System Voltage", .unit = "V", .decimals = 2
+    };
     const ecu_param_info_t * info = NULL;
 
     if ( idx == BOOST_IDX )
@@ -92,6 +102,18 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
     else if ( idx == LOAD_IDX )
     {
         info = &load_info;
+    }
+    else if ( extra_params && ( idx == 3u ) )
+    {
+        info = &coolant_whole;
+    }
+    else if ( extra_params && ( idx == 4u ) )
+    {
+        info = &coolant_tenths;
+    }
+    else if ( extra_params && ( idx == 5u ) )
+    {
+        info = &voltage;
     }
     else
     {
@@ -117,6 +139,21 @@ bool ecu_get_value(
     if ( found )
     {
         *out = ( idx == BOOST_IDX ) ? boost_raw_value : rpm_raw_value;
+        if ( idx == 3u )
+        {
+            *out = 180;
+        }
+        else if ( idx == 4u )
+        {
+            *out = 1805;
+        }
+        else if ( idx == 5u )
+        {
+            *out = 1425;
+        }
+        else
+        { /* Existing fake readings. */
+        }
     }
     return found;
 }
@@ -396,15 +433,15 @@ int main( void )
     boost_cfg = last_dial_cfg;
 
     /* The power-on sweep aims the needle at full scale (boost tops out at
-     * 20) before the reading is used. It starts with that first frame. */
+     * 30) before the reading is used. It starts with that first frame. */
     CHECK( last_dial_has_value );
-    CHECK_EQ( last_dial_value, 20000 );
+    CHECK_EQ( last_dial_value, 30000 );
     tick( 1 );
     CHECK_EQ( dial_init_count, 1u ); /* the dial is not drawn again */
     CHECK_EQ( text_init_count, 0u );
-    CHECK_EQ( last_dial_value, 20000 );
+    CHECK_EQ( last_dial_value, 30000 );
     tick( 1 ); /* still travelling: still full scale */
-    CHECK_EQ( last_dial_value, 20000 );
+    CHECK_EQ( last_dial_value, 30000 );
     fake_dial_settled = true; /* the needle got there */
     tick( 1 );
     CHECK( last_dial_has_value );
@@ -463,6 +500,22 @@ int main( void )
     CHECK_EQ( dial_init_count, 3u );
     press_action( false );
     tick( 1 );
+
+    tick( 35 ); /* settle the ACTION release before browsing */
+    extra_params = true;
+    tap_next(); /* RPM */
+    tap_next(); /* load */
+    tap_next(); /* whole F */
+    CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
+    CHECK_EQ( last_dial_cfg->min_value, 1000 );
+    CHECK_EQ( last_dial_value, 1800 );
+    tap_next(); /* tenths F */
+    CHECK_EQ( last_dial_value, 1805 );
+    tap_next(); /* hundredths V */
+    CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
+    CHECK_EQ( last_dial_cfg->min_value, 800 );
+    CHECK_EQ( last_dial_cfg->max_value, 1600 );
+    CHECK_EQ( last_dial_value, 1425 );
 
     return MT_RESULT();
 }

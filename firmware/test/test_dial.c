@@ -76,7 +76,7 @@ static bool shadow_has_color(
 /* 0..100 over the full 135..435 sweep, with no face label or units. Its top
  * speed is 300 degrees per second, a full sweep in one second. */
 static const dial_cfg_t test_cfg = {
-    0, 100, 25, 0u, 1, NULL, NULL, NULL, 1u, 2u, 3u, 300u, DIAL_STYLE_DEFAULT
+    0, 100, 25, 0u, 1, NULL, NULL, NULL, 1u, 2u, 3u, 300u, DIAL_STYLE_FULL_SWEEP
 };
 
 static void reset( void )
@@ -168,8 +168,8 @@ static void test_big_jump_sweeps_over_multiple_frames( void )
 
     /* The dirty rect actually is a small fraction of the panel, not the
      * whole face. */
-    CHECK( last_blit_w < ( PANEL_H / 2u ) );
-    CHECK( last_blit_h < ( PANEL_H / 2u ) );
+    CHECK( last_blit_w < ( ( PANEL_H * 3u ) / 4u ) );
+    CHECK( last_blit_h < ( ( PANEL_H * 3u ) / 4u ) );
 
     /* Settled: further polls at the same value blit nothing more. */
     blit_calls = 0u;
@@ -245,7 +245,7 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
         0x2222u,
         0x3333u,
         150u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     const uint16_t label_y0 = 89u;
     const uint16_t label_y1 = 96u;
@@ -305,7 +305,7 @@ static void test_a_fine_scale_keeps_its_precision( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
     int16_t at_3000;
@@ -319,7 +319,42 @@ static void test_a_fine_scale_keeps_its_precision( void )
     CHECK_EQ( d.target_deg, 135 + ( 3975 * 300 / 8000 ) );
 }
 
-static void test_default_scale_and_rest( void )
+/* On the upper arc the lowest reading is a negative angle. Driven through the
+ * real motion, the needle must stop exactly on it, and on the highest too. */
+static void test_upper_arc_settles_on_both_ends( void )
+{
+    static const dial_cfg_t arc = {
+        1000,
+        2600,
+        400,
+        1u,
+        10,
+        "COOLANT",
+        "F",
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_UPPER_ARC
+    };
+    dial_widget_t d;
+    uint32_t now = 0u;
+
+    dial_init( &d, &arc, now );
+    CHECK_EQ( d.displayed_deg, -75 ); /* at rest: the lowest value */
+    CHECK( settle( &d, &now, true, 2600, 200u ) > 0u );
+    CHECK_EQ( d.displayed_deg, 75 );
+    CHECK( settle( &d, &now, true, 1000, 200u ) > 0u );
+    CHECK_EQ( d.target_deg, -75 );
+    CHECK_EQ( d.displayed_deg, -75 ); /* exactly, not one degree short */
+    /* A value part way up the arc, still below zero: 400 of 1600 is 37 of
+     * 150 degrees, so -75 + 37. */
+    CHECK( settle( &d, &now, true, 1400, 200u ) > 0u );
+    CHECK_EQ( d.displayed_deg, -38 );
+}
+
+static void test_two_sided_scale_and_rest( void )
 {
     static const dial_cfg_t cfg = {
         -30,
@@ -334,7 +369,7 @@ static void test_default_scale_and_rest( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
 
@@ -346,7 +381,11 @@ static void test_default_scale_and_rest( void )
     dial_poll( &d, 0u, true, 0 );
     CHECK_EQ( d.target_deg, 270 );
     dial_poll( &d, 0u, true, 20 );
-    CHECK_EQ( d.target_deg, 435 );
+    CHECK_EQ( d.target_deg, 360 ); /* 45 degrees per 10, as below zero */
+    dial_poll( &d, 0u, true, -10 );
+    CHECK_EQ( d.target_deg, 225 );
+    dial_poll( &d, 0u, true, 10 );
+    CHECK_EQ( d.target_deg, 315 );
     dial_poll( &d, 0u, false, 0 );
     CHECK_EQ( d.target_deg, 270 );
 }
@@ -366,7 +405,7 @@ static void test_rpm_face_scale( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
 
@@ -390,7 +429,8 @@ int main( void )
     test_frames_come_at_a_steady_interval();
     test_needle_draws_over_label_and_uncovers_it();
     test_a_fine_scale_keeps_its_precision();
-    test_default_scale_and_rest();
+    test_upper_arc_settles_on_both_ends();
+    test_two_sided_scale_and_rest();
     test_rpm_face_scale();
 
     return MT_RESULT();

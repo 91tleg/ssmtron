@@ -68,11 +68,16 @@ static bool time_reached(
     return past < DIAL_MOTION_HALF_RANGE;
 }
 
-/* The whole degree nearest pos. Angles on the dial are never negative. */
+/* The whole degree nearest pos. Rounding is the same on both sides of zero:
+ * a plain division truncates toward zero, which would pull a negative angle
+ * one degree short, so the sign is taken off first. */
 static int16_t round_deg( int32_t pos )
 {
-    return ( int16_t )( ( pos + ( DIAL_MOTION_SUBDEG / 2 ) )
-                        / DIAL_MOTION_SUBDEG );
+    int32_t magnitude = ( pos < 0 ) ? -pos : pos;
+    int32_t whole =
+        ( magnitude + ( DIAL_MOTION_SUBDEG / 2 ) ) / DIAL_MOTION_SUBDEG;
+
+    return ( int16_t )( ( pos < 0 ) ? -whole : whole );
 }
 
 void dial_motion_init(

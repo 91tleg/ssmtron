@@ -19,7 +19,7 @@ static const dial_cfg_t cfg = {
     0u,
     0u,
     900u,
-    DIAL_STYLE_DEFAULT
+    DIAL_STYLE_FULL_SWEEP
 };
 
 static void test_it_aims_at_full_scale_then_hands_over( void )
