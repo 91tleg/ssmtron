@@ -26,6 +26,15 @@ foreach(t ssm1_cmd ssm1_rx ssm1_romid ssm1_decode ssm1_params ssm1)
   add_test(NAME ${t} COMMAND test_${t})
 endforeach()
 
+# Every parameter against the reference tool; it formats values, so it links fmt.
+add_executable(test_ssm1_reference test_ssm1_reference.c)
+target_link_libraries(test_ssm1_reference PRIVATE ssm1 fmt)
+add_test(NAME ssm1_reference COMMAND test_ssm1_reference)
+
+# The UART's baud register math is pure, so it runs here.
+add_executable(test_uarte_baud test_uarte_baud.c)
+add_test(NAME uarte_baud COMMAND test_uarte_baud)
+
 # App glue against fake HAL/ECU (the fakes live in the test file).
 add_executable(test_ecu_io test_ecu_io.c ../app/ecu_io.c)
 target_include_directories(test_ecu_io PRIVATE ../app ../hal ../lib/ecu)

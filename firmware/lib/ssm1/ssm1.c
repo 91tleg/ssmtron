@@ -72,6 +72,7 @@ typedef struct
     bool identified;
     bool id_cmd_due;
     uint8_t clear_writes;
+    bool clear_resumed; /* the wait is over and reads have restarted */
     uint8_t clear_data;
     uint8_t raw[SLOTS];
     bool have[SLOTS];
@@ -157,6 +158,11 @@ static void on_sample( uint8_t data )
         s.any_sample    = true;
         s.fails         = 0;
         s.phase         = PH_STREAM;
+        if ( ( s.clear == ECU_CLEAR_BUSY ) && s.clear_resumed )
+        {
+            /* The ECU answers again after its memory write. */
+            finish_clear( ECU_CLEAR_DONE );
+        }
     }
 }
 
@@ -190,6 +196,16 @@ static void on_identified( uint32_t id )
     }
 }
 
+/* From the first clear write until the wait is over, the ECU may be busy
+ * writing its memory and say nothing. Silence then is not a failed cycle:
+ * a stop or a read sent to a busy ECU could interrupt the clear, so the
+ * session sends only the remaining writes until CLEAR_DONE_WAIT_MS is up. */
+static bool clear_memory_write( void )
+{
+    return ( s.clear == ECU_CLEAR_BUSY ) && ( s.clear_writes > 0u )
+           && !s.clear_resumed;
+}
+
 static void clear_tick( void )
 {
     if ( s.clear == ECU_CLEAR_BUSY )
@@ -198,10 +214,13 @@ static void clear_tick( void )
         {
             finish_clear( ECU_CLEAR_FAILED );
         }
-        else if ( ( s.clear_writes >= CLEAR_WRITES )
+        else if ( ( s.clear_writes >= CLEAR_WRITES ) && !s.clear_resumed
                   && ( since( s.clear_last ) >= CLEAR_DONE_WAIT_MS ) )
         {
-            finish_clear( ECU_CLEAR_DONE );
+            /* Read again. The clear counts as done once the ECU answers, so
+             * an ECU that never comes back fails at CLEAR_LIMIT_MS. */
+            s.clear_resumed = true;
+            set_target( s.resume );
         }
         else
         {
@@ -273,7 +292,8 @@ void ecu_tick( uint32_t now_ms )
             }
             break;
         case PH_STREAM:
-            if ( since( s.last_sample ) >= STALL_MS )
+            if ( !clear_memory_write()
+                 && ( since( s.last_sample ) >= STALL_MS ) )
             {
                 fail_cycle();
             }
@@ -541,6 +561,7 @@ bool ecu_clear_start( void )
         s.clear              = ECU_CLEAR_BUSY;
         s.clear_start        = s.now;
         s.clear_writes       = 0;
+        s.clear_resumed      = false;
         s.resume             = s.want;
         s.have[slot_count()] = false;
         set_target( slot_count() );

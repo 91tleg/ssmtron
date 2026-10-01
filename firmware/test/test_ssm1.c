@@ -25,6 +25,10 @@ typedef struct
     uint8_t cmd_len;
     uint8_t phase; /* 0..2 frame, 3..5 ROM ID bytes */
     uint32_t next_ms;
+    bool busy_after_write; /* goes silent for a while after the first write */
+    bool muted;            /* hears commands, sends nothing */
+    uint32_t mute_end;
+    uint32_t busy_ms; /* how long it is busy; 0 is a memory write, 22 s */
     unsigned writes;
     uint8_t write_cmd[8][4];
     uint16_t write_stream_addr[8]; /* what was streaming at the time */
@@ -85,11 +89,18 @@ static void sim_rx( uint8_t b )
             }
             else if ( sim.cmd[0] == 0xAA )
             {
-                if ( sim.streaming && ( sim.writes < 8 ) )
+                if ( ( sim.streaming || sim.muted ) && ( sim.writes < 8 ) )
                 {
                     memcpy( sim.write_cmd[sim.writes], sim.cmd, 4 );
                     sim.write_stream_addr[sim.writes] = sim.addr;
                     sim.writes++;
+                    if ( sim.busy_after_write && ( sim.writes == 1u ) )
+                    {
+                        sim.muted = true;
+                        sim.mute_end =
+                            now
+                            + ( ( sim.busy_ms != 0u ) ? sim.busy_ms : 22000u );
+                    }
                 }
             }
         }
@@ -98,7 +109,11 @@ static void sim_rx( uint8_t b )
 
 static void sim_stream( void )
 {
-    if ( sim.alive && sim.streaming
+    if ( sim.muted && ( ( int32_t )( now - sim.mute_end ) >= 0 ) )
+    {
+        sim.muted = false;
+    }
+    if ( sim.alive && sim.streaming && !sim.muted
          && ( ( int32_t )( now - sim.next_ms ) >= 0 ) )
     {
         uint8_t b = 0;
@@ -663,7 +678,7 @@ static void test_clear_every_profile( void )
         CHECK( ecu_clear_start() );
         CHECK( ecu_clear_state() == ECU_CLEAR_BUSY );
         CHECK( !ecu_clear_start() ); /* already running */
-        run( 24000 );                /* > CLEAR_DONE_WAIT_MS + write gaps */
+        run( 26000 ); /* > write gaps + CLEAR_DONE_WAIT_MS + resume */
         CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
         check_clear_writes();
 
@@ -711,7 +726,7 @@ static void test_clear_selection_during_clear_applies_after( void )
     run( 300 );
     selected = 3;
     CHECK( ecu_select_param( 3 ) );
-    run( 24000 ); /* > CLEAR_DONE_WAIT_MS + write gaps */
+    run( 26000 ); /* > write gaps + CLEAR_DONE_WAIT_MS + resume */
     CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
     run( 1000 );
     CHECK( value_ok( 3 ) );
@@ -725,7 +740,7 @@ static void test_clear_survives_lost_bytes( void )
     run( 250 );
     sim.drop_bytes = 3;
     ecu_feed_error();
-    run( 24000 ); /* > CLEAR_DONE_WAIT_MS + write gaps */
+    run( 26000 ); /* > write gaps + CLEAR_DONE_WAIT_MS + resume */
     CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
     CHECK_EQ( sim.writes, 4 );
 }
@@ -744,9 +759,170 @@ static void test_clear_fails_when_ecu_dies( void )
     sim.streaming = false;
     sim.writes    = 0;
     CHECK( ecu_clear_start() ); /* can try again */
-    run( 24000 );               /* > CLEAR_DONE_WAIT_MS + write gaps */
+    run( 26000 );               /* > write gaps + CLEAR_DONE_WAIT_MS + resume */
     CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
     CHECK_EQ( sim.writes, 4 );
+}
+
+/* The ECU writes its memory after the clear and may say nothing for a long
+ * while. The reference tool sends nothing until the wait is over, so the
+ * gauge must not restart its read cycle on the silence and talk to a busy
+ * ECU. */
+static void test_clear_wait_sends_nothing_while_the_ecu_is_busy( void )
+{
+    uint8_t b[8];
+    unsigned extra      = 0;
+    uint32_t last_write = 0;
+    bool wrote          = false;
+
+    boot();
+    sim.busy_after_write = true;
+    ecu_clear_start();
+    for ( unsigned i = 0; i < 26000u; i++ )
+    {
+        size_t n;
+
+        ecu_tick( now );
+        sim_stream();
+        n = ecu_next_tx( b, sizeof( b ) );
+        for ( size_t j = 0; j < n; j++ )
+        {
+            sim_rx( b[j] );
+        }
+        if ( n == 4u )
+        {
+            if ( b[0] == 0xAAu )
+            {
+                wrote      = true;
+                last_write = now;
+            }
+            else if ( wrote && ( ( now - last_write ) < 22400u ) )
+            {
+                extra++; /* a stop or a read while the ECU writes memory */
+            }
+        }
+        now++;
+    }
+    CHECK_EQ( extra, 0 );
+    CHECK_EQ( sim.writes, 4 );
+    CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
+
+    /* and the gauge is reading again once the wait is over */
+    run( 1500 );
+    CHECK( value_ok( 0 ) );
+    CHECK_EQ( wrong_values, 0 );
+}
+
+/* Steps until the clear is no longer running, at most limit ms. Returns the
+ * time it took. */
+static unsigned run_while_clearing( unsigned limit )
+{
+    unsigned t = 0;
+
+    while ( ( t < limit ) && ( ecu_clear_state() == ECU_CLEAR_BUSY ) )
+    {
+        step();
+        t++;
+    }
+    return t;
+}
+
+/* A second clear in the same session: nothing is left over from the first,
+ * so it writes four more times and is not ended by the first answer. */
+static void test_a_second_clear_in_the_same_session( void )
+{
+    boot();
+    ecu_clear_start();
+    CHECK( run_while_clearing( 30000 ) < 30000u );
+    CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
+    CHECK_EQ( sim.writes, 4 );
+
+    run( 1000 );
+    CHECK( ecu_clear_start() );
+    CHECK( ecu_clear_state() == ECU_CLEAR_BUSY );
+    run( 5000 ); /* long enough for a stale flag to end it early */
+    CHECK( ecu_clear_state() == ECU_CLEAR_BUSY );
+    CHECK( run_while_clearing( 30000 ) < 30000u );
+    CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
+    CHECK_EQ( sim.writes, 8 );
+    for ( unsigned i = 4; i < 8u; i++ )
+    {
+        CHECK( sim.write_cmd[i][0] == 0xAA );
+        CHECK( sim.write_cmd[i][3] == sim.write_cmd[0][3] );
+    }
+}
+
+/* The ECU stays busy past the wait and answers before the limit: the clear
+ * is done when it does, not when the wait ends. */
+static void test_an_ecu_that_answers_late_still_finishes_the_clear( void )
+{
+    unsigned took;
+
+    boot();
+    sim.busy_after_write = true;
+    sim.busy_ms          = 27000u;
+    ecu_clear_start();
+    took = run_while_clearing( 31000 );
+    CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
+    CHECK( took > 27000u ); /* not before it spoke */
+    CHECK( took < 30000u );
+    CHECK_EQ( sim.writes, 4 );
+    run( 1500 );
+    CHECK( value_ok( 0 ) );
+}
+
+/* The ECU is still silent at the limit: the clear fails, and the gauge reads
+ * again when the ECU finally returns. */
+static void test_an_ecu_silent_past_the_limit_fails_the_clear( void )
+{
+    unsigned took;
+
+    boot();
+    sim.busy_after_write = true;
+    sim.busy_ms          = 40000u;
+    ecu_clear_start();
+    took = run_while_clearing( 31000 );
+    CHECK( ecu_clear_state() == ECU_CLEAR_FAILED );
+    CHECK( took >= 29900u );
+    CHECK( took <= 30100u );
+    run( 20000 ); /* the ECU comes back */
+    CHECK( ecu_clear_state() == ECU_CLEAR_FAILED );
+    CHECK( value_ok( 0 ) );
+    CHECK_EQ( wrong_values, 0 );
+}
+
+/* The 22 s wait crosses the 32 bit millisecond counter's wrap. */
+static void test_a_clear_across_the_timer_wrap( void )
+{
+    unsigned took;
+
+    start( 0xFFFFFFFFu - 12000u ); /* wraps 9.5 s into the clear */
+    run( 2500 );
+    ecu_clear_start();
+    took = run_while_clearing( 30000 );
+    CHECK( took < 30000u );
+    CHECK( took >= 22500u ); /* the wait is not cut short by the wrap */
+    CHECK( ecu_clear_state() == ECU_CLEAR_DONE );
+    CHECK_EQ( sim.writes, 4 );
+    run( 1000 );
+    CHECK( value_ok( 0 ) );
+    CHECK_EQ( wrong_values, 0 );
+}
+
+/* An ECU that goes quiet before the first write: the gauge keeps trying to
+ * read the clear address, writes nothing, and gives up at the limit. */
+static void test_an_ecu_that_dies_before_the_first_write( void )
+{
+    boot();
+    ecu_clear_start();
+    run( 40 ); /* too early for a first sample of the clear address */
+    CHECK_EQ( sim.writes, 0 );
+    sim.alive = false;
+    tx_bytes  = 0;
+    CHECK( run_while_clearing( 31000 ) <= 30100u );
+    CHECK( tx_bytes >= 40u ); /* still stopping and reading again, 10+ times */
+    CHECK( ecu_clear_state() == ECU_CLEAR_FAILED );
+    CHECK_EQ( sim.writes, 0 );
 }
 
 int main( void )
@@ -783,5 +959,11 @@ int main( void )
     test_clear_selection_during_clear_applies_after();
     test_clear_survives_lost_bytes();
     test_clear_fails_when_ecu_dies();
+    test_clear_wait_sends_nothing_while_the_ecu_is_busy();
+    test_a_second_clear_in_the_same_session();
+    test_an_ecu_that_answers_late_still_finishes_the_clear();
+    test_an_ecu_silent_past_the_limit_fails_the_clear();
+    test_a_clear_across_the_timer_wrap();
+    test_an_ecu_that_dies_before_the_first_write();
     return MT_RESULT();
 }

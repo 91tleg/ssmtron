@@ -419,6 +419,150 @@ static void test_rpm_face_scale( void )
     CHECK_EQ( d.target_deg, 135 );
 }
 
+/* A reading past either end of the scale puts the needle on that end, as a
+ * real gauge's stop pin would, and the needle never travels past it on the
+ * way, whatever the style and however wild the number. */
+static void check_beyond_the_ends(
+    const dial_cfg_t * cfg,
+    int16_t low_deg,
+    int16_t high_deg
+)
+{
+    const int32_t above[] = {
+        cfg->max_value + 1, cfg->max_value + 1000000, INT32_MAX
+    };
+    const int32_t below[] = {
+        cfg->min_value - 1, cfg->min_value - 1000000, INT32_MIN
+    };
+
+    for ( size_t i = 0; i < 3u; i++ )
+    {
+        dial_widget_t d;
+        uint32_t now  = 0u;
+        int16_t most  = low_deg;
+        int16_t least = high_deg;
+
+        dial_init( &d, cfg, now );
+        dial_poll( &d, now, true, above[i] );
+        CHECK_EQ( d.target_deg, high_deg );
+        for ( unsigned f = 0; ( f < 200u ) && !dial_settled( &d ); f++ )
+        {
+            now += 33u;
+            dial_poll( &d, now, true, above[i] );
+            most = ( d.displayed_deg > most ) ? d.displayed_deg : most;
+        }
+        CHECK( dial_settled( &d ) );
+        CHECK_EQ( d.displayed_deg, high_deg );
+        CHECK( most <= high_deg );
+
+        dial_poll( &d, now, true, below[i] );
+        CHECK_EQ( d.target_deg, low_deg );
+        for ( unsigned f = 0; ( f < 200u ) && !dial_settled( &d ); f++ )
+        {
+            now += 33u;
+            dial_poll( &d, now, true, below[i] );
+            least = ( d.displayed_deg < least ) ? d.displayed_deg : least;
+        }
+        CHECK( dial_settled( &d ) );
+        CHECK_EQ( d.displayed_deg, low_deg );
+        CHECK( least >= low_deg );
+    }
+}
+
+static void test_a_reading_past_the_scale_stops_at_its_end( void )
+{
+    /* One sided, over the full sweep. */
+    check_beyond_the_ends( &test_cfg, 135, 435 );
+    {
+        /* Two sided, positive end inside the sweep: 45 degrees per 10. */
+        static const dial_cfg_t two = {
+            -30,
+            20,
+            10,
+            4u,
+            1,
+            "T",
+            "P",
+            "I",
+            1u,
+            2u,
+            3u,
+            900u,
+            DIAL_STYLE_FULL_SWEEP
+        };
+
+        check_beyond_the_ends( &two, 135, 360 );
+    }
+    {
+        /* Two sided, positive end beyond the sweep: it ends at the sweep. */
+        static const dial_cfg_t wide = {
+            -10,
+            50,
+            10,
+            0u,
+            1,
+            "T",
+            "P",
+            "I",
+            1u,
+            2u,
+            3u,
+            900u,
+            DIAL_STYLE_FULL_SWEEP
+        };
+
+        check_beyond_the_ends( &wide, 135, 435 );
+    }
+    {
+        static const dial_cfg_t arc = {
+            1000,
+            2600,
+            400,
+            1u,
+            10,
+            "C",
+            "F",
+            NULL,
+            1u,
+            2u,
+            3u,
+            900u,
+            DIAL_STYLE_UPPER_ARC
+        };
+
+        check_beyond_the_ends( &arc, -75, 75 );
+    }
+}
+
+/* An empty scale has nowhere to sweep, so every reading rests at its start. */
+static void test_an_empty_scale_rests_at_its_start( void )
+{
+    static const dial_cfg_t empty = {
+        50,
+        50,
+        25,
+        0u,
+        1,
+        "E",
+        "U",
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_FULL_SWEEP
+    };
+    const int32_t values[] = { INT32_MIN, 0, 49, 50, 51, INT32_MAX };
+    dial_widget_t d;
+
+    dial_init( &d, &empty, 0u );
+    for ( size_t i = 0; i < 6u; i++ )
+    {
+        dial_poll( &d, 33u * ( uint32_t )( i + 1u ), true, values[i] );
+        CHECK_EQ( d.target_deg, 135 );
+    }
+}
+
 int main( void )
 {
     test_init_draws_one_frame_at_rest();
@@ -432,6 +576,8 @@ int main( void )
     test_upper_arc_settles_on_both_ends();
     test_two_sided_scale_and_rest();
     test_rpm_face_scale();
+    test_a_reading_past_the_scale_stops_at_its_end();
+    test_an_empty_scale_rests_at_its_start();
 
     return MT_RESULT();
 }

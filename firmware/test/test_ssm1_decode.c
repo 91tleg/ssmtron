@@ -118,6 +118,36 @@ static void test_flags( void )
     CHECK( !ecu_flag_set( &i->flags[0], 0x7F ) );
 }
 
+/* The Hitachi ECUs send km/h. The shown number is value / 10^decimals, and
+ * it has to be raw / 1.6 mph, not a tenth of that. */
+static void test_hitachi_speed_is_mph( void )
+{
+    const uint16_t ids[] = { 0x3671, 0x3672, 0x3170 };
+
+    for ( size_t k = 0; k < 3u; k++ )
+    {
+        const ecu_param_info_t * i =
+            find( ssm1_profile_find( ids[k] ), "Vehicle Speed" );
+        int32_t scale = 1;
+
+        CHECK( i != NULL );
+        for ( uint8_t d = 0; d < i->decimals; d++ )
+        {
+            scale *= 10;
+        }
+        for ( int32_t raw = 0; raw <= 255; raw++ )
+        {
+            int32_t shown_tenths =
+                ( ssm1_decode( i, ( uint8_t )raw ) * 10 ) / scale;
+            int32_t want_tenths = ( raw * 100 ) / 16;
+
+            CHECK( ( shown_tenths - want_tenths ) <= 10 );
+            CHECK( ( want_tenths - shown_tenths ) <= 10 );
+        }
+        CHECK_EQ( ssm1_decode( i, 100 ), 62 * scale ); /* 62 mph */
+    }
+}
+
 int main( void )
 {
     test_linear();
@@ -126,6 +156,7 @@ int main( void )
     test_jecs_coolant();
     test_hitachi_coolant_table();
     test_boost();
+    test_hitachi_speed_is_mph();
     test_flags();
     return MT_RESULT();
 }

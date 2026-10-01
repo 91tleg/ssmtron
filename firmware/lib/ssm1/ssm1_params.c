@@ -178,8 +178,9 @@ static const int16_t coolant_hitachi[256] = {
  */
 
 static const ecu_param_info_t VB = LIN( "System Voltage", "V", 8, 1, 0, 2 );
+/* km/h over 1.6, in whole mph. */
 static const ecu_param_info_t VSP_H =
-    LIN( "Vehicle Speed", "mph", 10, 16, 0, 1 );
+    LIN( "Vehicle Speed", "mph", 10, 16, 0, 0 );
 static const ecu_param_info_t VSP_J =
     LIN( "Vehicle Speed", "mph", 125, 1, 0, 2 );
 static const ecu_param_info_t RPM  = LIN( "Engine Speed", "rpm", 25, 1, 0, 0 );

@@ -68,7 +68,7 @@ stop -> wait for silence -> read -> first confirmed sample -> streaming
 
 **Failures and link state.** A cycle that gets no confirmed sample within 300 ms, or a stream that goes quiet for 500 ms, restarts from the stop. Three failures in a row pause for one second before trying again. A value older than 500 ms is shown as dashes, and the link counts as up while samples are under one second old.
 
-**Clearing trouble codes.** A clear writes to the code address with `aa <addr high> <addr low> <data>`, which only takes effect while the ECU is streaming. The gauge first reads the byte, then writes it four times, 384 ms apart, and waits about 22 seconds after the last write for the ECU's memory write to finish. Reads resume after that, and the gauge gives up if it takes more than 30 seconds. The data written is either `0xFF`, or the inverse of the byte it read, depending on the profile.
+**Clearing trouble codes.** A clear writes to the code address with `aa <addr high> <addr low> <data>`, which only takes effect while the ECU is streaming. The gauge first reads the byte, then writes it four times, 384 ms apart, and waits about 22 seconds after the last write for the ECU's memory write to finish. The gauge sends nothing during that wait, even if the ECU goes quiet. Reads then resume, the clear counts as done when the ECU answers again, and the gauge gives up if that takes more than 30 seconds from the start. The data written is either `0xFF`, or the inverse of the byte it read, depending on the profile.
 
 ## Updating the firmware
 
