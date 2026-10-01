@@ -27,8 +27,13 @@ void gauge_update_set_colors(
     uint16_t ink
 );
 
-/* Clears the panel to face and draws the whole page. */
-void gauge_update_open( uint16_t face );
+/* Clears the panel to face and draws the whole page. now_ms is the time of
+ * the first poll, so the first draw shows the wait that is left and not a
+ * time from an earlier visit. */
+void gauge_update_open(
+    uint16_t face,
+    uint32_t now_ms
+);
 
 /* Call every poll while active: follows the phone connecting and leaving,
  * restarts the device when the wait runs out, and redraws what changed. The

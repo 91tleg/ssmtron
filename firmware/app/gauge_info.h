@@ -12,8 +12,13 @@ void gauge_info_set_colors(
     uint16_t ink
 );
 
-/* Clears the panel to face and draws the whole page. */
-void gauge_info_open( uint16_t face );
+/* Clears the panel to face and draws the whole page. notice is that of
+ * gauge_info_poll, so the first draw already shows it and not what an earlier
+ * visit left behind. */
+void gauge_info_open(
+    uint16_t face,
+    const char * notice
+);
 
 /* Redraws only what changed. notice is the line under the page, such as
  * "SAVED", or "" for nothing; it must stay valid until the next call. */

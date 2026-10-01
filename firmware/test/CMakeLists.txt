@@ -140,6 +140,7 @@ add_test(NAME gauge_update_zeros COMMAND test_gauge_update zeros)
 add_test(NAME gauge_update_failed COMMAND test_gauge_update failed)
 add_test(NAME gauge_update_norandom COMMAND test_gauge_update norandom)
 add_test(NAME gauge_update_exit COMMAND test_gauge_update exit)
+add_test(NAME gauge_update_firstframe COMMAND test_gauge_update firstframe)
 add_test(NAME gauge_update_fit COMMAND test_gauge_update fit)
 
 add_executable(test_gauge_update_360 test_gauge_update.c ../app/gauge_update.c)

@@ -64,6 +64,9 @@ void hal_dfu_reboot( void )
 static text_widget_t * page;
 static size_t page_count;
 
+/* What each widget said at the moment text_init drew the first frame. */
+static char first_frame[8][TEXT_MAX + 1u];
+
 void text_init(
     text_widget_t * widgets,
     size_t count,
@@ -73,6 +76,10 @@ void text_init(
     ( void )page_bg;
     page       = widgets;
     page_count = count;
+    for ( size_t i = 0; ( i < count ) && ( i < 8u ); i++ )
+    {
+        widgets[i].text( first_frame[i] );
+    }
 }
 
 void text_poll(
@@ -102,9 +109,20 @@ static void send( hal_ble_evt_t evt )
 static void begin( uint32_t now )
 {
     gauge_update_set_colors( 0x1111u, 0x2222u );
-    gauge_update_open( 0x1111u );
+    gauge_update_open( 0x1111u, now );
     gauge_update_start( now );
     gauge_update_poll( now );
+}
+
+/* The first draw shows the wait that is left, even when an earlier poll left
+ * a time behind it: from the page's last visit, which was before this start,
+ * the stale time would make the wait look used up. */
+static void test_the_first_frame_shows_the_full_wait( void )
+{
+    gauge_update_poll( 100u ); /* an earlier visit's last time */
+    gauge_update_start( 500000u );
+    gauge_update_open( 0x1111u, 500000u );
+    CHECK( strcmp( first_frame[3], "TIME LEFT 5:00" ) == 0 );
 }
 
 /* The usual session: start, wait, a phone comes and goes, the wait runs out. */
@@ -251,6 +269,10 @@ int main(
     else if ( strcmp( which, "exit" ) == 0 )
     {
         test_exit_restarts_the_device();
+    }
+    else if ( strcmp( which, "firstframe" ) == 0 )
+    {
+        test_the_first_frame_shows_the_full_wait();
     }
     else if ( strcmp( which, "fit" ) == 0 )
     {

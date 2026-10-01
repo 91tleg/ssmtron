@@ -359,6 +359,10 @@ static const char * save_notice_text( void )
     return text;
 }
 
+static void number_page_open( void )
+    gauge_number_open(
+static void number_page_poll( void )
+    gauge_number_poll( selected_info(), has_value, value, save_notice_text() );
 /* What the info page shows under its rows. Holding ACTION there starts
  * update mode, so it says so while the button is held. */
 static const char * current_info_notice( void )
@@ -548,19 +552,21 @@ static void update_face( uint32_t now_ms )
         }
         else if ( want_update )
         {
-            gauge_update_open( themes[theme_idx].face );
+            gauge_update_open( themes[theme_idx].face, now_ms );
         }
         else if ( want_info )
         {
-            gauge_info_open( themes[theme_idx].face );
+            gauge_info_open( themes[theme_idx].face, current_info_notice() );
         }
         else if ( want_flags )
         {
-            gauge_flags_open( themes[theme_idx].face );
+            gauge_flags_open(
+                themes[theme_idx].face, selected_idx, flags_status(), now_ms
+            );
         }
         else
         {
-            gauge_number_open( themes[theme_idx].face );
+            number_page_open();
         }
         active_dial   = next_dial;
         flags_active  = want_flags;
@@ -606,11 +612,7 @@ static void update_face( uint32_t now_ms )
     }
     else
     {
-        int32_t value = 0;
-
-        gauge_number_poll(
-            selected_info(), selected_value( &value ), value, save_notice_text()
-        );
+        number_page_poll();
     }
 }
 

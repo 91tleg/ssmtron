@@ -102,12 +102,8 @@ void gauge_number_set_colors(
     }
 }
 
-void gauge_number_open( uint16_t face )
-{
-    text_init( number_page, NUMBER_PAGE_COUNT, face );
-}
-
-void gauge_number_poll(
+/* The callbacks draw from these, so they are set before anything is drawn. */
+static void number_show(
     const ecu_param_info_t * info,
     bool has_value,
     int32_t value,
@@ -118,5 +114,27 @@ void gauge_number_poll(
     number_has_value = has_value;
     number_value     = value;
     number_notice    = ( notice != NULL ) ? notice : "";
+}
+
+void gauge_number_open(
+    uint16_t face,
+    const ecu_param_info_t * info,
+    bool has_value,
+    int32_t value,
+    const char * notice
+)
+{
+    number_show( info, has_value, value, notice );
+    text_init( number_page, NUMBER_PAGE_COUNT, face );
+}
+
+void gauge_number_poll(
+    const ecu_param_info_t * info,
+    bool has_value,
+    int32_t value,
+    const char * notice
+)
+{
+    number_show( info, has_value, value, notice );
     text_poll( number_page, NUMBER_PAGE_COUNT );
 }

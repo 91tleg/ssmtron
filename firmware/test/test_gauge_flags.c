@@ -295,6 +295,8 @@ static uint16_t last_page_bg;
 static text_widget_t * page;
 static size_t page_count;
 
+/* What each widget said at the moment text_init drew the first frame. */
+static char first_frame[16][TEXT_MAX + 1u];
 
 void text_init(
     text_widget_t * widgets,
@@ -306,11 +308,12 @@ void text_init(
     page         = widgets;
     page_count   = count;
     frames_drawn++;
-}
-
     for ( size_t i = 0; ( i < count ) && ( i < 16u ); i++ )
     {
+        widgets[i].text( first_frame[i] );
     }
+}
+
 void text_poll(
     text_widget_t * widgets,
     size_t count
@@ -520,10 +523,10 @@ static void test_clear_result_is_shown_on_the_page( void )
     /* Dismiss with a fresh press. */
     press_action( false );
     tick( 1 );
+    tick( 35 ); /* the release settles */
     press_action( true );
     tick( 1 );
     tick( 35 ); /* settled: this dismisses the result */
-    tick( 35 ); /* the release settles */
     tick( 1 );  /* the next loop pass, button still down */
     press_action( false );
     tick( 1 );
@@ -541,10 +544,10 @@ static void tap_action( void )
     tick( 35 );
     press_action( false );
     tick( 1 );
+    tick( 35 ); /* the release has to settle too */
 }
 
 /* One debounced NEXT tap: on to the next page on release. */
-    tick( 35 ); /* the release has to settle too */
 static void tap_next( void )
 {
     press_next( true );
@@ -555,19 +558,31 @@ static void tap_next( void )
     tick( 35 );
 }
 
-/* A switch page has no trouble codes to clear: holding ACTION there does
- * nothing, not even a prompt, and the press is dropped without turning into
- * a theme tap when it is released. */
+/* Every page the gauge draws must show its own content on the first frame,
+ * not what the page before it left behind: the first frame is checked
+ * against what the page says once it is polled. Walks NEXT once round the
+ * whole cycle, back to where it began: the code and switch pages, the number
+ * page and the info page. */
+static void test_each_page_draws_its_own_content_first( void )
 {
+    for ( int step = 0; step < 4; step++ )
     {
+        unsigned before = frames_drawn;
 
+        tap_next();
+        if ( frames_drawn != before )
         {
+            for ( size_t i = 0; ( i < page_count ) && ( i < 16u ); i++ )
             {
+                CHECK( strcmp( first_frame[i], row( i ) ) == 0 );
             }
         }
     }
 }
 
+/* A switch page has no trouble codes to clear: holding ACTION there does
+ * nothing, not even a prompt, and the press is dropped without turning into
+ * a theme tap when it is released. */
 static void test_hold_on_a_switch_page_does_nothing( void )
 {
     uint16_t face_before;
@@ -684,21 +699,6 @@ static void test_a_refused_clear_is_reported_as_refused( void )
     /* Release, then a fresh press dismisses the result as usual. */
     press_action( false );
     tick( 1 );
-    press_action( true );
-    tick( 1 );
-    tick( 35 );
-    press_action( false );
-    tick( 1 );
-    tick( 35 );
-    CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) );
-    clear_start_ok = true;
-}
-
-static void test_action_tap_switches_to_dark_and_back( void )
-{
-    tap_action();
-    CHECK_EQ( page_count, 10u );       /* the same page, drawn again */
-    CHECK_EQ( last_page_bg, 0x0000u ); /* black face */
     tick( 35 );
     press_action( true );
     tick( 1 );
@@ -715,9 +715,9 @@ static void test_action_tap_switches_to_dark_and_back( void )
 static void test_a_release_bounce_does_not_dismiss_a_result( void )
 {
     clear_start_ok = false;
-    CHECK_EQ( page[1].bg, 0x0000u );
-    CHECK_EQ( page[1].fg, 0x9CD3u );                        /* inverted ink */
-    CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) ); /* no prompt */
+    press_action( true );
+    tick( 1 );
+    tick( 35 );
     tick( 2600 );
     tick( 1 );
     CHECK( strcmp( row( 9 ), "    CLEAR FAILED" ) == 0 );
@@ -737,6 +737,21 @@ static void test_a_release_bounce_does_not_dismiss_a_result( void )
     tick( 1 );
     tick( 35 );
     tick( 1 );
+    press_action( false );
+    tick( 1 );
+    tick( 35 );
+    CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) );
+    clear_start_ok = true;
+}
+
+static void test_action_tap_switches_to_dark_and_back( void )
+{
+    tap_action();
+    CHECK_EQ( page_count, 10u );       /* the same page, drawn again */
+    CHECK_EQ( last_page_bg, 0x0000u ); /* black face */
+    CHECK_EQ( page[1].bg, 0x0000u );
+    CHECK_EQ( page[1].fg, 0x9CD3u );                        /* inverted ink */
+    CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) ); /* no prompt */
 
     tap_action();
     CHECK_EQ( last_page_bg, 0xEF5Bu );
@@ -782,10 +797,11 @@ int main( void )
     test_clearing_shows_dots_that_advance();
     test_clear_result_is_shown_on_the_page();
     test_a_refused_clear_is_reported_as_refused();
+    test_a_release_bounce_does_not_dismiss_a_result();
+    test_each_page_draws_its_own_content_first();
     test_hold_on_a_switch_page_does_nothing();
     test_action_tap_switches_to_dark_and_back();
     test_theme_is_saved_only_by_a_next_hold();
 
     return MT_RESULT();
 }
-    test_a_release_bounce_does_not_dismiss_a_result();

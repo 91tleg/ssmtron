@@ -148,13 +148,23 @@ void gauge_info_set_colors(
     }
 }
 
-void gauge_info_open( uint16_t face )
+/* The callbacks draw from this, so it is set before anything is drawn. */
+static void info_show( const char * notice )
 {
+    shown_notice = ( notice != NULL ) ? notice : "";
+}
+
+void gauge_info_open(
+    uint16_t face,
+    const char * notice
+)
+{
+    info_show( notice );
     text_init( info_page, INFO_PAGE_COUNT, face );
 }
 
 void gauge_info_poll( const char * notice )
 {
-    shown_notice = ( notice != NULL ) ? notice : "";
+    info_show( notice );
     text_poll( info_page, INFO_PAGE_COUNT );
 }
