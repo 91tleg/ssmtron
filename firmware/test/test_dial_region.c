@@ -212,6 +212,130 @@ static void test_tick_numbers_use_label_div( void )
     CHECK( strcmp( labels[8].text, "8" ) == 0 );
 }
 
+/* The needle is a straight bar with a triangle at its end. The point reaches
+ * the middle of a long tick, and the long ticks are one pixel wider on each
+ * side than they were. */
+static int32_t needle_width_at( int32_t distance )
+{
+    int32_t count = 0;
+
+    /* Pointing straight up (sin 0, cos 1), distance from the hub. */
+    for ( int32_t dx = -20; dx <= 20; dx++ )
+    {
+        count += on_needle( dx, -distance, 0, 1000 ) ? 1 : 0;
+    }
+    return count;
+}
+
+static void test_needle_is_a_bar_with_a_pointed_end( void )
+{
+    int32_t len = DIAL_NEEDLE_LEN;
+    int32_t bar = ( 2 * DIAL_NEEDLE_HALF_W ) + 1;
+
+    CHECK_EQ( len, DIAL_TICK_R - ( DIAL_TICK_MAJOR_LEN / 2 ) );
+    CHECK( on_needle( 0, -len, 0, 1000 ) ); /* the tip is the end */
+    CHECK( !on_needle( 0, -( len + 1 ), 0, 1000 ) );
+
+    /* The bar keeps its full width right up to where the triangle starts. */
+    CHECK_EQ( needle_width_at( 8 ), bar );
+    CHECK_EQ( needle_width_at( len - DIAL_NEEDLE_TIP_LEN - 1 ), bar );
+    /* Then it narrows steadily to a point. */
+    CHECK( needle_width_at( len - ( DIAL_NEEDLE_TIP_LEN / 2 ) ) < bar );
+    CHECK(
+        needle_width_at( len - ( DIAL_NEEDLE_TIP_LEN / 2 ) )
+        > needle_width_at( len - 2 )
+    );
+    CHECK( needle_width_at( len - 1 ) <= 3 );
+    CHECK( needle_width_at( len ) >= 1 );
+    CHECK( DIAL_TICK_MAJOR_HALF_W >= ( UI_LEN( 17 ) + 1 ) );
+}
+
+/* The needle at the lowest and the highest value points at the middle of the
+ * first and last long ticks: its tip lies on the tick's own line, inside it.
+ * Checked for each kind of scale. */
+static void test_needle_ends_line_up_with_the_scale_ends( void )
+{
+    static const dial_cfg_t cfgs[] = {
+        { -30000,
+          30000,
+          10000,
+          4u,
+          1000,
+          "TURBO",
+          "PSI",
+          "INHG",
+          1u,
+          2u,
+          3u,
+          900u,
+          DIAL_STYLE_FULL_SWEEP },
+        { 0,
+          8000,
+          1000,
+          4u,
+          1000,
+          "RPM",
+          "x1000",
+          NULL,
+          1u,
+          2u,
+          3u,
+          900u,
+          DIAL_STYLE_FULL_SWEEP },
+        { 1000,
+          2600,
+          400,
+          1u,
+          10,
+          "COOLANT",
+          "F",
+          NULL,
+          1u,
+          2u,
+          3u,
+          900u,
+          DIAL_STYLE_UPPER_ARC },
+    };
+
+    for ( size_t c = 0; c < ( sizeof( cfgs ) / sizeof( cfgs[0] ) ); c++ )
+    {
+        dial_tick_t ticks[DIAL_MAX_TICKS];
+        dial_label_t labels[DIAL_MAX_LABELS];
+        size_t tick_count  = 0;
+        size_t label_count = 0;
+        int32_t ends[2]    = { cfgs[c].min_value, cfgs[c].max_value };
+
+        build_ticks( &cfgs[c], ticks, &tick_count, labels, &label_count );
+        CHECK_EQ( ticks[0].deg, value_to_deg( &cfgs[c], ends[0] ) );
+        CHECK_EQ(
+            ticks[tick_count - 1u].deg, value_to_deg( &cfgs[c], ends[1] )
+        );
+        for ( size_t e = 0; e < 2u; e++ )
+        {
+            int16_t deg = value_to_deg( &cfgs[c], ends[e] );
+            int32_t sin_m;
+            int32_t cos_m;
+            int32_t len = DIAL_NEEDLE_LEN;
+            int32_t tx;
+            int32_t ty;
+
+            angle_vec( deg, &sin_m, &cos_m );
+            tx = ( len * sin_m ) / 1000;
+            ty = -( len * cos_m ) / 1000;
+            CHECK( on_needle( tx, ty, sin_m, cos_m ) );
+            CHECK( on_radial_line(
+                tx,
+                ty,
+                sin_m,
+                cos_m,
+                DIAL_TICK_R - DIAL_TICK_MAJOR_LEN,
+                DIAL_TICK_R,
+                DIAL_TICK_MAJOR_HALF_W
+            ) );
+        }
+    }
+}
+
 /* A scale that crosses zero has the same gap between ticks on both sides: a
  * step of 10 vacuum units is as wide as a step of 10 boost units. */
 static void test_ticks_are_evenly_spaced_across_zero( void )
@@ -342,6 +466,8 @@ int main( void )
     test_fixed_label_is_centered_at_its_drawn_size();
     test_partial_redraw_matches_a_fresh_frame();
     test_tick_numbers_use_label_div();
+    test_needle_is_a_bar_with_a_pointed_end();
+    test_needle_ends_line_up_with_the_scale_ends();
     test_ticks_are_evenly_spaced_across_zero();
     test_a_scale_with_small_ticks_fits_every_tick();
     test_upper_arc();

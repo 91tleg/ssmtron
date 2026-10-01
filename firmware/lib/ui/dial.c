@@ -36,16 +36,21 @@
 
 /* Line thicknesses are half-widths, so 1 is a line 3 px wide. They follow
  * the panel size, rounded down. */
-#define DIAL_TICK_HALF_W        UI_LEN( 9 )
-#define DIAL_TICK_MAJOR_HALF_W  UI_LEN( 17 )
-#define DIAL_DIAL_MOTION_HALF_W UI_LEN( 34 )
-#define DIAL_TAIL_HALF_W        UI_LEN( 42 )
+#define DIAL_TICK_HALF_W       UI_LEN( 9 )
+#define DIAL_TICK_MAJOR_HALF_W UI_LEN( 26 )
+#define DIAL_NEEDLE_HALF_W     UI_LEN( 34 )
+#define DIAL_TAIL_HALF_W       UI_LEN( 42 )
 
 /* The hub: a ring with a lighter disc inside it. */
 #define DIAL_HUB_R       UI_LEN( 100 )
 #define DIAL_HUB_INNER_R UI_LEN( 75 )
 
-#define DIAL_NEEDLE_LEN UI_LEN( 650 )
+/* The needle's tip reaches the middle of a long tick, so it points at the
+ * mark and not at the gap beside it. */
+#define DIAL_NEEDLE_LEN ( DIAL_TICK_R - ( DIAL_TICK_MAJOR_LEN / 2 ) )
+
+/* How much of the needle's end is the triangle. */
+#define DIAL_NEEDLE_TIP_LEN UI_LEN( 100 )
 
 /* The label and units around the center use this text size. */
 #define DIAL_FIXED_SCALE UI_TEXT_SCALE( 1 )
@@ -65,7 +70,7 @@
  * the biggest side that box can be; a jump that would exceed it (should
  * never happen at any sane top speed) falls back to a full draw_frame.
  * DIAL_TAIL_R is the counterweight's reach behind center. */
-#define DIAL_REGION_PERMILLE ( 1067 )
+#define DIAL_REGION_PERMILLE ( 1150 )
 #define DIAL_REGION_MAX      UI_LEN( DIAL_REGION_PERMILLE )
 #define DIAL_REGION_PIXELS                                                     \
     ( UI_LEN_U( DIAL_REGION_PERMILLE ) * UI_LEN_U( DIAL_REGION_PERMILLE ) )
@@ -73,10 +78,10 @@
  * pixel of rounding slack. A smaller margin leaves stale pixels of the old
  * needle behind (test_dial_region checks this). */
 #define DIAL_HALF_W_MAX                                                        \
-    ( ( DIAL_DIAL_MOTION_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_DIAL_MOTION_HALF_W \
-                                                     : DIAL_TAIL_HALF_W )
-#define DIAL_REGION_MARGIN  ( DIAL_HALF_W_MAX + 1 )
-#define DIAL_TAIL_R UI_LEN( 259 )
+    ( ( DIAL_NEEDLE_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_NEEDLE_HALF_W           \
+                                                : DIAL_TAIL_HALF_W )
+#define DIAL_REGION_MARGIN ( DIAL_HALF_W_MAX + 1 )
+#define DIAL_TAIL_R        UI_LEN( 259 )
 
 typedef struct
 {
@@ -285,6 +290,37 @@ static size_t format_int(
     } while ( u != 0u );
     if ( neg )
     {
+/* The needle: a straight bar of constant width from the hub, ending in a
+ * triangle that narrows to a point. The point keeps half a pixel of width on
+ * each side, so it never thins out to nothing. */
+static bool on_needle(
+    int32_t dx,
+    int32_t dy,
+    int32_t sin_milli,
+    int32_t cos_milli
+)
+{
+    int32_t proj = ( dx * sin_milli ) - ( dy * cos_milli );
+    int32_t len  = DIAL_NEEDLE_LEN;
+    bool hit     = false;
+
+    if ( ( proj >= 0 ) && ( proj <= ( len * 1000 ) ) )
+    {
+        int32_t perp   = ( dx * cos_milli ) + ( dy * sin_milli );
+        int32_t across = ( perp < 0 ) ? -perp : perp;
+        int32_t room   = ( DIAL_NEEDLE_HALF_W * ( ( len * 1000 ) - proj ) )
+                           / DIAL_NEEDLE_TIP_LEN
+                       + 500;
+
+        if ( room > ( DIAL_NEEDLE_HALF_W * 1000 ) )
+        {
+            room = DIAL_NEEDLE_HALF_W * 1000; /* the straight part */
+        }
+        hit = across <= room;
+    }
+    return hit;
+}
+
         tmp[n] = '-';
         n++;
     }
@@ -495,28 +531,13 @@ static uint16_t pixel_color(
     }
 
     if ( on_radial_line(
-             dx,
-             dy,
-             -needle_sin,
-             -needle_cos,
-             0,
-             DIAL_TAIL_R,
-             DIAL_TAIL_HALF_W
+             dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
          ) )
     {
         color = 0xCE79u;
         set   = true;
     }
-    if ( !set
-         && on_radial_line(
-             dx,
-             dy,
-             needle_sin,
-             needle_cos,
-             0,
-             DIAL_NEEDLE_LEN,
-             DIAL_DIAL_MOTION_HALF_W
-         ) )
+    if ( !set && on_needle( dx, dy, needle_sin, needle_cos ) )
     {
         color = cfg->needle_fg;
         set   = true;

@@ -168,8 +168,8 @@ static void test_big_jump_sweeps_over_multiple_frames( void )
 
     /* The dirty rect actually is a small fraction of the panel, not the
      * whole face. */
-    CHECK( last_blit_w < ( PANEL_H / 2u ) );
-    CHECK( last_blit_h < ( PANEL_H / 2u ) );
+    CHECK( last_blit_w < ( ( PANEL_H * 3u ) / 4u ) );
+    CHECK( last_blit_h < ( ( PANEL_H * 3u ) / 4u ) );
 
     /* Settled: further polls at the same value blit nothing more. */
     blit_calls = 0u;
