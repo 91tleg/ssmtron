@@ -295,6 +295,7 @@ static uint16_t last_page_bg;
 static text_widget_t * page;
 static size_t page_count;
 
+
 void text_init(
     text_widget_t * widgets,
     size_t count,
@@ -307,6 +308,9 @@ void text_init(
     frames_drawn++;
 }
 
+    for ( size_t i = 0; ( i < count ) && ( i < 16u ); i++ )
+    {
+    }
 void text_poll(
     text_widget_t * widgets,
     size_t count
@@ -480,7 +484,8 @@ static void test_clear_hold_prompts_on_the_flags_page( void )
     CHECK( strcmp( row( 1 ), "22 Knock    0" ) == 0 ); /* flags still drawn */
 
     press_action( false );
-    tick( 1 ); /* released early: back to idle */
+    tick( 1 );
+    tick( 35 ); /* the release settles: released early, back to idle */
     CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) );
 }
 
@@ -518,6 +523,7 @@ static void test_clear_result_is_shown_on_the_page( void )
     press_action( true );
     tick( 1 );
     tick( 35 ); /* settled: this dismisses the result */
+    tick( 35 ); /* the release settles */
     tick( 1 );  /* the next loop pass, button still down */
     press_action( false );
     tick( 1 );
@@ -538,6 +544,7 @@ static void tap_action( void )
 }
 
 /* One debounced NEXT tap: on to the next page on release. */
+    tick( 35 ); /* the release has to settle too */
 static void tap_next( void )
 {
     press_next( true );
@@ -551,6 +558,16 @@ static void tap_next( void )
 /* A switch page has no trouble codes to clear: holding ACTION there does
  * nothing, not even a prompt, and the press is dropped without turning into
  * a theme tap when it is released. */
+{
+    {
+
+        {
+            {
+            }
+        }
+    }
+}
+
 static void test_hold_on_a_switch_page_does_nothing( void )
 {
     uint16_t face_before;
@@ -682,9 +699,44 @@ static void test_action_tap_switches_to_dark_and_back( void )
     tap_action();
     CHECK_EQ( page_count, 10u );       /* the same page, drawn again */
     CHECK_EQ( last_page_bg, 0x0000u ); /* black face */
+    tick( 35 );
+    press_action( true );
+    tick( 1 );
+    tick( 35 );
+    press_action( false );
+    tick( 1 );
+    tick( 35 );
+    CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) );
+    clear_start_ok = true;
+}
+
+/* While the button is still held from the clear, a bounce of the contact is
+ * not a release: the result stays until a real release and a fresh press. */
+static void test_a_release_bounce_does_not_dismiss_a_result( void )
+{
+    clear_start_ok = false;
     CHECK_EQ( page[1].bg, 0x0000u );
     CHECK_EQ( page[1].fg, 0x9CD3u );                        /* inverted ink */
     CHECK( strspn( row( 9 ), " " ) == strlen( row( 9 ) ) ); /* no prompt */
+    tick( 2600 );
+    tick( 1 );
+    CHECK( strcmp( row( 9 ), "    CLEAR FAILED" ) == 0 );
+
+    press_action( false ); /* the contact opens for a moment... */
+    tick( 1 );
+    press_action( true ); /* ...and closes again */
+    tick( 1 );
+    tick( 35 );
+    tick( 100 );
+    CHECK( strcmp( row( 9 ), "    CLEAR FAILED" ) == 0 ); /* still shown */
+
+    press_action( false ); /* a real release... */
+    tick( 1 );
+    tick( 35 );
+    press_action( true ); /* ...and a fresh press dismisses it */
+    tick( 1 );
+    tick( 35 );
+    tick( 1 );
 
     tap_action();
     CHECK_EQ( last_page_bg, 0xEF5Bu );
@@ -736,3 +788,4 @@ int main( void )
 
     return MT_RESULT();
 }
+    test_a_release_bounce_does_not_dismiss_a_result();

@@ -365,13 +365,15 @@ static void test_dismissing_the_result_does_not_retrigger( void )
     /* Still held from the previous phase; release, then a fresh press
      * dismisses the result screen rather than starting a new clear. */
     press_action( false );
-    tick( 1 ); /* release seen */
+    tick( 1 );  /* release seen */
+    tick( 35 ); /* and settled */
     press_action( true );
     tick( 1 );  /* a fresh press starts */
     tick( 35 ); /* past debounce: dismisses the result, not a new clear */
     CHECK( !clear_started );
     press_action( false );
     tick( 1 ); /* leave the button released for anything that follows */
+    tick( 35 );
 }
 
 /* Selection restore runs only on the first poll, so this test runs first. */

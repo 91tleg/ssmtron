@@ -326,7 +326,12 @@ static void poll_action( uint32_t now )
              * (it may still be held from the original 2 s press). */
             if ( !gauge_input_action_down() )
             {
-                clear_result_released = true;
+                /* A release that has settled: contact bounce while the
+                 * button is still held does not count. */
+                if ( gauge_input_action_settled( now ) )
+                {
+                    clear_result_released = true;
+                }
             }
             else if ( clear_result_released
                       && gauge_input_action_settled( now ) )
