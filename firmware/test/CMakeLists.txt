@@ -167,3 +167,9 @@ endforeach()
 
 add_executable(test_dial_motion test_dial_motion.c ../lib/ui/dial_motion.c)
 add_test(NAME dial_motion COMMAND test_dial_motion)
+
+# The display driver against fake HAL calls. Its panel size comes from
+# lib/display/display.h.
+add_executable(test_gc9a01 test_gc9a01.c ../lib/display/gc9a01/gc9a01.c)
+target_include_directories(test_gc9a01 PRIVATE ../lib/display ../hal)
+add_test(NAME gc9a01 COMMAND test_gc9a01)

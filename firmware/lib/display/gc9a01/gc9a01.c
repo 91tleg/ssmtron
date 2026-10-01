@@ -266,6 +266,12 @@ hal_status_t display_init( const display_pins_t * p )
             write_cmd( CMD_SWRESET );
             hal_delay_ms( 120u );
             run_init_steps();
+            /* The panel is blank until display_on, and the backlight stays
+             * off until then too, so nothing shows before the first frame. */
+            if ( pins.has_backlight )
+            {
+                hal_gpio_write( pins.backlight, false );
+            }
             ready  = true;
             status = HAL_OK;
         }
@@ -334,6 +340,10 @@ hal_status_t display_on( void )
     {
         write_cmd( CMD_DISPON );
         hal_delay_ms( 20u );
+        if ( pins.has_backlight )
+        {
+            hal_gpio_write( pins.backlight, true );
+        }
         status = HAL_OK;
     }
     return status;
