@@ -10,11 +10,12 @@
 /* Maximum visible characters in a dial label. */
 #define DIAL_TEXT_MAX ( 8u )
 
-/* Face and needle look. Only the default exists today; the enum is kept so
- * user-defined dials can be added later without changing dial_cfg_t. */
+/* Scale layout. FULL_SWEEP is most of the circle, 135 to 435 degrees. A scale
+ * that crosses zero is drawn two-sided, with zero at 270 degrees; any other
+ * scale runs in a straight line. */
 typedef enum
 {
-    DIAL_STYLE_DEFAULT
+    DIAL_STYLE_FULL_SWEEP
 } dial_style_t;
 
 typedef struct

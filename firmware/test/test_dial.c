@@ -76,7 +76,7 @@ static bool shadow_has_color(
 /* 0..100 over the full 135..435 sweep, with no face label or units. Its top
  * speed is 300 degrees per second, a full sweep in one second. */
 static const dial_cfg_t test_cfg = {
-    0, 100, 25, 0u, 1, NULL, NULL, NULL, 1u, 2u, 3u, 300u, DIAL_STYLE_DEFAULT
+    0, 100, 25, 0u, 1, NULL, NULL, NULL, 1u, 2u, 3u, 300u, DIAL_STYLE_FULL_SWEEP
 };
 
 static void reset( void )
@@ -245,7 +245,7 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
         0x2222u,
         0x3333u,
         150u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     const uint16_t label_y0 = 89u;
     const uint16_t label_y1 = 96u;
@@ -305,7 +305,7 @@ static void test_a_fine_scale_keeps_its_precision( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
     int16_t at_3000;
@@ -319,7 +319,7 @@ static void test_a_fine_scale_keeps_its_precision( void )
     CHECK_EQ( d.target_deg, 135 + ( 3975 * 300 / 8000 ) );
 }
 
-static void test_default_scale_and_rest( void )
+static void test_two_sided_scale_and_rest( void )
 {
     static const dial_cfg_t cfg = {
         -30,
@@ -334,7 +334,7 @@ static void test_default_scale_and_rest( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
 
@@ -366,7 +366,7 @@ static void test_rpm_face_scale( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
 
@@ -390,7 +390,7 @@ int main( void )
     test_frames_come_at_a_steady_interval();
     test_needle_draws_over_label_and_uncovers_it();
     test_a_fine_scale_keeps_its_precision();
-    test_default_scale_and_rest();
+    test_two_sided_scale_and_rest();
     test_rpm_face_scale();
 
     return MT_RESULT();

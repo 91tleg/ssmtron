@@ -23,10 +23,10 @@
 #define DIAL_ANGLE_COUNT   ( 271u )
 
 /* Unwrapped angles keep the needle on the lower arc. */
-#define DIAL_DEFAULT_MIN_DEG  ( 135 )
-#define DIAL_DEFAULT_ZERO_DEG ( 270 )
-#define DIAL_DEFAULT_MAX_DEG  ( 435 )
-#define DIAL_DEFAULT_TICK_R   UI_LEN( 825 )
+#define DIAL_FULL_MIN_DEG  ( 135 )
+#define DIAL_FULL_ZERO_DEG ( 270 )
+#define DIAL_FULL_MAX_DEG  ( 435 )
+#define DIAL_TICK_R   UI_LEN( 825 )
 
 #define DIAL_TICK_MAJOR_LEN UI_LEN( 134 )
 #define DIAL_TICK_MINOR_LEN UI_LEN( 67 )
@@ -61,7 +61,7 @@
  * instead of one per row, and only the pixels near the needle. This bounds
  * the biggest side that box can be; a jump that would exceed it (should
  * never happen at any sane top speed) falls back to a full draw_frame.
- * DIAL_DEFAULT_TAIL_R is the counterweight's reach behind center. */
+ * DIAL_TAIL_R is the counterweight's reach behind center. */
 #define DIAL_REGION_PERMILLE ( 1067 )
 #define DIAL_REGION_MAX      UI_LEN( DIAL_REGION_PERMILLE )
 #define DIAL_REGION_PIXELS                                                     \
@@ -73,7 +73,7 @@
     ( ( DIAL_DIAL_MOTION_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_DIAL_MOTION_HALF_W \
                                                      : DIAL_TAIL_HALF_W )
 #define DIAL_REGION_MARGIN  ( DIAL_HALF_W_MAX + 1 )
-#define DIAL_DEFAULT_TAIL_R UI_LEN( 259 )
+#define DIAL_TAIL_R UI_LEN( 259 )
 
 typedef struct
 {
@@ -198,18 +198,18 @@ static int16_t value_to_deg(
         if ( clamped <= 0 )
         {
             offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                    * ( DIAL_DEFAULT_ZERO_DEG
-                                        - DIAL_DEFAULT_MIN_DEG ) )
+                                    * ( DIAL_FULL_ZERO_DEG
+                                        - DIAL_FULL_MIN_DEG ) )
                                   / -cfg->min_value );
-            deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
+            deg    = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
         }
         else
         {
             offset = ( int32_t )( ( ( int64_t )clamped
-                                    * ( DIAL_DEFAULT_MAX_DEG
-                                        - DIAL_DEFAULT_ZERO_DEG ) )
+                                    * ( DIAL_FULL_MAX_DEG
+                                        - DIAL_FULL_ZERO_DEG ) )
                                   / cfg->max_value );
-            deg    = ( int16_t )( DIAL_DEFAULT_ZERO_DEG + offset );
+            deg    = ( int16_t )( DIAL_FULL_ZERO_DEG + offset );
         }
     }
     else
@@ -219,11 +219,11 @@ static int16_t value_to_deg(
         /* An empty scale has nowhere to sweep: rest at the low end. */
         offset = ( span != 0 )
                      ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                      * ( DIAL_DEFAULT_MAX_DEG
-                                          - DIAL_DEFAULT_MIN_DEG ) )
+                                      * ( DIAL_FULL_MAX_DEG
+                                          - DIAL_FULL_MIN_DEG ) )
                                     / span )
                      : 0;
-        deg    = ( int16_t )( DIAL_DEFAULT_MIN_DEG + offset );
+        deg    = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
     }
     return deg;
 }
@@ -466,7 +466,7 @@ static uint16_t pixel_color(
              -needle_sin,
              -needle_cos,
              0,
-             DIAL_DEFAULT_TAIL_R,
+             DIAL_TAIL_R,
              DIAL_TAIL_HALF_W
          ) )
     {
@@ -503,7 +503,7 @@ static uint16_t pixel_color(
         int32_t cos_m;
         int32_t len =
             ticks[i].major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN;
-        int32_t outer_r = DIAL_DEFAULT_TICK_R;
+        int32_t outer_r = DIAL_TICK_R;
 
         angle_vec( ticks[i].deg, &sin_m, &cos_m );
         if ( on_radial_line(
@@ -525,7 +525,7 @@ static uint16_t pixel_color(
 
 /* Bounding box (x0 <= x < x1) of the needle shape at deg: the forward tip
  * at DIAL_NEEDLE_LEN, and the counterweight tail reaching
- * DIAL_DEFAULT_TAIL_R behind center. Both lie on the same line through the
+ * DIAL_TAIL_R behind center. Both lie on the same line through the
  * center, so covering both endpoints covers the whole shape. */
 static void needle_extent(
     int16_t deg,
@@ -537,7 +537,7 @@ static void needle_extent(
 {
     int32_t sin_m;
     int32_t cos_m;
-    int32_t back_r = DIAL_DEFAULT_TAIL_R;
+    int32_t back_r = DIAL_TAIL_R;
     int32_t fwd_x;
     int32_t fwd_y;
     int32_t back_x;

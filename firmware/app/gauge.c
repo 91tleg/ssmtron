@@ -475,7 +475,7 @@ static dial_cfg_t boost_dial_cfg = {
     0x632Cu,
     NEEDLE_RED,
     900u,
-    DIAL_STYLE_DEFAULT
+    DIAL_STYLE_FULL_SWEEP
 };
 
 /* The tachometer displays thousands of rpm on the same face. */
@@ -492,7 +492,7 @@ static dial_cfg_t rpm_dial_cfg = {
     0x632Cu,
     NEEDLE_RED,
     1200u,
-    DIAL_STYLE_DEFAULT
+    DIAL_STYLE_FULL_SWEEP
 };
 
 static void apply_theme( void )

@@ -58,7 +58,7 @@ static const dial_cfg_t cfg = {
     0x632Cu,
     0xF922u,
     900u,
-    DIAL_STYLE_DEFAULT
+    DIAL_STYLE_FULL_SWEEP
 };
 
 static uint32_t now = 1000u;
@@ -198,7 +198,7 @@ static void test_tick_numbers_use_label_div( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_DEFAULT
+        DIAL_STYLE_FULL_SWEEP
     };
     dial_tick_t ticks[DIAL_MAX_TICKS];
     dial_label_t labels[DIAL_MAX_LABELS];
