@@ -85,6 +85,12 @@ static void test_row( void )
     CHECK( strcmp( buf, "ROM     012" ) == 0 );
     CHECK( guard_intact( 12u ) );
 
+    /* A row narrower than the label column cuts the label to the row. */
+    buf = fresh();
+    CHECK_EQ( textfit_row( buf, 21u, 8u, 4u, "ABCDEFGH", "xy" ), 4u );
+    CHECK( strcmp( buf, "ABCD" ) == 0 );
+    CHECK( guard_intact( 21u ) );
+
     /* A label column wider than the buffer cannot overrun it. */
     buf = fresh();
     CHECK_EQ( textfit_row( buf, 5u, 8u, 20u, "AB", "xyz" ), 4u );
