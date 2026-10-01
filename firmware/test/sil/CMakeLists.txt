@@ -6,17 +6,23 @@ set(SIL_APP_SOURCES
   ../../app/gauge_info.c ../../app/gauge_input.c ../../app/gauge_number.c
   ../../app/gauge_update.c ../../app/gauge_settings.c ../../app/gauge_sweep.c)
 
-foreach(t boot pages clear update sweep persist)
+foreach(t boot pages clear update sweep persist buttons stale)
   add_executable(test_sil_${t} test_sil_${t}.c ${SIL_APP_SOURCES})
   target_include_directories(test_sil_${t} PRIVATE ../../app ../../hal
                              ../../lib/display ../../lib/ui)
   target_link_libraries(test_sil_${t} PRIVATE ssm1 fmt textfit)
 endforeach()
 
-foreach(t boot pages clear update)
+foreach(t boot pages clear update buttons stale)
   add_test(NAME sil_${t} COMMAND test_sil_${t})
   set_tests_properties(sil_${t} PROPERTIES LABELS sil)
 endforeach()
+
+# The same clear with an ECU that goes quiet while it writes its memory: one
+# that speaks again late, and one that never does. Each is its own start.
+add_test(NAME sil_clear_busy COMMAND test_sil_clear busy)
+add_test(NAME sil_clear_gone COMMAND test_sil_clear gone)
+set_tests_properties(sil_clear_busy sil_clear_gone PROPERTIES LABELS sil)
 
 # The sweep's state lasts for the whole run, like a power-up, so its two cases
 # are two starts.

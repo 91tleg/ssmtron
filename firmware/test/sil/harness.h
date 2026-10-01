@@ -61,6 +61,15 @@ typedef struct
     uint8_t write_cmd[8][4];
     uint32_t write_at[8];
     uint8_t rom[3]; /* the ROM ID bytes it answers with */
+    /* After its first write the ECU may go quiet, as it does while it writes
+     * its memory: it still hears commands but sends nothing. */
+    bool busy_after_write;
+    uint32_t busy_ms;
+    bool muted;
+    uint32_t mute_end;
+    /* An address it never answers, while it answers every other. */
+    bool dead_addr_set;
+    uint16_t dead_addr;
 } sim_t;
 
 static sim_t sim;
@@ -86,8 +95,8 @@ static inline uint8_t mem( uint16_t addr )
 }
 
 /* Everything the gauge sent, with the time of each byte. */
-static uint8_t tx_log[256];
-static uint32_t tx_time[256];
+static uint8_t tx_log[1024];
+static uint32_t tx_time[1024];
 static size_t tx_count;
 
 /* The order the firmware reached the hardware in, for a test that cares. */
@@ -141,12 +150,17 @@ static inline void sim_rx( uint8_t b )
             {
                 sim.id_pending = sim.streaming;
             }
-            else if ( ( sim.cmd[0] == 0xAAu ) && sim.streaming
+            else if ( ( sim.cmd[0] == 0xAAu ) && ( sim.streaming || sim.muted )
                       && ( sim.writes < 8u ) )
             {
                 ( void )memcpy( sim.write_cmd[sim.writes], sim.cmd, 4u );
                 sim.write_at[sim.writes] = now;
                 sim.writes++;
+                if ( sim.busy_after_write && ( sim.writes == 1u ) )
+                {
+                    sim.muted    = true;
+                    sim.mute_end = now + sim.busy_ms;
+                }
             }
             else
             {
@@ -196,7 +210,12 @@ hal_uart_rx_t hal_uart_read(
 /* One millisecond of the ECU: the next byte of its stream, when it is due. */
 static inline void sim_stream( void )
 {
-    if ( sim.alive && sim.streaming
+    if ( sim.muted && ( ( int32_t )( now - sim.mute_end ) >= 0 ) )
+    {
+        sim.muted = false;
+    }
+    if ( sim.alive && sim.streaming && !sim.muted
+         && !( sim.dead_addr_set && ( sim.addr == sim.dead_addr ) )
          && ( ( int32_t )( now - sim.next_ms ) >= 0 ) )
     {
         uint8_t b = 0u;
@@ -322,6 +341,7 @@ typedef struct
 } nvm_item_t;
 
 static nvm_item_t nvm_items[6];
+static unsigned nvm_saves; /* writes the firmware asked for, in this run */
 static bool nvm_file_enabled;
 static bool nvm_load_file;
 static bool nvm_file_loaded; /* the file was found and read whole */
@@ -399,6 +419,7 @@ hal_status_t hal_nvm_save(
     }
     if ( ( slot != NULL ) && ( len <= sizeof( slot->data ) ) )
     {
+        nvm_saves++;
         ( void )strncpy( slot->key, key, sizeof( slot->key ) - 1u );
         ( void )memcpy( slot->data, data, len );
         slot->len  = len;
@@ -690,6 +711,34 @@ static inline void boot( uint16_t key )
     ( void )hal_nvm_init();
     CHECK_EQ( ecu_io_init( 0u ), HAL_OK );
     ( void )gauge_init( &pins, NEXT_ID, ACTION_ID );
+}
+
+/* The index of the parameter the gauge is reading, from the last read
+ * command it sent for one of the profile's addresses; SIZE_MAX before any. */
+static inline size_t reading_page( void )
+{
+    const ssm1_profile_t * p = profile();
+    size_t found             = SIZE_MAX;
+    size_t i                 = tx_count - ( tx_count % 4u );
+
+    while ( ( found == SIZE_MAX ) && ( i >= 4u ) )
+    {
+        i -= 4u;
+        if ( tx_log[i] == 0x78u )
+        {
+            uint16_t addr =
+                ( uint16_t )( ( tx_log[i + 1u] << 8 ) | tx_log[i + 2u] );
+
+            for ( size_t k = 0u; k < p->count; k++ )
+            {
+                if ( p->params[k].addr == addr )
+                {
+                    found = k;
+                }
+            }
+        }
+    }
+    return found;
 }
 
 /* Where the message "tx" first holds this command at or after from. */
