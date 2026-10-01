@@ -174,3 +174,5 @@ add_test(NAME dial_motion COMMAND test_dial_motion)
 add_executable(test_gc9a01 test_gc9a01.c ../lib/display/gc9a01/gc9a01.c)
 target_include_directories(test_gc9a01 PRIVATE ../lib/display ../hal)
 add_test(NAME gc9a01 COMMAND test_gc9a01)
+
+add_subdirectory(sil)
