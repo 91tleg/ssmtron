@@ -319,6 +319,41 @@ static void test_a_fine_scale_keeps_its_precision( void )
     CHECK_EQ( d.target_deg, 135 + ( 3975 * 300 / 8000 ) );
 }
 
+/* On the upper arc the lowest reading is a negative angle. Driven through the
+ * real motion, the needle must stop exactly on it, and on the highest too. */
+static void test_upper_arc_settles_on_both_ends( void )
+{
+    static const dial_cfg_t arc = {
+        1000,
+        2600,
+        400,
+        1u,
+        10,
+        "COOLANT",
+        "F",
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_UPPER_ARC
+    };
+    dial_widget_t d;
+    uint32_t now = 0u;
+
+    dial_init( &d, &arc, now );
+    CHECK_EQ( d.displayed_deg, -75 ); /* at rest: the lowest value */
+    CHECK( settle( &d, &now, true, 2600, 200u ) > 0u );
+    CHECK_EQ( d.displayed_deg, 75 );
+    CHECK( settle( &d, &now, true, 1000, 200u ) > 0u );
+    CHECK_EQ( d.target_deg, -75 );
+    CHECK_EQ( d.displayed_deg, -75 ); /* exactly, not one degree short */
+    /* A value part way up the arc, still below zero: 400 of 1600 is 37 of
+     * 150 degrees, so -75 + 37. */
+    CHECK( settle( &d, &now, true, 1400, 200u ) > 0u );
+    CHECK_EQ( d.displayed_deg, -38 );
+}
+
 static void test_two_sided_scale_and_rest( void )
 {
     static const dial_cfg_t cfg = {
@@ -394,4 +429,5 @@ int main( void )
     test_rpm_face_scale();
 
     return MT_RESULT();
+    test_upper_arc_settles_on_both_ends();
 }
