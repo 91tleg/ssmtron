@@ -78,6 +78,7 @@ add_test(NAME gauge_sweep COMMAND test_gauge_sweep)
 add_test(NAME gauge_sweep_cancel COMMAND test_gauge_sweep cancel)
 add_test(NAME gauge_sweep_wait COMMAND test_gauge_sweep wait)
 add_test(NAME gauge_sweep_stall COMMAND test_gauge_sweep stall)
+add_test(NAME gauge_sweep_switch COMMAND test_gauge_sweep switch)
 add_test(NAME gauge_sweep_zero COMMAND test_gauge_sweep zero)
 add_test(NAME gauge_sweep_raised COMMAND test_gauge_sweep raised)
 

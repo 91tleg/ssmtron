@@ -622,6 +622,14 @@ static void update_face( uint32_t now_ms )
     {
         if ( next_dial != NO_DIAL )
         {
+            /* Drawing a dial again, after the first frame, puts its needle
+             * back at rest. A sweep that is under way would think the needle
+             * had arrived, and would chase a target from the wrong place, so
+             * it ends here. */
+            if ( face_drawn )
+            {
+                gauge_sweep_cancel();
+            }
             dial_init(
                 &dial_widgets[next_dial], dial_table[next_dial].cfg, now_ms
             );

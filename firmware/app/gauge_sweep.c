@@ -84,12 +84,22 @@ bool gauge_sweep_target(
 )
 {
     static uint32_t last_ms;             /* the time of the previous poll */
+    static const dial_cfg_t * sweep_cfg; /* the dial being swept */
     uint32_t step = now_ms - last_ms;
     bool active   = ( phase != SWEEP_DONE );
 
+    if ( ( phase != SWEEP_ARMED ) && ( phase != SWEEP_DONE )
+         && ( cfg != sweep_cfg ) )
+    {
+        /* Another dial is showing: the sweep's legs belong to the first
+         * dial's scale, so it ends rather than aim at the wrong one. */
+        phase  = SWEEP_DONE;
+        active = false;
+    }
     if ( phase == SWEEP_ARMED )
     {
         /* A new dial starts at rest. */
+        sweep_cfg = cfg;
         start_leg( SWEEP_MAX, rest_value( cfg ), cfg->max_value );
         step = 0u;
     }

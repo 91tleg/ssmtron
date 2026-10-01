@@ -114,6 +114,59 @@ static void test_a_stalled_loop_does_not_skip_ahead( void )
     CHECK( aim <= 5 ); /* 100 ms of the climb is 2.5 */
 }
 
+/* The user reached another dial before the sweep finished. Its legs belong to
+ * the first dial's scale, so it ends there: it does not aim at a value that
+ * is outside the second scale, and it does not come back. */
+static void test_a_dial_change_ends_the_sweep( void )
+{
+    static const dial_cfg_t tach = {
+        0,
+        8000,
+        1000,
+        4u,
+        1000,
+        "RPM",
+        "x1000",
+        NULL,
+        0u,
+        0u,
+        0u,
+        1200u,
+        DIAL_STYLE_FULL_SWEEP
+    };
+    static const dial_cfg_t arc = {
+        1000,
+        2600,
+        400,
+        1u,
+        10,
+        "COOLANT",
+        "F",
+        NULL,
+        0u,
+        0u,
+        0u,
+        900u,
+        DIAL_STYLE_UPPER_ARC
+    };
+
+    active = gauge_sweep_target( &tach, true, clock_ms, &aim );
+    run_to( &tach, 500u, true );
+    CHECK( active );
+    CHECK( NEAR( aim, 4000, 100 ) ); /* half way up the tachometer */
+
+    /* The coolant dial is on screen now. */
+    clock_ms += 10u;
+    aim    = 12345;
+    active = gauge_sweep_target( &arc, true, clock_ms, &aim );
+    CHECK( !active );
+    CHECK_EQ( aim, 12345 ); /* it gave no value to aim at */
+    run_to( &arc, 5000u, true );
+    CHECK( !active ); /* and it does not start again on the new dial */
+    run_to( &tach, 5010u, true );
+    CHECK( !active ); /* nor on the first one */
+}
+
 /* A page that is not a dial came first: there is no sweep, now or later. */
 static void test_cancelled_before_it_starts_never_sweeps( void )
 {
@@ -187,7 +240,7 @@ static void test_a_raised_scale_rests_at_its_bottom( void )
 }
 
 /* The sweep state lasts for the whole run, like a power-up, so each case is
- * its own run: "sweep" (the default), "wait", "stall", "zero",
+ * its own run: "sweep" (the default), "wait", "stall", "switch", "zero",
  * "raised" or "cancel". */
 int main(
     int argc,
@@ -212,6 +265,10 @@ int main(
     {
         active = gauge_sweep_target( &cfg, true, clock_ms, &aim );
         test_it_waits_for_the_needle_at_each_end();
+    }
+    else if ( strcmp( which, "switch" ) == 0 )
+    {
+        test_a_dial_change_ends_the_sweep();
     }
     else if ( strcmp( which, "stall" ) == 0 )
     {

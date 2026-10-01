@@ -6,7 +6,7 @@ set(SIL_APP_SOURCES
   ../../app/gauge_info.c ../../app/gauge_input.c ../../app/gauge_number.c
   ../../app/gauge_update.c ../../app/gauge_settings.c ../../app/gauge_sweep.c)
 
-foreach(t boot pages clear update persist)
+foreach(t boot pages clear update sweep persist)
   add_executable(test_sil_${t} test_sil_${t}.c ${SIL_APP_SOURCES})
   target_include_directories(test_sil_${t} PRIVATE ../../app ../../hal
                              ../../lib/display ../../lib/ui)
@@ -17,6 +17,12 @@ foreach(t boot pages clear update)
   add_test(NAME sil_${t} COMMAND test_sil_${t})
   set_tests_properties(sil_${t} PROPERTIES LABELS sil)
 endforeach()
+
+# The sweep's state lasts for the whole run, like a power-up, so its two cases
+# are two starts.
+add_test(NAME sil_sweep COMMAND test_sil_sweep)
+add_test(NAME sil_sweep_theme COMMAND test_sil_sweep theme)
+set_tests_properties(sil_sweep sil_sweep_theme PROPERTIES LABELS sil)
 
 # The restart needs two starts of the program. The save is setup for the
 # restore, so running the restore alone runs it first, and the restore always
