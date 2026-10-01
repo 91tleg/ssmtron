@@ -56,7 +56,7 @@
 /* Where the tick numbers sit, from the center. */
 #define DIAL_LABEL_R UI_LEN( 584 )
 
-#define DIAL_MAX_TICKS  ( 32u )
+#define DIAL_MAX_TICKS  ( 48u )
 #define DIAL_MAX_LABELS ( 16u )
 
 /* Per-frame redraw covers only the needle's old and new position, not the
@@ -212,19 +212,26 @@ static int16_t value_to_deg(
     {
         if ( clamped <= 0 )
         {
-            offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                    * ( DIAL_FULL_ZERO_DEG
-                                        - DIAL_FULL_MIN_DEG ) )
-                                  / -cfg->min_value );
-            deg    = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
+            offset =
+                ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                               * ( DIAL_FULL_ZERO_DEG - DIAL_FULL_MIN_DEG ) )
+                             / -cfg->min_value );
+            deg = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
         }
         else
         {
-            offset = ( int32_t )( ( ( int64_t )clamped
-                                    * ( DIAL_FULL_MAX_DEG
-                                        - DIAL_FULL_ZERO_DEG ) )
-                                  / cfg->max_value );
-            deg    = ( int16_t )( DIAL_FULL_ZERO_DEG + offset );
+            /* The same degrees per unit as below zero, so the ticks are as
+             * far apart on both sides. The positive side ends where its
+             * scale does, not at the end of the sweep. */
+            offset =
+                ( int32_t )( ( ( int64_t )clamped
+                               * ( DIAL_FULL_ZERO_DEG - DIAL_FULL_MIN_DEG ) )
+                             / -cfg->min_value );
+            deg = ( int16_t )( DIAL_FULL_ZERO_DEG + offset );
+            if ( deg > DIAL_FULL_MAX_DEG )
+            {
+                deg = ( int16_t )DIAL_FULL_MAX_DEG;
+            }
         }
     }
     else
@@ -232,13 +239,13 @@ static int16_t value_to_deg(
         int32_t span = cfg->max_value - cfg->min_value;
 
         /* An empty scale has nowhere to sweep: rest at the low end. */
-        offset = ( span != 0 )
-                     ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                      * ( DIAL_FULL_MAX_DEG
-                                          - DIAL_FULL_MIN_DEG ) )
-                                    / span )
-                     : 0;
-        deg    = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
+        offset =
+            ( span != 0 )
+                ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                                 * ( DIAL_FULL_MAX_DEG - DIAL_FULL_MIN_DEG ) )
+                               / span )
+                : 0;
+        deg = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
     }
     return deg;
 }
@@ -331,7 +338,7 @@ static void build_ticks(
         ticks[nt].major = is_major;
         nt++;
 
-        if ( is_major && ( nl < DIAL_MAX_LABELS ) && ( value != 0 ) )
+        if ( is_major && ( nl < DIAL_MAX_LABELS ) )
         {
             int32_t sin_m;
             int32_t cos_m;

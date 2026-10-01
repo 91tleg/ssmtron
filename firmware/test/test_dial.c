@@ -381,7 +381,11 @@ static void test_two_sided_scale_and_rest( void )
     dial_poll( &d, 0u, true, 0 );
     CHECK_EQ( d.target_deg, 270 );
     dial_poll( &d, 0u, true, 20 );
-    CHECK_EQ( d.target_deg, 435 );
+    CHECK_EQ( d.target_deg, 360 ); /* 45 degrees per 10, as below zero */
+    dial_poll( &d, 0u, true, -10 );
+    CHECK_EQ( d.target_deg, 225 );
+    dial_poll( &d, 0u, true, 10 );
+    CHECK_EQ( d.target_deg, 315 );
     dial_poll( &d, 0u, false, 0 );
     CHECK_EQ( d.target_deg, 270 );
 }
@@ -425,9 +429,9 @@ int main( void )
     test_frames_come_at_a_steady_interval();
     test_needle_draws_over_label_and_uncovers_it();
     test_a_fine_scale_keeps_its_precision();
+    test_upper_arc_settles_on_both_ends();
     test_two_sided_scale_and_rest();
     test_rpm_face_scale();
 
     return MT_RESULT();
-    test_upper_arc_settles_on_both_ends();
 }

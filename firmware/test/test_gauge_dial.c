@@ -433,15 +433,15 @@ int main( void )
     boost_cfg = last_dial_cfg;
 
     /* The power-on sweep aims the needle at full scale (boost tops out at
-     * 20) before the reading is used. It starts with that first frame. */
+     * 30) before the reading is used. It starts with that first frame. */
     CHECK( last_dial_has_value );
-    CHECK_EQ( last_dial_value, 20000 );
+    CHECK_EQ( last_dial_value, 30000 );
     tick( 1 );
     CHECK_EQ( dial_init_count, 1u ); /* the dial is not drawn again */
     CHECK_EQ( text_init_count, 0u );
-    CHECK_EQ( last_dial_value, 20000 );
+    CHECK_EQ( last_dial_value, 30000 );
     tick( 1 ); /* still travelling: still full scale */
-    CHECK_EQ( last_dial_value, 20000 );
+    CHECK_EQ( last_dial_value, 30000 );
     fake_dial_settled = true; /* the needle got there */
     tick( 1 );
     CHECK( last_dial_has_value );

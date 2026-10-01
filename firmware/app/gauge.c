@@ -478,7 +478,7 @@ typedef struct
  * not const. */
 static dial_cfg_t boost_dial_cfg = {
     -30000,
-    20000,
+    30000,
     10000,
     4u,
     1000,
@@ -497,7 +497,7 @@ static dial_cfg_t rpm_dial_cfg = {
     0,
     8000,
     1000,
-    0u,
+    4u,
     1000,
     "RPM",
     "x1000",
