@@ -10,12 +10,15 @@
 /* Maximum visible characters in a dial label. */
 #define DIAL_TEXT_MAX ( 8u )
 
-/* Scale layout. FULL_SWEEP is most of the circle, 135 to 435 degrees. A scale
- * that crosses zero is drawn two-sided, with zero at 270 degrees; any other
- * scale runs in a straight line. */
+/* Scale layout. All layouts share the same needle and motion.
+ * FULL_SWEEP: most of the circle, 135 to 435 degrees. A scale that crosses
+ * zero is drawn two-sided, with zero at 270 degrees and the same angle per
+ * unit on both sides; any other scale runs in a straight line.
+ * UPPER_ARC: a short arc across the top, -75 to 75 degrees. */
 typedef enum
 {
-    DIAL_STYLE_FULL_SWEEP
+    DIAL_STYLE_FULL_SWEEP,
+    DIAL_STYLE_UPPER_ARC
 } dial_style_t;
 
 typedef struct

@@ -447,6 +447,20 @@ static bool is_rpm( const ecu_param_info_t * info )
     return strcmp( info->unit, "rpm" ) == 0;
 }
 
+/* Match the parameter identity, so other temperature and voltage readings
+ * keep their own pages. Coolant profiles report either whole or tenths F. */
+static bool is_coolant( const ecu_param_info_t * info )
+{
+    return ( strcmp( info->name, "Coolant Temp" ) == 0 )
+           && ( strcmp( info->unit, "F" ) == 0 ) && ( info->decimals <= 1u );
+}
+
+static bool is_voltage( const ecu_param_info_t * info )
+{
+    return ( strcmp( info->name, "System Voltage" ) == 0 )
+           && ( strcmp( info->unit, "V" ) == 0 ) && ( info->decimals == 2u );
+}
+
 typedef struct
 {
     bool ( *matches )( const ecu_param_info_t * info );
@@ -455,7 +469,7 @@ typedef struct
 
 /* Dials are picked by index into the table. Their widgets live in a
  * separate array, so no widget pointer is read through the const table. */
-#define DIAL_COUNT ( 2u )
+#define DIAL_COUNT ( 4u )
 #define NO_DIAL    ( SIZE_MAX )
 
 /* The scales are in the ECU's own units, so the needle keeps every digit of
@@ -495,14 +509,51 @@ static dial_cfg_t rpm_dial_cfg = {
     DIAL_STYLE_FULL_SWEEP
 };
 
+/* Upper scales use tenths F and hundredths V to keep ECU precision. */
+static dial_cfg_t coolant_dial_cfg = {
+    1000,
+    2600,
+    400,
+    1u,
+    10,
+    "COOLANT",
+    "F",
+    NULL,
+    0xEF5Bu,
+    0x632Cu,
+    NEEDLE_RED,
+    900u,
+    DIAL_STYLE_UPPER_ARC
+};
+
+static dial_cfg_t voltage_dial_cfg = {
+    800,
+    1600,
+    200,
+    1u,
+    100,
+    "VOLTAGE",
+    "V",
+    NULL,
+    0xEF5Bu,
+    0x632Cu,
+    NEEDLE_RED,
+    900u,
+    DIAL_STYLE_UPPER_ARC
+};
+
 static void apply_theme( void )
 {
     const theme_t * t = &themes[theme_idx];
 
-    boost_dial_cfg.face_bg = t->face;
-    boost_dial_cfg.tick_fg = t->ink;
-    rpm_dial_cfg.face_bg   = t->face;
-    rpm_dial_cfg.tick_fg   = t->ink;
+    boost_dial_cfg.face_bg   = t->face;
+    boost_dial_cfg.tick_fg   = t->ink;
+    rpm_dial_cfg.face_bg     = t->face;
+    rpm_dial_cfg.tick_fg     = t->ink;
+    coolant_dial_cfg.face_bg = t->face;
+    coolant_dial_cfg.tick_fg = t->ink;
+    voltage_dial_cfg.face_bg = t->face;
+    voltage_dial_cfg.tick_fg = t->ink;
     gauge_info_set_colors( t->face, t->ink );
     gauge_update_set_colors( t->face, t->ink );
     gauge_number_set_colors( t->face, t->ink );
@@ -518,6 +569,8 @@ static void update_face( uint32_t now_ms )
     static const dial_entry_t dial_table[DIAL_COUNT] = {
         { is_boost, &boost_dial_cfg },
         { is_rpm, &rpm_dial_cfg },
+        { is_coolant, &coolant_dial_cfg },
+        { is_voltage, &voltage_dial_cfg },
     };
     static size_t active_dial = NO_DIAL;
 
@@ -606,6 +659,13 @@ static void update_face( uint32_t now_ms )
         int32_t dial_value  = 0;
         bool has_value      = selected_value( &dial_value );
         int32_t sweep_value = 0;
+
+        /* Hitachi coolant is whole F; JECS coolant already has tenths. */
+        if ( has_value && is_coolant( sel_info )
+             && ( sel_info->decimals == 0u ) )
+        {
+            dial_value *= 10;
+        }
 
         /* At power-on the needle sweeps to full scale first; the live
          * reading, or rest if there is none, takes over when it gets

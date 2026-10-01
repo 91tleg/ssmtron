@@ -211,10 +211,62 @@ static void test_tick_numbers_use_label_div( void )
     CHECK( strcmp( labels[7].text, "8" ) == 0 );
 }
 
+/* Upper scales share the needle, and every partial redraw must agree with
+ * a fresh frame, including when it crosses a centered title or unit. */
+static void test_upper_arc( void )
+{
+    static const dial_cfg_t upper = {
+        1000,
+        2600,
+        400,
+        1u,
+        10,
+        "COOLANT",
+        "F",
+        NULL,
+        0xEF5Bu,
+        0x632Cu,
+        0xF922u,
+        900u,
+        DIAL_STYLE_UPPER_ARC
+    };
+    dial_tick_t ticks[DIAL_MAX_TICKS];
+    dial_label_t labels[DIAL_MAX_LABELS];
+    size_t nt;
+    size_t nl;
+    dial_widget_t d;
+
+    CHECK_EQ( value_to_deg( &upper, 1000 ), -75 );
+    CHECK_EQ( value_to_deg( &upper, 1800 ), 0 );
+    CHECK_EQ( value_to_deg( &upper, 2600 ), 75 );
+    CHECK_EQ( value_to_deg( &upper, 0 ), -75 );
+    CHECK_EQ( value_to_deg( &upper, 3000 ), 75 );
+    build_ticks( &upper, ticks, &nt, labels, &nl );
+    CHECK_EQ( nt, 9u );
+    CHECK_EQ( nl, 5u );
+    CHECK( strcmp( labels[0].text, "100" ) == 0 );
+    CHECK( strcmp( labels[4].text, "260" ) == 0 );
+    for ( size_t i = 0; i < nt; i++ )
+    {
+        CHECK( ( ticks[i].deg >= -75 ) && ( ticks[i].deg <= 75 ) );
+    }
+    dial_init( &d, &upper, now );
+    for ( int16_t deg = -75; deg < 75; deg++ )
+    {
+        int16_t old     = d.displayed_deg;
+        d.displayed_deg = deg;
+        redraw_needle( &d, old );
+        ( void )memcpy( partial, shadow, sizeof( shadow ) );
+        draw_frame( &d );
+        CHECK_EQ( differences(), 0u );
+    }
+}
+
 int main( void )
 {
     test_fixed_label_is_centered_at_its_drawn_size();
     test_partial_redraw_matches_a_fresh_frame();
     test_tick_numbers_use_label_div();
+    test_upper_arc();
     return MT_RESULT();
 }

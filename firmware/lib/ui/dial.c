@@ -26,7 +26,10 @@
 #define DIAL_FULL_MIN_DEG  ( 135 )
 #define DIAL_FULL_ZERO_DEG ( 270 )
 #define DIAL_FULL_MAX_DEG  ( 435 )
-#define DIAL_TICK_R   UI_LEN( 825 )
+#define DIAL_UPPER_MIN_DEG ( -75 )
+#define DIAL_UPPER_MAX_DEG ( 75 )
+
+#define DIAL_TICK_R UI_LEN( 825 )
 
 #define DIAL_TICK_MAJOR_LEN UI_LEN( 134 )
 #define DIAL_TICK_MINOR_LEN UI_LEN( 67 )
@@ -193,7 +196,19 @@ static int16_t value_to_deg(
     {
         /* Keep the value unchanged. */
     }
-    if ( ( cfg->min_value < 0 ) && ( cfg->max_value > 0 ) )
+    if ( cfg->style == DIAL_STYLE_UPPER_ARC )
+    {
+        int32_t span = cfg->max_value - cfg->min_value;
+
+        offset =
+            ( span != 0 )
+                ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                                 * ( DIAL_UPPER_MAX_DEG - DIAL_UPPER_MIN_DEG ) )
+                               / span )
+                : 0;
+        deg = ( int16_t )( DIAL_UPPER_MIN_DEG + offset );
+    }
+    else if ( ( cfg->min_value < 0 ) && ( cfg->max_value > 0 ) )
     {
         if ( clamped <= 0 )
         {
@@ -361,7 +376,10 @@ static void add_fixed_labels(
                                  strlen( cfg->label ), DIAL_FIXED_SCALE
                              )
                              / 2 ) );
-        labels[n].y     = ( int16_t )( DIAL_CY - UI_LEN( 259 ) );
+        labels[n].y     = ( int16_t )( DIAL_CY
+                                   - ( ( cfg->style == DIAL_STYLE_UPPER_ARC )
+                                               ? UI_LEN( 300 )
+                                               : UI_LEN( 259 ) ) );
         labels[n].scale = DIAL_FIXED_SCALE;
         ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->label );
         n++;
@@ -369,8 +387,17 @@ static void add_fixed_labels(
 
     if ( ( cfg->unit_pos != NULL ) && ( n < DIAL_MAX_LABELS ) )
     {
-        labels[n].x     = ( int16_t )( DIAL_CX + UI_LEN( 325 ) );
-        labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 42 ) );
+        labels[n].x     = ( int16_t )( ( cfg->style == DIAL_STYLE_UPPER_ARC )
+                                           ? DIAL_CX
+                                             - ( label_width(
+                                                     strlen( cfg->unit_pos ),
+                                                     DIAL_FIXED_SCALE
+                                                 )
+                                                 / 2 )
+                                           : DIAL_CX + UI_LEN( 325 ) );
+        labels[n].y     = ( int16_t )( ( cfg->style == DIAL_STYLE_UPPER_ARC )
+                                           ? DIAL_CY - UI_LEN( 192 )
+                                           : DIAL_CY + UI_LEN( 42 ) );
         labels[n].scale = DIAL_FIXED_SCALE;
         ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->unit_pos );
         n++;
