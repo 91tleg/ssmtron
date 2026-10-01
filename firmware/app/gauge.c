@@ -667,12 +667,13 @@ static void update_face( uint32_t now_ms )
             dial_value *= 10;
         }
 
-        /* At power-on the needle sweeps to full scale first; the live
-         * reading, or rest if there is none, takes over when it gets
-         * there. */
+        /* At power-on the needle sweeps from rest to full scale, to the
+         * bottom and back to rest; the live reading, or rest if there is
+         * none, takes over after that. */
         if ( gauge_sweep_target(
                  dial_table[active_dial].cfg,
                  dial_settled( &dial_widgets[active_dial] ),
+                 now_ms,
                  &sweep_value
              ) )
         {

@@ -76,6 +76,10 @@ add_executable(test_gauge_sweep test_gauge_sweep.c ../app/gauge_sweep.c)
 target_include_directories(test_gauge_sweep PRIVATE ../app ../hal)
 add_test(NAME gauge_sweep COMMAND test_gauge_sweep)
 add_test(NAME gauge_sweep_cancel COMMAND test_gauge_sweep cancel)
+add_test(NAME gauge_sweep_wait COMMAND test_gauge_sweep wait)
+add_test(NAME gauge_sweep_stall COMMAND test_gauge_sweep stall)
+add_test(NAME gauge_sweep_zero COMMAND test_gauge_sweep zero)
+add_test(NAME gauge_sweep_raised COMMAND test_gauge_sweep raised)
 
 add_executable(test_gauge_settings test_gauge_settings.c
                                    ../app/gauge_settings.c)

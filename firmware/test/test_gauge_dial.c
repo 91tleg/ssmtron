@@ -432,18 +432,43 @@ int main( void )
     CHECK_EQ( text_init_count, 0u );
     boost_cfg = last_dial_cfg;
 
-    /* The power-on sweep aims the needle at full scale (boost tops out at
-     * 30) before the reading is used. It starts with that first frame. */
+    /* The power-on sweep starts at rest with the first frame, and the dial is
+     * not drawn again as it runs. */
     CHECK( last_dial_has_value );
-    CHECK_EQ( last_dial_value, 30000 );
+    CHECK_EQ( last_dial_value, 0 );
     tick( 1 );
-    CHECK_EQ( dial_init_count, 1u ); /* the dial is not drawn again */
+    CHECK_EQ( dial_init_count, 1u );
     CHECK_EQ( text_init_count, 0u );
-    CHECK_EQ( last_dial_value, 30000 );
-    tick( 1 ); /* still travelling: still full scale */
-    CHECK_EQ( last_dial_value, 30000 );
-    fake_dial_settled = true; /* the needle got there */
-    tick( 1 );
+    CHECK( last_dial_has_value );
+
+    /* It aims at full scale (boost tops out at 30), then the bottom, then
+     * rest, a whole scale per second, and only then the reading is used. */
+    fake_dial_settled = true; /* the needle keeps up */
+    {
+        int32_t peak     = last_dial_value;
+        int32_t trough   = last_dial_value;
+        bool peak_first  = false;
+        bool reading_now = false;
+
+        for ( int i = 0; ( i < 40 ) && !reading_now; i++ )
+        {
+            tick( 100 );
+            if ( last_dial_value > peak )
+            {
+                peak = last_dial_value;
+            }
+            if ( last_dial_value < trough )
+            {
+                trough     = last_dial_value;
+                peak_first = ( peak == 30000 );
+            }
+            reading_now = ( last_dial_value == 15250 );
+        }
+        CHECK_EQ( peak, 30000 );
+        CHECK_EQ( trough, -30000 );
+        CHECK( peak_first );  /* the top came before the bottom */
+        CHECK( reading_now ); /* in about two seconds, 40 polls at most */
+    }
     CHECK( last_dial_has_value );
     CHECK_EQ( last_dial_value, 15250 ); /* the ECU's milli-psi, every digit */
 
