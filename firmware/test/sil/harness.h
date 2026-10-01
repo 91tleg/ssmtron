@@ -31,12 +31,17 @@
 #include "lib/ui/text.h"
 #include "test/minitest.h"
 
-#define NEXT_ID   ( ( hal_gpio_id_t )1u )
+/* A test that runs the real main.c uses the board's ids instead. */
+#ifndef NEXT_ID
+#define NEXT_ID ( ( hal_gpio_id_t )1u )
+#endif
+#ifndef ACTION_ID
 #define ACTION_ID ( ( hal_gpio_id_t )2u )
-#define ROM_KEY   ( 0x3671u )
-#define BYTE_MS   ( 6u ) /* about 5.6 ms per 8E1 byte at 1953 baud */
-#define ID_ADDR   ( 0xFFFEu )
-#define NVM_FILE  "sil_nvm.bin"
+#endif
+#define ROM_KEY  ( 0x3671u )
+#define BYTE_MS  ( 6u ) /* about 5.6 ms per 8E1 byte at 1953 baud */
+#define ID_ADDR  ( 0xFFFEu )
+#define NVM_FILE "sil_nvm.bin"
 
 static uint32_t now;
 
@@ -85,6 +90,21 @@ static uint8_t tx_log[256];
 static uint32_t tx_time[256];
 static size_t tx_count;
 
+/* The order the firmware reached the hardware in, for a test that cares. */
+static const char * trace_log[16];
+static size_t trace_count;
+
+static inline void trace( const char * what )
+{
+    if ( trace_count < 16u )
+    {
+        trace_log[trace_count] = what;
+        trace_count++;
+    }
+}
+
+static hal_status_t uart_open_result = HAL_OK;
+
 hal_status_t hal_uart_open(
     hal_uart_id_t id,
     const hal_uart_cfg_t * cfg
@@ -92,7 +112,8 @@ hal_status_t hal_uart_open(
 {
     ( void )id;
     ( void )cfg;
-    return HAL_OK;
+    trace( "uart open" );
+    return uart_open_result;
 }
 
 static inline void sim_rx( uint8_t b )
@@ -324,6 +345,7 @@ hal_status_t hal_nvm_init( void )
 {
     hal_status_t status = HAL_OK;
 
+    trace( "nvm init" );
     if ( nvm_load_file )
     {
         nvm_file_loaded = nvm_read_file( nvm_items );
@@ -413,9 +435,28 @@ hal_status_t hal_nvm_load(
 
 const fw_info_t fw_info = { "sil" };
 
+/* What the firmware logged, in order. */
+static const char * log_lines[16];
+static size_t log_count;
+
 void hal_log_write( const char * text )
 {
-    ( void )text;
+    if ( log_count < 16u )
+    {
+        log_lines[log_count] = text;
+        log_count++;
+    }
+}
+
+static inline bool logged( const char * text )
+{
+    bool found = false;
+
+    for ( size_t i = 0u; i < log_count; i++ )
+    {
+        found = found || ( strcmp( log_lines[i], text ) == 0 );
+    }
+    return found;
 }
 
 /* Bluetooth, the random source and the restart, all under the test's
@@ -477,10 +518,13 @@ void hal_dfu_reboot( void )
 
 static unsigned frames_drawn;
 
+static hal_status_t display_init_result = HAL_OK;
+
 hal_status_t display_init( const display_pins_t * pins )
 {
     ( void )pins;
-    return HAL_OK;
+    trace( "display init" );
+    return display_init_result;
 }
 
 /* The text page on screen: the widgets text_init was last given. */
@@ -501,6 +545,7 @@ static const dial_cfg_t * on_dial;
 
 hal_status_t display_on( void )
 {
+    trace( "display on" );
     on_frames   = frames_drawn;
     on_was_dial = last_init_was_dial;
     on_dial     = dial_cfg;
@@ -626,16 +671,22 @@ static inline int32_t expected( size_t idx )
     return ssm1_decode( p->params[idx].info, mem( p->params[idx].addr ) );
 }
 
-static inline void boot( uint16_t key )
+/* A fresh simulated ECU of this ROM ID key, powered on. */
+static inline void sim_reset( uint16_t key )
 {
-    static const display_pins_t pins = { 0 };
-
     sim_key    = key;
     sim        = ( sim_t ){ 0 };
     sim.alive  = true;
     sim.rom[0] = ( uint8_t )( key & 0xFFu );
     sim.rom[1] = ( uint8_t )( key >> 8 );
     sim.rom[2] = 0x01u;
+}
+
+static inline void boot( uint16_t key )
+{
+    static const display_pins_t pins = { 0 };
+
+    sim_reset( key );
     ( void )hal_nvm_init();
     CHECK_EQ( ecu_io_init( 0u ), HAL_OK );
     ( void )gauge_init( &pins, NEXT_ID, ACTION_ID );
