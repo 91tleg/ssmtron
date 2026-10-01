@@ -19,13 +19,18 @@ typedef enum
 
 typedef struct
 {
-    int32_t min_value;       /* value at the sweep's counter-clockwise end */
+    int32_t min_value;       /* value at the sweep's counter-clockwise end,
+                              * in the units dial_poll is given */
     int32_t max_value;       /* value at the sweep's clockwise end */
     int32_t major_step;      /* value spacing between labeled ticks; must
                               * evenly divide (max_value - min_value) */
     uint8_t minor_per_major; /* unlabeled ticks between each pair of
                               * labeled ones; major_step must divide
                               * evenly by (minor_per_major + 1) */
+    int32_t label_div;       /* the scale's units per labeled unit, above 0:
+                              * tick numbers show value / label_div, so a
+                              * scale in thousandths keeps its precision
+                              * while its labels stay whole */
     const char * label;      /* short word above center, e.g. "BOOST" */
     const char * unit_pos;   /* unit text for the positive (>= 0) side */
     const char * unit_neg;   /* unit text for the negative side; NULL if
@@ -56,11 +61,11 @@ void dial_init(
     uint32_t now_ms
 );
 
-/* Move toward value like a damped needle: it closes on the value smoothly
- * and is never faster than max_deg_per_s. Motion follows the time that has
- * passed, so a late frame moves it further instead of slowing it. Frames
- * come at a steady interval and are drawn only when the needle's whole
- * degree changes. If has_value is false, return to min_value. */
+/* Move toward value (in the units of the cfg's scale) like a damped needle: it
+ * closes on the value smoothly and is never faster than max_deg_per_s. Motion
+ * follows the time that has passed, so a late frame moves it further instead of
+ * slowing it. Frames come at a steady interval and are drawn only when the
+ * needle's whole degree changes. If has_value is false, return to min_value. */
 void dial_poll(
     dial_widget_t * d,
     uint32_t now_ms,

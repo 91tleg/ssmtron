@@ -327,7 +327,7 @@ static void build_ticks(
             int32_t label_h = ( int32_t )FONT_H * ( int32_t )DIAL_LABEL_SCALE;
 
             angle_vec( deg, &sin_m, &cos_m );
-            len             = format_int( value, text );
+            len             = format_int( value / cfg->label_div, text );
             int32_t label_r = DIAL_LABEL_R;
 
             x = DIAL_CX + ( ( label_r * sin_m ) / 1000 )

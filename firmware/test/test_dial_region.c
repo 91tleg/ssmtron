@@ -50,6 +50,7 @@ static const dial_cfg_t cfg = {
     300,
     100,
     1u,
+    1,
     "TEST",
     "UNIT",
     NULL,
@@ -181,9 +182,39 @@ static void test_fixed_label_is_centered_at_its_drawn_size( void )
     CHECK( ( middle >= ( DIAL_CX - 1 ) ) && ( middle <= ( DIAL_CX + 1 ) ) );
 }
 
+/* A scale in thousandths still labels its ticks in whole units. */
+static void test_tick_numbers_use_label_div( void )
+{
+    static const dial_cfg_t fine = {
+        0,
+        8000,
+        1000,
+        0u,
+        1000,
+        "RPM",
+        NULL,
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_DEFAULT
+    };
+    dial_tick_t ticks[DIAL_MAX_TICKS];
+    dial_label_t labels[DIAL_MAX_LABELS];
+    size_t tick_count  = 0;
+    size_t label_count = 0;
+
+    build_ticks( &fine, ticks, &tick_count, labels, &label_count );
+    CHECK_EQ( label_count, 8u ); /* 1 to 8, with none for the zero */
+    CHECK( strcmp( labels[0].text, "1" ) == 0 );
+    CHECK( strcmp( labels[7].text, "8" ) == 0 );
+}
+
 int main( void )
 {
     test_fixed_label_is_centered_at_its_drawn_size();
     test_partial_redraw_matches_a_fresh_frame();
+    test_tick_numbers_use_label_div();
     return MT_RESULT();
 }
