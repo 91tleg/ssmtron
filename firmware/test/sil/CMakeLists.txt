@@ -33,3 +33,20 @@ set_tests_properties(sil_persist_save PROPERTIES FIXTURES_SETUP sil_flash
                      LABELS sil)
 set_tests_properties(sil_persist_restore PROPERTIES FIXTURES_REQUIRED sil_flash
                      LABELS sil)
+
+# The real main.c, compiled under another name so the test can call it. The
+# fake delay in its loop jumps out after a set time. Each mode is its own start.
+set_source_files_properties(../../app/main.c PROPERTIES COMPILE_DEFINITIONS
+                            main=app_main)
+add_executable(test_sil_main test_sil_main.c ../../app/main.c ${SIL_APP_SOURCES})
+target_include_directories(test_sil_main PRIVATE ../../app ../../hal
+                           ../../lib/display ../../lib/ui
+                           ../../bsp/nrf52840dk)
+target_link_libraries(test_sil_main PRIVATE ssm1 fmt textfit)
+add_test(NAME sil_main COMMAND test_sil_main)
+add_test(NAME sil_main_nodisplay COMMAND test_sil_main nodisplay)
+add_test(NAME sil_main_nouart COMMAND test_sil_main nouart)
+add_test(NAME sil_main_retry COMMAND test_sil_main retry)
+add_test(NAME sil_main_nobootloader COMMAND test_sil_main nobootloader)
+set_tests_properties(sil_main sil_main_nodisplay sil_main_nouart sil_main_retry
+                     sil_main_nobootloader PROPERTIES LABELS sil)
