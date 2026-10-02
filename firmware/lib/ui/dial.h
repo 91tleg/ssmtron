@@ -3,12 +3,20 @@
 #define DIAL_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "lib/ui/dial_motion.h"
 
 /* Maximum visible characters in a dial label. */
 #define DIAL_TEXT_MAX ( 8u )
+
+/* A label's buffer: DIAL_TEXT_MAX characters and the NUL. */
+#define DIAL_LABEL_BUF ( DIAL_TEXT_MAX + 1u )
+
+/* The most ticks and labels a dial's face holds. */
+#define DIAL_MAX_TICKS  ( 48u )
+#define DIAL_MAX_LABELS ( 16u )
 
 /* Scale layout. All layouts share the same needle and motion.
  * FULL_SWEEP: most of the circle, 135 to 435 degrees. A scale that crosses
@@ -47,9 +55,40 @@ typedef struct
     dial_style_t style;
 } dial_cfg_t;
 
+/* One tick: where it points, as an angle and as the sine and cosine in
+ * thousandths, and whether it is a long one. */
+typedef struct
+{
+    int16_t deg;
+    int16_t sin_m;
+    int16_t cos_m;
+    bool major;
+} dial_tick_t;
+
+/* One piece of text on the face: its top left corner, text size and text. */
+typedef struct
+{
+    int16_t x;
+    int16_t y;
+    uint8_t scale;
+    char text[DIAL_LABEL_BUF];
+} dial_label_t;
+
+/* Everything about a dial's face that does not change while its needle moves,
+ * worked out once when the dial is opened: the ticks, the numbers and the
+ * fixed words. A needle frame only reads it. */
+typedef struct
+{
+    dial_tick_t ticks[DIAL_MAX_TICKS];
+    dial_label_t labels[DIAL_MAX_LABELS];
+    size_t tick_count;
+    size_t label_count;
+} dial_face_t;
+
 typedef struct
 {
     const dial_cfg_t * cfg;
+    dial_face_t face;      /* made by dial_init from cfg */
     int16_t displayed_deg; /* the angle actually drawn, in whole degrees */
     int16_t target_deg;    /* the angle the latest value maps to */
     dial_motion_t motion;  /* its motion, see dial_motion.h */
