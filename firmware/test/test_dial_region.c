@@ -11,6 +11,36 @@
 #include "lib/ui/dial.c"
 #include "test/minitest.h"
 
+/* A pixel is part of a shape when its center is inside the edge, which is
+ * at least half covered. */
+#define HALF_COVERED ( 8u )
+
+static bool on_needle(
+    int32_t dx,
+    int32_t dy,
+    int32_t sin_milli,
+    int32_t cos_milli
+)
+{
+    return needle_alpha( dx, dy, sin_milli, cos_milli ) >= HALF_COVERED;
+}
+
+static bool on_radial_line(
+    int32_t dx,
+    int32_t dy,
+    int32_t sin_milli,
+    int32_t cos_milli,
+    int32_t inner_r,
+    int32_t outer_r,
+    int32_t half_w
+)
+{
+    return radial_line_alpha(
+               dx, dy, sin_milli, cos_milli, inner_r, outer_r, half_w
+           )
+           >= HALF_COVERED;
+}
+
 static uint16_t shadow[DISPLAY_HEIGHT][DISPLAY_WIDTH];
 static uint16_t partial[DISPLAY_HEIGHT][DISPLAY_WIDTH];
 
@@ -165,21 +195,18 @@ static void test_partial_redraw_matches_a_fresh_frame( void )
     CHECK_EQ( total, 0u );
 }
 
-/* The label above the center is centered using the width it is drawn at.
- * If the width is worked out at one text size and drawn at another, the
- * label sits off center. */
-static void test_fixed_label_is_centered_at_its_drawn_size( void )
+/* The face's labels are the numbers first, then the fixed words. */
+static size_t number_count(
+    const dial_cfg_t * c,
+    const dial_face_t * f
+)
 {
-    dial_label_t labels[DIAL_MAX_LABELS];
-    size_t count = 0;
-    int32_t drawn_width;
-    int32_t middle;
+    size_t fixed = 0u;
 
-    add_fixed_labels( &cfg, labels, &count );
-    CHECK( count > 0u );
-    drawn_width = label_width( strlen( labels[0].text ), labels[0].scale );
-    middle      = labels[0].x + ( drawn_width / 2 );
-    CHECK( ( middle >= ( DIAL_CX - 1 ) ) && ( middle <= ( DIAL_CX + 1 ) ) );
+    fixed += ( c->label != NULL ) ? 1u : 0u;
+    fixed += ( c->unit_pos != NULL ) ? 1u : 0u;
+    fixed += ( c->unit_neg != NULL ) ? 1u : 0u;
+    return f->label_count - fixed;
 }
 
 /* A scale in thousandths still labels its ticks in whole units. */
@@ -200,54 +227,15 @@ static void test_tick_numbers_use_label_div( void )
         900u,
         DIAL_STYLE_FULL_SWEEP
     };
-    dial_tick_t ticks[DIAL_MAX_TICKS];
-    dial_label_t labels[DIAL_MAX_LABELS];
-    size_t tick_count  = 0;
-    size_t label_count = 0;
+    dial_face_t face;
 
-    build_ticks( &fine, ticks, &tick_count, labels, &label_count );
-    CHECK_EQ( label_count, 9u ); /* 0 to 8: the zero is labeled too */
-    CHECK( strcmp( labels[0].text, "0" ) == 0 );
-    CHECK( strcmp( labels[1].text, "1" ) == 0 );
-    CHECK( strcmp( labels[8].text, "8" ) == 0 );
-}
-
-/* The needle is a straight bar with a triangle at its end. The point reaches
- * the middle of a long tick, and the long ticks are one pixel wider on each
- * side than they were. */
-static int32_t needle_width_at( int32_t distance )
-{
-    int32_t count = 0;
-
-    /* Pointing straight up (sin 0, cos 1), distance from the hub. */
-    for ( int32_t dx = -20; dx <= 20; dx++ )
-    {
-        count += on_needle( dx, -distance, 0, 1000 ) ? 1 : 0;
-    }
-    return count;
-}
-
-static void test_needle_is_a_bar_with_a_pointed_end( void )
-{
-    int32_t len = DIAL_NEEDLE_LEN;
-    int32_t bar = ( 2 * DIAL_NEEDLE_HALF_W ) + 1;
-
-    CHECK_EQ( len, DIAL_TICK_R - ( DIAL_TICK_MAJOR_LEN / 2 ) );
-    CHECK( on_needle( 0, -len, 0, 1000 ) ); /* the tip is the end */
-    CHECK( !on_needle( 0, -( len + 1 ), 0, 1000 ) );
-
-    /* The bar keeps its full width right up to where the triangle starts. */
-    CHECK_EQ( needle_width_at( 8 ), bar );
-    CHECK_EQ( needle_width_at( len - DIAL_NEEDLE_TIP_LEN - 1 ), bar );
-    /* Then it narrows steadily to a point. */
-    CHECK( needle_width_at( len - ( DIAL_NEEDLE_TIP_LEN / 2 ) ) < bar );
-    CHECK(
-        needle_width_at( len - ( DIAL_NEEDLE_TIP_LEN / 2 ) )
-        > needle_width_at( len - 2 )
-    );
-    CHECK( needle_width_at( len - 1 ) <= 3 );
-    CHECK( needle_width_at( len ) >= 1 );
-    CHECK( DIAL_TICK_MAJOR_HALF_W >= ( UI_LEN( 17 ) + 1 ) );
+    make_face( &fine, &face );
+    CHECK_EQ(
+        number_count( &fine, &face ), 9u
+    ); /* 0 to 8: the zero is labeled too */
+    CHECK( strcmp( face.labels[0].text, "0" ) == 0 );
+    CHECK( strcmp( face.labels[1].text, "1" ) == 0 );
+    CHECK( strcmp( face.labels[8].text, "8" ) == 0 );
 }
 
 /* The needle at the lowest and the highest value points at the middle of the
@@ -299,16 +287,14 @@ static void test_needle_ends_line_up_with_the_scale_ends( void )
 
     for ( size_t c = 0; c < ( sizeof( cfgs ) / sizeof( cfgs[0] ) ); c++ )
     {
-        dial_tick_t ticks[DIAL_MAX_TICKS];
-        dial_label_t labels[DIAL_MAX_LABELS];
-        size_t tick_count  = 0;
-        size_t label_count = 0;
-        int32_t ends[2]    = { cfgs[c].min_value, cfgs[c].max_value };
+        dial_face_t face;
+        int32_t ends[2] = { cfgs[c].min_value, cfgs[c].max_value };
 
-        build_ticks( &cfgs[c], ticks, &tick_count, labels, &label_count );
-        CHECK_EQ( ticks[0].deg, value_to_deg( &cfgs[c], ends[0] ) );
+        make_face( &cfgs[c], &face );
+        CHECK_EQ( face.ticks[0].deg, value_to_deg( &cfgs[c], ends[0] ) );
         CHECK_EQ(
-            ticks[tick_count - 1u].deg, value_to_deg( &cfgs[c], ends[1] )
+            face.ticks[face.tick_count - 1u].deg,
+            value_to_deg( &cfgs[c], ends[1] )
         );
         for ( size_t e = 0; e < 2u; e++ )
         {
@@ -355,23 +341,49 @@ static void test_ticks_are_evenly_spaced_across_zero( void )
         900u,
         DIAL_STYLE_FULL_SWEEP
     };
-    dial_tick_t ticks[DIAL_MAX_TICKS];
-    dial_label_t labels[DIAL_MAX_LABELS];
-    size_t tick_count  = 0;
-    size_t label_count = 0;
+    dial_face_t face;
 
-    build_ticks( &boost, ticks, &tick_count, labels, &label_count );
-    CHECK_EQ( tick_count, 26u );
-    CHECK_EQ( ticks[0].deg, 135 );
-    CHECK_EQ( ticks[25].deg, 360 );
-    for ( size_t i = 1; i < tick_count; i++ )
+    make_face( &boost, &face );
+    CHECK_EQ( face.tick_count, 26u );
+    CHECK_EQ( face.ticks[0].deg, 135 );
+    CHECK_EQ( face.ticks[25].deg, 360 );
+    for ( size_t i = 1; i < face.tick_count; i++ )
     {
-        CHECK_EQ( ticks[i].deg - ticks[i - 1u].deg, 9 ); /* 2 units each */
+        CHECK_EQ(
+            face.ticks[i].deg - face.ticks[i - 1u].deg, 9
+        ); /* 2 units each */
     }
-    CHECK_EQ( label_count, 6u );
-    CHECK( strcmp( labels[0].text, "-30" ) == 0 );
-    CHECK( strcmp( labels[3].text, "0" ) == 0 );
-    CHECK( strcmp( labels[5].text, "20" ) == 0 );
+    CHECK_EQ( number_count( &boost, &face ), 6u );
+    /* Vacuum has its own unit, so its numbers have no minus sign. */
+    CHECK( strcmp( face.labels[0].text, "30" ) == 0 );
+    CHECK( strcmp( face.labels[1].text, "20" ) == 0 );
+    CHECK( strcmp( face.labels[2].text, "10" ) == 0 );
+    CHECK( strcmp( face.labels[3].text, "0" ) == 0 );
+    CHECK( strcmp( face.labels[5].text, "20" ) == 0 );
+}
+
+/* A scale that changes sign without its own unit keeps its minus signs. */
+static void test_a_scale_without_a_vacuum_unit_keeps_minus_signs( void )
+{
+    static const dial_cfg_t signed_scale = {
+        -30,
+        20,
+        10,
+        4u,
+        1,
+        "T",
+        "U",
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_FULL_SWEEP
+    };
+    dial_face_t face;
+
+    make_face( &signed_scale, &face );
+    CHECK( strcmp( face.labels[0].text, "-30" ) == 0 );
 }
 
 /* A tachometer scale with four small ticks between the numbers, 200 rpm
@@ -393,21 +405,20 @@ static void test_a_scale_with_small_ticks_fits_every_tick( void )
         900u,
         DIAL_STYLE_FULL_SWEEP
     };
-    dial_tick_t ticks[DIAL_MAX_TICKS];
-    dial_label_t labels[DIAL_MAX_LABELS];
-    size_t tick_count  = 0;
-    size_t label_count = 0;
-    size_t majors      = 0;
+    dial_face_t face;
+    size_t majors = 0;
 
-    build_ticks( &tach, ticks, &tick_count, labels, &label_count );
-    CHECK_EQ( tick_count, 41u );
-    CHECK_EQ( label_count, 9u );
-    for ( size_t i = 0; i < tick_count; i++ )
+    make_face( &tach, &face );
+    CHECK_EQ( face.tick_count, 41u );
+    CHECK_EQ( number_count( &tach, &face ), 9u );
+    for ( size_t i = 0; i < face.tick_count; i++ )
     {
-        majors += ticks[i].major ? 1u : 0u;
+        majors += face.ticks[i].major ? 1u : 0u;
     }
     CHECK_EQ( majors, 9u );
-    CHECK( ticks[tick_count - 1u].deg == 435 ); /* the last tick is 8000 */
+    CHECK(
+        face.ticks[face.tick_count - 1u].deg == 435
+    ); /* the last tick is 8000 */
 }
 
 /* Upper scales share the needle, and every partial redraw must agree with
@@ -429,10 +440,7 @@ static void test_upper_arc( void )
         900u,
         DIAL_STYLE_UPPER_ARC
     };
-    dial_tick_t ticks[DIAL_MAX_TICKS];
-    dial_label_t labels[DIAL_MAX_LABELS];
-    size_t nt;
-    size_t nl;
+    dial_face_t face;
     dial_widget_t d;
 
     CHECK_EQ( value_to_deg( &upper, 1000 ), -75 );
@@ -440,14 +448,14 @@ static void test_upper_arc( void )
     CHECK_EQ( value_to_deg( &upper, 2600 ), 75 );
     CHECK_EQ( value_to_deg( &upper, 0 ), -75 );
     CHECK_EQ( value_to_deg( &upper, 3000 ), 75 );
-    build_ticks( &upper, ticks, &nt, labels, &nl );
-    CHECK_EQ( nt, 9u );
-    CHECK_EQ( nl, 5u );
-    CHECK( strcmp( labels[0].text, "100" ) == 0 );
-    CHECK( strcmp( labels[4].text, "260" ) == 0 );
-    for ( size_t i = 0; i < nt; i++ )
+    make_face( &upper, &face );
+    CHECK_EQ( face.tick_count, 9u );
+    CHECK_EQ( number_count( &upper, &face ), 5u );
+    CHECK( strcmp( face.labels[0].text, "100" ) == 0 );
+    CHECK( strcmp( face.labels[4].text, "260" ) == 0 );
+    for ( size_t i = 0; i < face.tick_count; i++ )
     {
-        CHECK( ( ticks[i].deg >= -75 ) && ( ticks[i].deg <= 75 ) );
+        CHECK( ( face.ticks[i].deg >= -75 ) && ( face.ticks[i].deg <= 75 ) );
     }
     dial_init( &d, &upper, now );
     for ( int16_t deg = -75; deg < 75; deg++ )
@@ -461,15 +469,188 @@ static void test_upper_arc( void )
     }
 }
 
+/* The coolant and voltage dials as gauge.c sets them up: three ticks between
+ * the numbers. test_gauge_dial checks that gauge.c still has these values. */
+static const dial_cfg_t coolant_like = {
+    1000,
+    2600,
+    400,
+    3u,
+    10,
+    "COOLANT",
+    "F",
+    NULL,
+    0xEF5Bu,
+    0x632Cu,
+    0xF922u,
+    900u,
+    DIAL_STYLE_UPPER_ARC
+};
+static const dial_cfg_t voltage_like = {
+    800,
+    1600,
+    200,
+    3u,
+    100,
+    "VOLTAGE",
+    "V",
+    NULL,
+    0xEF5Bu,
+    0x632Cu,
+    0xF922u,
+    900u,
+    DIAL_STYLE_UPPER_ARC
+};
+
+/* Whether any ink of this label lands on a visible part of a tick that is
+ * grown by grow pixels: longer toward the center and wider on both sides.
+ * Growing by 1 reaches the pixels right next to a tick, so a label that is
+ * first hit at grow k has k - 1 empty pixels between its ink and the tick. */
+static bool label_hits_a_tick(
+    const dial_label_t * lb,
+    const dial_face_t * face,
+    int32_t grow
+)
+{
+    size_t len = strlen( lb->text );
+    bool hit   = false;
+
+    for ( int16_t row = lb->y;
+          !hit && ( row < ( lb->y + ( int16_t )( FONT_CELL_H * lb->scale ) ) );
+          row++ )
+    {
+        for ( int16_t col = lb->x;
+              !hit
+              && ( col
+                   < ( lb->x + ( int16_t )( len * FONT_CELL_W * lb->scale ) ) );
+              col++ )
+        {
+            uint8_t ink = 0u;
+
+            if ( label_pixel( lb, row, col, &ink ) && ( ink >= 4u ) )
+            {
+                for ( size_t t = 0; !hit && ( t < face->tick_count ); t++ )
+                {
+                    const dial_tick_t * tick = &face->ticks[t];
+                    int32_t tick_len =
+                        tick->major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN;
+                    int32_t half =
+                        tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W;
+
+                    hit = radial_line_alpha(
+                              col - DIAL_CX,
+                              row - DIAL_CY,
+                              tick->sin_m,
+                              tick->cos_m,
+                              ( DIAL_TICK_R - tick_len ) - grow,
+                              DIAL_TICK_R,
+                              half + grow
+                          )
+                          >= 4u;
+                }
+            }
+        }
+    }
+    return hit;
+}
+
+/* Empty pixels between a label's ink and the nearest tick: 0 when they touch.
+ * Capped at 8, which is far. */
+static int32_t gap_to_ticks(
+    const dial_label_t * lb,
+    const dial_face_t * face
+)
+{
+    int32_t grow = 0;
+
+    while ( ( grow < 8 ) && !label_hits_a_tick( lb, face, grow ) )
+    {
+        grow++;
+    }
+    return ( grow == 0 ) ? 0 : ( grow - 1 );
+}
+
+static size_t major_ticks( const dial_face_t * face )
+{
+    size_t count = 0u;
+
+    for ( size_t t = 0; t < face->tick_count; t++ )
+    {
+        count += face->ticks[t].major ? 1u : 0u;
+    }
+    return count;
+}
+
+/* No number of either arc dial touches a tick. */
+static void test_arc_numbers_clear_the_ticks( void )
+{
+    const dial_cfg_t * arcs[] = { &coolant_like, &voltage_like };
+
+    for ( size_t i = 0; i < 2u; i++ )
+    {
+        dial_face_t face;
+
+        make_face( arcs[i], &face );
+        for ( size_t l = 0; l < major_ticks( &face ); l++ )
+        {
+            int32_t gap = gap_to_ticks( &face.labels[l], &face );
+
+            if ( gap < 1 )
+            {
+                printf(
+                    "  dial %zu, number %s touches a tick\n",
+                    i,
+                    face.labels[l].text
+                );
+            }
+            CHECK( gap >= 1 );
+        }
+    }
+}
+
+/* A dial's face is worked out when it opens. Changing the dial's settings
+ * afterwards changes nothing already drawn: the ticks and numbers are the
+ * ones from the start. */
+static void test_a_dial_face_is_made_when_the_dial_opens( void )
+{
+    dial_cfg_t mine = coolant_like;
+    dial_face_t made;
+    dial_widget_t d;
+
+    dial_init( &d, &mine, now );
+    make_face( &mine, &made );
+    CHECK_EQ( d.face.tick_count, made.tick_count );
+    CHECK_EQ( d.face.label_count, made.label_count );
+    for ( size_t t = 0; t < made.tick_count; t++ )
+    {
+        int32_t sin_m;
+        int32_t cos_m;
+
+        angle_vec( made.ticks[t].deg, &sin_m, &cos_m );
+        CHECK_EQ( made.ticks[t].sin_m, sin_m );
+        CHECK_EQ( made.ticks[t].cos_m, cos_m );
+        CHECK_EQ( d.face.ticks[t].deg, made.ticks[t].deg );
+    }
+
+    draw_frame( &d );
+    ( void )memcpy( partial, shadow, sizeof( shadow ) );
+    mine.max_value  = 2200;
+    mine.major_step = 200;
+    mine.label_div  = 100;
+    draw_frame( &d );
+    CHECK_EQ( differences(), 0u );
+}
+
 int main( void )
 {
-    test_fixed_label_is_centered_at_its_drawn_size();
     test_partial_redraw_matches_a_fresh_frame();
     test_tick_numbers_use_label_div();
-    test_needle_is_a_bar_with_a_pointed_end();
     test_needle_ends_line_up_with_the_scale_ends();
     test_ticks_are_evenly_spaced_across_zero();
+    test_a_scale_without_a_vacuum_unit_keeps_minus_signs();
     test_a_scale_with_small_ticks_fits_every_tick();
     test_upper_arc();
+    test_arc_numbers_clear_the_ticks();
+    test_a_dial_face_is_made_when_the_dial_opens();
     return MT_RESULT();
 }

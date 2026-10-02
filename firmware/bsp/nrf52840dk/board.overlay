@@ -32,6 +32,19 @@
 	pinctrl-names = "default", "sleep";
 };
 
+/* The DK's on-board QSPI flash is wired to P0.17 and P0.19 to P0.23, the pins
+ * the display uses below. Nothing here uses it, and the production module (a
+ * Raytac MDBT50Q) has no external flash, so the driver stays off. */
+&qspi {
+	status = "disabled";
+};
+
+/* A child node stays enabled on its own when only its bus is disabled, and
+ * the flash driver is built for every enabled chip node, so the chip too. */
+&mx25r64 {
+	status = "disabled";
+};
+
 &spi2 {
 	status = "okay";
 	pinctrl-0 = <&spi2_default>;

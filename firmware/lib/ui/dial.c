@@ -6,11 +6,9 @@
 #include "lib/display/display.h"
 #include "lib/textfit/textfit.h"
 #include "lib/ui/font.h"
+#include "lib/ui/logo_maxtek.h"
 #include "lib/ui/dial_motion.h"
 #include "lib/ui/ui_geom.h"
-
-/* A label's buffer: DIAL_TEXT_MAX characters and the NUL. */
-#define DIAL_LABEL_BUF ( DIAL_TEXT_MAX + 1u )
 
 #define DIAL_PANEL_W ( ( int )DISPLAY_WIDTH )
 #define DIAL_PANEL_H ( ( int )DISPLAY_HEIGHT )
@@ -52,17 +50,41 @@
 /* How much of the needle's end is the triangle. */
 #define DIAL_NEEDLE_TIP_LEN UI_LEN( 100 )
 
+/* Two slotted screws on the face, as on a gauge's bezel plate. Centers are
+ * in thousandths of the radius from the dial's center, clear of the label,
+ * the units and the tick numbers. The needle passes over them. */
+#define DIAL_SCREW_R            UI_LEN( 66 )
+#define DIAL_SCREW_SLOT_HALF_W  ( 650 )
+#define DIAL_SCREW_COUNT        ( 2u )
+#define DIAL_SCREW_FACE_COLOR   ( 0xA514u )
+#define DIAL_SCREW_SLOT_COLOR   ( 0x4208u )
+#define DIAL_SLOT_SIN_COS_MILLI ( 707 )
+
+/* The Maxtek logo on the full sweep faces, under the positive unit: the
+ * middle of its width, and its top edge, from the center. It is drawn black
+ * on a light face and white on a dark one. */
+#define DIAL_LOGO_X UI_LEN( 510 )
+#define DIAL_LOGO_Y UI_LEN( 60 )
+
+/* The title of a full sweep face (TURBO) sits higher than the units, from
+ * the center to its top edge. */
+#define DIAL_TITLE_Y UI_LEN( 384 )
+
 /* The label and units around the center use this text size. */
 #define DIAL_FIXED_SCALE UI_TEXT_SCALE( 1 )
 
 /* Tick numbers are drawn at this text size, chosen for the 240 px panel. */
 #define DIAL_LABEL_SCALE UI_TEXT_SCALE( 2 )
 
-/* Where the tick numbers sit, from the center. */
-#define DIAL_LABEL_R UI_LEN( 584 )
-
-#define DIAL_MAX_TICKS  ( 48u )
-#define DIAL_MAX_LABELS ( 16u )
+/* Where the tick numbers sit, from the center. On the full sweep they sit on
+ * one circle. On the upper arc they sit on a smaller one, and the same one
+ * for every number: it is set by the three-digit numbers, which are widest
+ * and so reach furthest toward the long ticks at the steep ends of the arc.
+ * They are as close to their ticks as they can be without touching, and the
+ * shorter numbers, on the same circle, only sit a little further away. The
+ * spacing test in test_dial_region checks this for both arc dials. */
+#define DIAL_LABEL_R     UI_LEN( 584 )
+#define DIAL_ARC_LABEL_R UI_LEN( 549 )
 
 /* Per-frame redraw covers only the needle's old and new position, not the
  * whole face (ticks/labels/face don't change between frames): one blit
@@ -82,20 +104,6 @@
                                                 : DIAL_TAIL_HALF_W )
 #define DIAL_REGION_MARGIN ( DIAL_HALF_W_MAX + 1 )
 #define DIAL_TAIL_R        UI_LEN( 259 )
-
-typedef struct
-{
-    int16_t deg;
-    bool major;
-} dial_tick_t;
-
-typedef struct
-{
-    int16_t x;
-    int16_t y;
-    uint8_t scale;
-    char text[DIAL_LABEL_BUF];
-} dial_label_t;
 
 static void angle_vec(
     int16_t deg,
@@ -267,13 +275,42 @@ static int32_t label_width(
 )
 {
     int32_t characters  = ( int32_t )length;
-    int32_t glyph_width = ( int32_t )FONT_W + 1;
+    int32_t glyph_width = ( int32_t )FONT_CELL_W;
 
     return characters * glyph_width * ( int32_t )scale;
 }
 
 /* Test a radial segment without square root or angle calculations. */
-static bool on_radial_line(
+/* How much of a pixel a shape covers, from its edge's distance: positive
+ * inside, in thousandths of a pixel, measured from the pixel's center. A
+ * center on the edge is half covered, and one half a pixel in or out is all
+ * or none, so a slanted edge fades over one pixel instead of stair-stepping.
+ * The distance is straight across the edge, which the rows of the shape's own
+ * axis give exactly and a slanted edge to within a few percent. */
+static uint8_t edge_alpha( int32_t dist_milli )
+{
+    uint8_t alpha = 0u;
+
+    if ( dist_milli >= 500 )
+    {
+        alpha = FONT_ALPHA_MAX;
+    }
+    else if ( dist_milli > -500 )
+    {
+        int32_t levels = ( int32_t )FONT_ALPHA_MAX;
+        int32_t scaled = ( ( ( dist_milli + 500 ) * levels ) + 500 ) / 1000;
+
+        alpha = ( uint8_t )scaled;
+    }
+    else
+    {
+        /* outside the shape */
+    }
+    return alpha;
+}
+
+/* The pixel's coverage by a straight bar of constant width. */
+static uint8_t radial_line_alpha(
     int32_t dx,
     int32_t dy,
     int32_t sin_milli,
@@ -283,163 +320,208 @@ static bool on_radial_line(
     int32_t half_w
 )
 {
-    int32_t proj = ( dx * sin_milli ) - ( dy * cos_milli );
-    int32_t perp = ( dx * cos_milli ) + ( dy * sin_milli );
+    int32_t proj   = ( dx * sin_milli ) - ( dy * cos_milli );
+    int32_t perp   = ( dx * cos_milli ) + ( dy * sin_milli );
+    int32_t across = ( half_w * 1000 ) - ( ( perp < 0 ) ? -perp : perp );
+    int32_t before = proj - ( inner_r * 1000 );
+    int32_t beyond = ( outer_r * 1000 ) - proj;
+    int32_t dist   = across;
 
-    return ( proj >= ( inner_r * 1000 ) ) && ( proj <= ( outer_r * 1000 ) )
-           && ( perp <= ( half_w * 1000 ) ) && ( perp >= -( half_w * 1000 ) );
+    dist = ( before < dist ) ? before : dist;
+    dist = ( beyond < dist ) ? beyond : dist;
+    return edge_alpha( dist );
 }
 
 /* The needle: a straight bar of constant width from the hub, ending in a
  * triangle that narrows to a point. The point keeps half a pixel of width on
  * each side, so it never thins out to nothing. */
-static bool on_needle(
+static uint8_t needle_alpha(
     int32_t dx,
     int32_t dy,
     int32_t sin_milli,
     int32_t cos_milli
 )
 {
-    int32_t proj = ( dx * sin_milli ) - ( dy * cos_milli );
-    int32_t len  = DIAL_NEEDLE_LEN;
-    bool hit     = false;
+    int32_t proj   = ( dx * sin_milli ) - ( dy * cos_milli );
+    int32_t len    = DIAL_NEEDLE_LEN;
+    uint8_t alpha  = 0u;
+    int32_t beyond = ( len * 1000 ) - proj;
 
-    if ( ( proj >= 0 ) && ( proj <= ( len * 1000 ) ) )
+    if ( ( proj >= -500 ) && ( beyond >= -500 ) )
     {
-        int32_t perp   = ( dx * cos_milli ) + ( dy * sin_milli );
-        int32_t across = ( perp < 0 ) ? -perp : perp;
-        int32_t room   = ( DIAL_NEEDLE_HALF_W * ( ( len * 1000 ) - proj ) )
-                           / DIAL_NEEDLE_TIP_LEN
-                       + 500;
+        int32_t perp    = ( dx * cos_milli ) + ( dy * sin_milli );
+        int32_t across  = ( perp < 0 ) ? -perp : perp;
+        int32_t tip_run = ( beyond > 0 ) ? beyond : 0;
+        int32_t room =
+            ( ( DIAL_NEEDLE_HALF_W * tip_run ) / DIAL_NEEDLE_TIP_LEN ) + 500;
+        int32_t dist;
 
         if ( room > ( DIAL_NEEDLE_HALF_W * 1000 ) )
         {
             room = DIAL_NEEDLE_HALF_W * 1000; /* the straight part */
         }
-        hit = across <= room;
+        dist  = room - across;
+        dist  = ( beyond < dist ) ? beyond : dist;
+        dist  = ( proj < dist ) ? proj : dist;
+        alpha = edge_alpha( dist );
     }
-    return hit;
+    return alpha;
 }
 
-static void build_ticks(
-    const dial_cfg_t * cfg,
-    dial_tick_t * ticks,
-    size_t * tick_count,
-    dial_label_t * labels,
-    size_t * label_count
+/* A disc of this radius at the center: coverage from how far the pixel's
+ * distance is inside the edge, taking (r*r - d*d) / 2r for r - d. */
+static uint8_t disc_alpha(
+    int32_t dist_sq,
+    int32_t radius
 )
 {
-    uint32_t subdivisions = ( uint32_t )cfg->minor_per_major + 1u;
-    int32_t minor_step    = cfg->major_step / ( int32_t )subdivisions;
-    int32_t value         = cfg->min_value;
-    size_t nt             = 0;
-    size_t nl             = 0;
-
-    while ( ( value <= cfg->max_value ) && ( nt < DIAL_MAX_TICKS ) )
-    {
-        int16_t deg = value_to_deg( cfg, value );
-        bool is_major =
-            ( ( ( value - cfg->min_value ) % cfg->major_step ) == 0 );
-
-        ticks[nt].deg   = deg;
-        ticks[nt].major = is_major;
-        nt++;
-
-        if ( is_major && ( nl < DIAL_MAX_LABELS ) )
-        {
-            int32_t sin_m;
-            int32_t cos_m;
-            char text[DIAL_LABEL_BUF];
-            size_t len;
-            int32_t x;
-            int32_t y;
-            int32_t label_h = ( int32_t )FONT_H * ( int32_t )DIAL_LABEL_SCALE;
-
-            angle_vec( deg, &sin_m, &cos_m );
-            len = textfit_int( text, DIAL_LABEL_BUF, value / cfg->label_div );
-            int32_t label_r = DIAL_LABEL_R;
-
-            x = DIAL_CX + ( ( label_r * sin_m ) / 1000 )
-                - ( label_width( len, DIAL_LABEL_SCALE ) / 2 );
-            y = DIAL_CY - ( ( label_r * cos_m ) / 1000 ) - ( label_h / 2 );
-            labels[nl].x     = ( int16_t )x;
-            labels[nl].y     = ( int16_t )y;
-            labels[nl].scale = DIAL_LABEL_SCALE;
-            ( void )textfit_copy( labels[nl].text, DIAL_LABEL_BUF, text );
-            nl++;
-        }
-        value += minor_step;
-    }
-    *tick_count  = nt;
-    *label_count = nl;
+    return edge_alpha( ( ( ( radius * radius ) - dist_sq ) * 500 ) / radius );
 }
 
+/* The top left corner of a label whose middle is r pixels from the dial's
+ * center along this direction. */
+/* Adds a piece of text to the face, with its top left corner at (x, y). */
+static void add_label(
+    dial_face_t * face,
+    const char * text,
+    uint8_t scale,
+    int32_t x,
+    int32_t y
+)
+{
+    if ( face->label_count < DIAL_MAX_LABELS )
+    {
+        dial_label_t * lb = &face->labels[face->label_count];
+
+        lb->x     = ( int16_t )x;
+        lb->y     = ( int16_t )y;
+        lb->scale = scale;
+        ( void )textfit_copy( lb->text, DIAL_LABEL_BUF, text );
+        face->label_count++;
+    }
+}
+
+/* The ticks, and a number at each long one. */
+static void add_ticks(
+    const dial_cfg_t * cfg,
+    dial_face_t * face
+)
+{
+    int32_t minor_step =
+        cfg->major_step / ( ( int32_t )cfg->minor_per_major + 1 );
+    int32_t r      = ( cfg->style == DIAL_STYLE_UPPER_ARC ) ? DIAL_ARC_LABEL_R
+                                                            : DIAL_LABEL_R;
+    int32_t height = ( int32_t )FONT_CELL_H * ( int32_t )DIAL_LABEL_SCALE;
+
+    for ( int32_t value = cfg->min_value;
+          ( value <= cfg->max_value ) && ( face->tick_count < DIAL_MAX_TICKS );
+          value += minor_step )
+    {
+        dial_tick_t * tick = &face->ticks[face->tick_count];
+        int32_t sin_m;
+        int32_t cos_m;
+
+        tick->deg   = value_to_deg( cfg, value );
+        tick->major = ( ( ( value - cfg->min_value ) % cfg->major_step ) == 0 );
+        angle_vec( tick->deg, &sin_m, &cos_m );
+        tick->sin_m = ( int16_t )sin_m;
+        tick->cos_m = ( int16_t )cos_m;
+        face->tick_count++;
+
+        if ( tick->major )
+        {
+            char text[DIAL_LABEL_BUF];
+            int32_t shown = value / cfg->label_div;
+            size_t len;
+
+            /* A scale with its own unit below zero reads as a plain
+             * magnitude there: the unit says which side it is. */
+            if ( ( cfg->unit_neg != NULL ) && ( shown < 0 ) )
+            {
+                shown = -shown;
+            }
+            len = textfit_int( text, DIAL_LABEL_BUF, shown );
+
+            /* The number's middle is r from the center along the tick. */
+            add_label(
+                face,
+                text,
+                DIAL_LABEL_SCALE,
+                ( DIAL_CX + ( ( r * sin_m ) / 1000 ) )
+                    - ( label_width( len, DIAL_LABEL_SCALE ) / 2 ),
+                ( DIAL_CY - ( ( r * cos_m ) / 1000 ) ) - ( height / 2 )
+            );
+        }
+    }
+}
+
+/* The label and the units around the center. */
 static void add_fixed_labels(
     const dial_cfg_t * cfg,
-    dial_label_t * labels,
-    size_t * label_count
+    dial_face_t * face
 )
 {
-    size_t n = *label_count;
+    bool arc = ( cfg->style == DIAL_STYLE_UPPER_ARC );
 
-    if ( ( cfg->label != NULL ) && ( n < DIAL_MAX_LABELS ) )
+    if ( cfg->label != NULL )
     {
-        labels[n].x =
-            ( int16_t )( DIAL_CX
-                         - ( label_width(
-                                 strlen( cfg->label ), DIAL_FIXED_SCALE
-                             )
-                             / 2 ) );
-        labels[n].y     = ( int16_t )( DIAL_CY
-                                   - ( ( cfg->style == DIAL_STYLE_UPPER_ARC )
-                                               ? UI_LEN( 300 )
-                                               : UI_LEN( 259 ) ) );
-        labels[n].scale = DIAL_FIXED_SCALE;
-        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->label );
-        n++;
+        add_label(
+            face,
+            cfg->label,
+            DIAL_FIXED_SCALE,
+            DIAL_CX
+                - ( label_width( strlen( cfg->label ), DIAL_FIXED_SCALE ) / 2 ),
+            DIAL_CY - ( arc ? UI_LEN( 300 ) : DIAL_TITLE_Y )
+        );
     }
-
-    if ( ( cfg->unit_pos != NULL ) && ( n < DIAL_MAX_LABELS ) )
+    if ( cfg->unit_pos != NULL )
     {
-        labels[n].x     = ( int16_t )( ( cfg->style == DIAL_STYLE_UPPER_ARC )
-                                           ? DIAL_CX
-                                             - ( label_width(
-                                                     strlen( cfg->unit_pos ),
-                                                     DIAL_FIXED_SCALE
-                                                 )
-                                                 / 2 )
-                                           : DIAL_CX + UI_LEN( 325 ) );
-        labels[n].y     = ( int16_t )( ( cfg->style == DIAL_STYLE_UPPER_ARC )
-                                           ? DIAL_CY - UI_LEN( 192 )
-                                           : DIAL_CY + UI_LEN( 42 ) );
-        labels[n].scale = DIAL_FIXED_SCALE;
-        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->unit_pos );
-        n++;
+        add_label(
+            face,
+            cfg->unit_pos,
+            DIAL_FIXED_SCALE,
+            arc ? ( DIAL_CX
+                    - ( label_width( strlen( cfg->unit_pos ), DIAL_FIXED_SCALE )
+                        / 2 ) )
+                : ( DIAL_CX + UI_LEN( 435 ) ),
+            arc ? ( DIAL_CY - UI_LEN( 192 ) ) : ( DIAL_CY - UI_LEN( 42 ) )
+        );
     }
-
-    if ( ( cfg->unit_neg != NULL ) && ( n < DIAL_MAX_LABELS ) )
+    if ( cfg->unit_neg != NULL )
     {
-        labels[n].x     = ( int16_t )( DIAL_CX - UI_LEN( 550 ) );
-        labels[n].y     = ( int16_t )( DIAL_CY + UI_LEN( 192 ) );
-        labels[n].scale = DIAL_FIXED_SCALE;
-        ( void )textfit_copy( labels[n].text, DIAL_LABEL_BUF, cfg->unit_neg );
-        n++;
+        add_label(
+            face,
+            cfg->unit_neg,
+            DIAL_FIXED_SCALE,
+            DIAL_CX - UI_LEN( 550 ),
+            DIAL_CY + UI_LEN( 192 )
+        );
     }
-    *label_count = n;
 }
 
+/* Works out the whole face of a dial, once, when it is opened. */
+static void make_face(
+    const dial_cfg_t * cfg,
+    dial_face_t * face
+)
+{
+    face->tick_count  = 0u;
+    face->label_count = 0u;
+    add_ticks( cfg, face );
+    add_fixed_labels( cfg, face );
+}
+
+/* Whether a label covers this pixel, and how much ink it puts there. */
 static bool label_pixel(
     const dial_label_t * lb,
     int16_t row,
     int16_t col,
-    uint16_t fg,
-    uint16_t * out_color
+    uint8_t * out_alpha
 )
 {
     size_t len         = strlen( lb->text );
-    uint16_t cell_w    = ( uint16_t )( ( FONT_W + 1u ) * lb->scale );
-    uint16_t glyph_px  = ( uint16_t )( FONT_W * lb->scale );
-    uint16_t font_rows = ( uint16_t )( FONT_H * lb->scale );
+    uint16_t cell_w    = ( uint16_t )( FONT_CELL_W * lb->scale );
+    uint16_t font_rows = ( uint16_t )( FONT_CELL_H * lb->scale );
     uint16_t width     = ( uint16_t )( cell_w * ( uint16_t )len );
     bool hit           = false;
 
@@ -454,33 +536,103 @@ static bool label_pixel(
         uint16_t rel_col     = ( uint16_t )col_offset;
         uint16_t glyph_index = ( uint16_t )( rel_col / cell_w );
         uint16_t within      = ( uint16_t )( rel_col % cell_w );
+        uint8_t alpha =
+            font_alpha( lb->text[glyph_index], lb->scale, within, rel_row );
 
-        if ( within < glyph_px )
+        if ( alpha != 0u )
         {
-            const font_glyph_t * gl = font_glyph( lb->text[glyph_index] );
-            uint8_t glyph_row       = ( uint8_t )( rel_row / lb->scale );
-            uint8_t font_col        = ( uint8_t )( within / lb->scale );
-            uint8_t bit             = ( uint8_t )( ( gl->rows[glyph_row]
-                                         >> ( FONT_W - 1u - font_col ) )
-                                       & 1u );
-
-            if ( bit != 0u )
-            {
-                *out_color = fg;
-                hit        = true;
-            }
+            *out_alpha = alpha;
+            hit        = true;
         }
     }
     return hit;
 }
 
-/* Draw order: hub, needle, labels, ticks, face. */
+static int32_t abs_i32( int32_t v )
+{
+    return ( v < 0 ) ? -v : v;
+}
+
+/* One slot of the X: a thin bar along a diagonal through the screw's
+ * center, reaching half way to the screw's edge. diag is +1 or -1. */
+static uint8_t slot_alpha(
+    int32_t sdx,
+    int32_t sdy,
+    int32_t diag
+)
+{
+    int32_t perp = ( ( sdx * diag ) + sdy ) * DIAL_SLOT_SIN_COS_MILLI;
+    int32_t proj = ( ( sdx * diag ) - sdy ) * DIAL_SLOT_SIN_COS_MILLI;
+    int32_t dist = DIAL_SCREW_SLOT_HALF_W - abs_i32( perp );
+    int32_t ends = ( DIAL_SCREW_R * 500 ) - abs_i32( proj );
+
+    dist = ( ends < dist ) ? ends : dist;
+    return edge_alpha( dist );
+}
+
+/* Both screws blended over color, each a disc with an X cut in it. */
+static uint16_t screw_layer(
+    uint16_t color,
+    int32_t dx,
+    int32_t dy
+)
+{
+    /* Where the screws sit: x then y, thousandths of the radius from
+     * center. */
+    static const int16_t SCREW_PERMILLE[DIAL_SCREW_COUNT][2] = {
+        { 280, -190 }, { 120, 260 }
+    };
+    uint16_t out = color;
+
+    for ( size_t i = 0; i < DIAL_SCREW_COUNT; i++ )
+    {
+        int32_t sdx = dx - UI_LEN( SCREW_PERMILLE[i][0] );
+        int32_t sdy = dy - UI_LEN( SCREW_PERMILLE[i][1] );
+        uint8_t ink = disc_alpha( ( sdx * sdx ) + ( sdy * sdy ), DIAL_SCREW_R );
+
+        if ( ink != 0u )
+        {
+            uint8_t slot_a = slot_alpha( sdx, sdy, 1 );
+            uint8_t slot_b = slot_alpha( sdx, sdy, -1 );
+            uint8_t slot   = ( slot_a > slot_b ) ? slot_a : slot_b;
+
+            out = font_blend( DIAL_SCREW_FACE_COLOR, out, ink );
+            if ( slot != 0u )
+            {
+                out = font_blend( DIAL_SCREW_SLOT_COLOR, out, slot );
+            }
+        }
+    }
+    return out;
+}
+
+/* Black on a light face, white on a dark one, by the face's green. */
+static uint16_t logo_color( uint16_t face_bg )
+{
+    return ( ( ( face_bg >> 5 ) & 0x3Fu ) >= 0x20u ) ? 0x0000u : 0xFFFFu;
+}
+
+/* Ink of the logo at this pixel, relative to the dial's center. */
+static uint8_t logo_ink(
+    int32_t dx,
+    int32_t dy
+)
+{
+    int32_t x   = dx - ( DIAL_LOGO_X - ( ( int32_t )LOGO_MAXTEK_W / 2 ) );
+    int32_t y   = dy - DIAL_LOGO_Y;
+    uint8_t ink = 0u;
+
+    if ( ( x >= 0 ) && ( y >= 0 ) )
+    {
+        ink = logo_maxtek_alpha( ( uint16_t )x, ( uint16_t )y );
+    }
+    return ink;
+}
+
+/* Draw order: hub, needle, screws, logo, labels, ticks, face. */
 static uint16_t pixel_color(
     const dial_cfg_t * cfg,
-    const dial_tick_t * ticks,
-    size_t tick_count,
-    const dial_label_t * labels,
-    size_t label_count,
+    const dial_face_t * face,
     int32_t needle_sin,
     int32_t needle_cos,
     int16_t row,
@@ -491,60 +643,68 @@ static uint16_t pixel_color(
     int32_t dy      = ( int32_t )row - DIAL_CY;
     int32_t dist_sq = ( dx * dx ) + ( dy * dy );
     uint16_t color  = cfg->face_bg;
-    bool set        = false;
+    uint8_t ink;
 
-    if ( dist_sq <= ( DIAL_HUB_R * DIAL_HUB_R ) )
+    /* Bottom up, each layer blended over what is under it, so every edge
+     * softens against the right color: ticks, tick numbers, needle, hub,
+     * counterweight. */
+    for ( size_t i = 0; i < face->tick_count; i++ )
     {
-        color = ( dist_sq <= ( DIAL_HUB_INNER_R * DIAL_HUB_INNER_R ) )
-                    ? 0xE73Cu
-                    : 0xA514u;
-        set   = true;
-    }
+        const dial_tick_t * tick = &face->ticks[i];
 
-    if ( on_radial_line(
-             dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
-         ) )
-    {
-        color = 0xCE79u;
-        set   = true;
-    }
-    if ( !set && on_needle( dx, dy, needle_sin, needle_cos ) )
-    {
-        color = cfg->needle_fg;
-        set   = true;
-    }
-    for ( size_t i = 0; ( !set ) && ( i < label_count ); i++ )
-    {
-        uint16_t lc = 0u;
-
-        if ( label_pixel( &labels[i], row, col, cfg->tick_fg, &lc ) )
+        ink = radial_line_alpha(
+            dx,
+            dy,
+            tick->sin_m,
+            tick->cos_m,
+            DIAL_TICK_R
+                - ( tick->major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN ),
+            DIAL_TICK_R,
+            tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
+        );
+        if ( ink != 0u )
         {
-            color = lc;
-            set   = true;
+            color = font_blend( cfg->tick_fg, color, ink );
         }
     }
-    for ( size_t i = 0; ( !set ) && ( i < tick_count ); i++ )
+    for ( size_t i = 0; i < face->label_count; i++ )
     {
-        int32_t sin_m;
-        int32_t cos_m;
-        int32_t len =
-            ticks[i].major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN;
-        int32_t outer_r = DIAL_TICK_R;
-
-        angle_vec( ticks[i].deg, &sin_m, &cos_m );
-        if ( on_radial_line(
-                 dx,
-                 dy,
-                 sin_m,
-                 cos_m,
-                 outer_r - len,
-                 outer_r,
-                 ticks[i].major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
-             ) )
+        ink = 0u;
+        if ( label_pixel( &face->labels[i], row, col, &ink ) )
         {
-            color = cfg->tick_fg;
-            set   = true;
+            color = font_blend( cfg->tick_fg, color, ink );
         }
+    }
+    if ( cfg->style == DIAL_STYLE_FULL_SWEEP )
+    {
+        ink = logo_ink( dx, dy );
+        if ( ink != 0u )
+        {
+            color = font_blend( logo_color( cfg->face_bg ), color, ink );
+        }
+    }
+    color = screw_layer( color, dx, dy );
+    ink   = needle_alpha( dx, dy, needle_sin, needle_cos );
+    if ( ink != 0u )
+    {
+        color = font_blend( cfg->needle_fg, color, ink );
+    }
+    ink = disc_alpha( dist_sq, DIAL_HUB_R );
+    if ( ink != 0u )
+    {
+        color = font_blend( 0xA514u, color, ink );
+        ink   = disc_alpha( dist_sq, DIAL_HUB_INNER_R );
+        if ( ink != 0u )
+        {
+            color = font_blend( 0xE73Cu, color, ink );
+        }
+    }
+    ink = radial_line_alpha(
+        dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
+    );
+    if ( ink != 0u )
+    {
+        color = font_blend( 0xCE79u, color, ink );
     }
     return color;
 }
@@ -622,6 +782,34 @@ static void clamp_box(
  * still built fresh (cheap: a couple dozen entries) so a tick or label
  * inside the box is drawn correctly; pixels outside the box are untouched
  * because nothing but the needle moved since the last redraw. */
+/* Renders the dial into dst, row by row, for x0 <= x < x1 and y0 <= y < y1. */
+static void fill_rect(
+    const dial_widget_t * d,
+    int16_t x0,
+    int16_t y0,
+    int16_t x1,
+    int16_t y1,
+    uint16_t * dst
+)
+{
+    int32_t needle_sin;
+    int32_t needle_cos;
+    size_t n = 0u;
+
+    angle_vec( d->displayed_deg, &needle_sin, &needle_cos );
+    for ( int16_t row = y0; row < y1; row++ )
+    {
+        for ( int16_t col = x0; col < x1; col++ )
+        {
+            dst[n] = pixel_color(
+                d->cfg, &d->face, needle_sin, needle_cos, row, col
+            );
+            n++;
+        }
+    }
+}
+
+/* One blit for the box around the needle's old and new place. */
 static void draw_region(
     const dial_widget_t * d,
     int16_t x0,
@@ -631,87 +819,27 @@ static void draw_region(
 )
 {
     static uint16_t region_buf[DIAL_REGION_PIXELS];
-    dial_tick_t ticks[DIAL_MAX_TICKS];
-    dial_label_t labels[DIAL_MAX_LABELS];
-    size_t tick_count;
-    size_t label_count;
+    int32_t width  = ( int32_t )x1 - ( int32_t )x0;
+    int32_t height = ( int32_t )y1 - ( int32_t )y0;
 
-    int32_t needle_sin;
-    int32_t needle_cos;
-
-    int32_t width_delta  = ( int32_t )x1 - ( int32_t )x0;
-    int32_t height_delta = ( int32_t )y1 - ( int32_t )y0;
-    uint16_t width       = ( uint16_t )width_delta;
-    int16_t row;
-    size_t row_index = 0u;
-
-    build_ticks( d->cfg, ticks, &tick_count, labels, &label_count );
-    add_fixed_labels( d->cfg, labels, &label_count );
-    angle_vec( d->displayed_deg, &needle_sin, &needle_cos );
-
-    for ( row = y0; row < y1; row++ )
-    {
-        uint16_t * dst = &region_buf[row_index * ( size_t )width];
-        int16_t col;
-
-        for ( col = x0; col < x1; col++ )
-        {
-            dst[col - x0] = pixel_color(
-                d->cfg,
-                ticks,
-                tick_count,
-                labels,
-                label_count,
-                needle_sin,
-                needle_cos,
-                row,
-                col
-            );
-        }
-        row_index++;
-    }
+    fill_rect( d, x0, y0, x1, y1, region_buf );
     ( void )display_blit(
         ( uint16_t )x0,
         ( uint16_t )y0,
-        width,
-        ( uint16_t )height_delta,
+        ( uint16_t )width,
+        ( uint16_t )height,
         region_buf
     );
 }
 
+/* The whole face, one row at a time. */
 static void draw_frame( const dial_widget_t * d )
 {
     static uint16_t row_buf[DIAL_PANEL_W];
-    dial_tick_t ticks[DIAL_MAX_TICKS];
-    dial_label_t labels[DIAL_MAX_LABELS];
-    size_t tick_count;
-    size_t label_count;
-    int32_t needle_sin;
-    int32_t needle_cos;
-    int16_t row;
 
-    build_ticks( d->cfg, ticks, &tick_count, labels, &label_count );
-    add_fixed_labels( d->cfg, labels, &label_count );
-    angle_vec( d->displayed_deg, &needle_sin, &needle_cos );
-
-    for ( row = 0; row < ( int16_t )DIAL_PANEL_H; row++ )
+    for ( int16_t row = 0; row < ( int16_t )DIAL_PANEL_H; row++ )
     {
-        int16_t col;
-
-        for ( col = 0; col < ( int16_t )DIAL_PANEL_W; col++ )
-        {
-            row_buf[col] = pixel_color(
-                d->cfg,
-                ticks,
-                tick_count,
-                labels,
-                label_count,
-                needle_sin,
-                needle_cos,
-                row,
-                col
-            );
-        }
+        fill_rect( d, 0, row, ( int16_t )DIAL_PANEL_W, row + 1, row_buf );
         ( void )display_blit(
             0u, ( uint16_t )row, ( uint16_t )DIAL_PANEL_W, 1u, row_buf
         );
@@ -729,7 +857,8 @@ void dial_init(
     uint32_t now_ms
 )
 {
-    d->cfg           = cfg;
+    d->cfg = cfg;
+    make_face( cfg, &d->face );
     d->displayed_deg = rest_deg( cfg );
     d->target_deg    = d->displayed_deg;
     dial_motion_init( &d->motion, d->displayed_deg, now_ms );

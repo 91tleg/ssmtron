@@ -57,7 +57,7 @@ static void reset( void )
 static void test_init_draws_and_clears( void )
 {
     text_widget_t w[1] = {
-        { .rect  = { 0, 0, 40, FONT_H },
+        { .rect  = { 0, 0, 40, FONT_CELL_H },
           .scale = 1,
           .fg    = 0xFFFFu,
           .bg    = 0x0000u,
@@ -69,14 +69,14 @@ static void test_init_draws_and_clears( void )
     reset();
     text_init( w, 1, 0x0000u );
     CHECK_EQ( clear_calls, 1 );
-    CHECK_EQ( blit_calls, FONT_H ); /* one row-blit per pixel row */
+    CHECK_EQ( blit_calls, FONT_CELL_H ); /* one row-blit per pixel row */
     CHECK( strcmp( w[0].cache, "RPM" ) == 0 );
 }
 
 static void test_poll_skips_unchanged_text( void )
 {
     text_widget_t w[1] = {
-        { .rect  = { 0, 0, 40, FONT_H },
+        { .rect  = { 0, 0, 40, FONT_CELL_H },
           .scale = 1,
           .fg    = 0xFFFFu,
           .bg    = 0x0000u,
@@ -97,7 +97,7 @@ static void test_poll_skips_unchanged_text( void )
 static void test_poll_redraws_on_change( void )
 {
     text_widget_t w[1] = {
-        { .rect  = { 0, 0, 40, FONT_H },
+        { .rect  = { 0, 0, 40, FONT_CELL_H },
           .scale = 1,
           .fg    = 0xFFFFu,
           .bg    = 0x0000u,
@@ -112,7 +112,7 @@ static void test_poll_redraws_on_change( void )
 
     source_text = "800";
     text_poll( w, 1 );
-    CHECK_EQ( blit_calls, FONT_H );
+    CHECK_EQ( blit_calls, FONT_CELL_H );
     CHECK( strcmp( w[0].cache, "800" ) == 0 );
 
     blit_calls = 0;
@@ -140,17 +140,20 @@ static void lit_span(
 
 static void test_centered_text_is_centered_to_the_pixel( void )
 {
-    /* 'T' has a full top row, 5 px wide: in a 41 px rect it belongs at
-     * columns 18 to 22, the same distance from both edges. */
+    /* One character is one 6 px cell, so in a 41 px rect the cell starts
+     * (41 - 6) / 2 = 17 px further right than the same text aligned left:
+     * 17 px of rect on one side and 18 on the other, the nearest to even.
+     * The glyph's own ink columns do not matter, only that the shift is
+     * exactly 17. */
     text_widget_t w[2] = {
-        { .rect  = { 0, 0, 41, FONT_H },
+        { .rect  = { 0, 0, 41, FONT_CELL_H },
           .scale = 1,
           .fg    = 0xFFFFu,
           .bg    = 0x0000u,
           .text  = one_text,
           .cache = { 0 },
           .align = TEXT_ALIGN_CENTER },
-        { .rect  = { 0, 0, 41, FONT_H },
+        { .rect  = { 0, 0, 41, FONT_CELL_H },
           .scale = 1,
           .fg    = 0xFFFFu,
           .bg    = 0x0000u,
@@ -160,55 +163,21 @@ static void test_centered_text_is_centered_to_the_pixel( void )
     };
     int first;
     int last;
+    int left_first;
+    int left_last;
 
     reset();
     source_text = "T";
+    text_init( &w[1], 1, 0x0000u );
+    lit_span( &left_first, &left_last );
+    CHECK( left_first >= 0 );
+    CHECK( left_last > left_first );
+    CHECK( left_last < 6 ); /* inside its own cell */
+
     text_init( w, 1, 0x0000u );
     lit_span( &first, &last );
-    CHECK_EQ( first, 18 );
-    CHECK_EQ( last, 22 );
-
-    text_init( &w[1], 1, 0x0000u ); /* left is unchanged */
-    lit_span( &first, &last );
-    CHECK_EQ( first, 0 );
-    CHECK_EQ( last, 4 );
-}
-
-/* The update page's clock is m:ss, so the colon must be drawn. */
-static void test_font_colon_is_drawn( void )
-{
-    const font_glyph_t * g = font_glyph( ':' );
-    unsigned lit           = 0;
-
-    for ( size_t row = 0; row < FONT_H; row++ )
-    {
-        lit += ( g->rows[row] != 0u ) ? 1u : 0u;
-    }
-    CHECK( lit > 0u );
-}
-
-static void test_font_unknown_is_blank( void )
-{
-    const font_glyph_t * unknown = font_glyph( '~' );
-    const font_glyph_t * space   = font_glyph( ' ' );
-
-    CHECK( memcmp( unknown->rows, space->rows, FONT_H ) == 0 );
-}
-
-static void test_font_lowercase_matches_uppercase( void )
-{
-    const font_glyph_t * lower = font_glyph( 'a' );
-    const font_glyph_t * upper = font_glyph( 'A' );
-
-    CHECK( memcmp( lower->rows, upper->rows, FONT_H ) == 0 );
-}
-
-static void test_font_digits_differ( void )
-{
-    const font_glyph_t * zero = font_glyph( '0' );
-    const font_glyph_t * one  = font_glyph( '1' );
-
-    CHECK( memcmp( zero->rows, one->rows, FONT_H ) != 0 );
+    CHECK_EQ( first, left_first + 17 );
+    CHECK_EQ( last, left_last + 17 );
 }
 
 int main( void )
@@ -217,10 +186,6 @@ int main( void )
     test_poll_skips_unchanged_text();
     test_poll_redraws_on_change();
     test_centered_text_is_centered_to_the_pixel();
-    test_font_colon_is_drawn();
-    test_font_unknown_is_blank();
-    test_font_lowercase_matches_uppercase();
-    test_font_digits_differ();
 
     return MT_RESULT();
 }

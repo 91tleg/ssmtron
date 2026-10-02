@@ -247,8 +247,8 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
         150u,
         DIAL_STYLE_FULL_SWEEP
     };
-    const uint16_t label_y0 = 89u;
-    const uint16_t label_y1 = 96u;
+    const uint16_t label_y0 = 74u;
+    const uint16_t label_y1 = 82u;
     const uint16_t label_x0 = 105u;
     const uint16_t label_x1 = 135u;
     dial_widget_t d;
@@ -272,7 +272,7 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
         dial_poll( &d, now, true, 75 );
     } while ( d.displayed_deg != d.target_deg );
     CHECK_EQ( d.target_deg, 360 );
-    CHECK( shadow[92][120] == 0x3333u ); /* needle drawn over the label */
+    CHECK( shadow[80][120] == 0x3333u ); /* needle drawn over the label */
 
     /* Keep sweeping past it: the label must reappear, with no needle
      * pixel left behind at the spot it just vacated. */
@@ -282,7 +282,7 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
         dial_poll( &d, now, true, 100 );
     } while ( d.displayed_deg != d.target_deg );
     CHECK_EQ( d.target_deg, 435 );
-    CHECK( shadow[92][120] != 0x3333u );
+    CHECK( shadow[80][120] != 0x3333u );
     CHECK(
         shadow_has_color( label_y0, label_y1, label_x0, label_x1, 0x2222u )
     );
