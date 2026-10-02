@@ -548,11 +548,6 @@ static bool label_pixel(
     return hit;
 }
 
-/* Where the screws sit: x then y, thousandths of the radius from center. */
-static const int16_t SCREW_PERMILLE[DIAL_SCREW_COUNT][2] = {
-    { 280, -190 }, { 120, 260 }
-};
-
 static int32_t abs_i32( int32_t v )
 {
     return ( v < 0 ) ? -v : v;
@@ -582,6 +577,11 @@ static uint16_t screw_layer(
     int32_t dy
 )
 {
+    /* Where the screws sit: x then y, thousandths of the radius from
+     * center. */
+    static const int16_t SCREW_PERMILLE[DIAL_SCREW_COUNT][2] = {
+        { 280, -190 }, { 120, 260 }
+    };
     uint16_t out = color;
 
     for ( size_t i = 0; i < DIAL_SCREW_COUNT; i++ )
