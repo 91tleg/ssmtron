@@ -140,15 +140,16 @@ static void test_capitals_fill_the_cell_height( void )
 {
     for ( size_t i = 0; i < UI_SIZE_COUNT; i++ )
     {
-        uint8_t scale   = scale_of( ui_sizes[i] );
-        unsigned top    = 0u;
-        unsigned bottom = 0u;
+        uint8_t scale     = scale_of( ui_sizes[i] );
+        uint16_t last_row = ( uint16_t )( ( FONT_CELL_H * scale ) - 1u );
+        unsigned top      = 0u;
+        unsigned bottom   = 0u;
 
         for ( uint16_t x = 0; x < ( FONT_CELL_W * scale ); x++ )
         {
             top +=
                 font_alpha( 'H', scale, x, 0 ) + font_alpha( 'H', scale, x, 1 );
-            bottom += font_alpha( 'H', scale, x, ( FONT_CELL_H * scale ) - 1u );
+            bottom += font_alpha( 'H', scale, x, last_row );
         }
         CHECK( top > 0u );
         CHECK( bottom > 0u );
