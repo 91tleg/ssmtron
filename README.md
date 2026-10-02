@@ -35,7 +35,7 @@ hil/    tests on real hardware, which need a fixture
 | `lib/fmt` | Turns ECU values and log lines into text. |
 | `lib/textfit` | Cuts, pads and centers text to a width. No dependencies. |
 | `lib/display` | The panel interface, with the GC9A01 driver in `gc9a01/`. |
-| `lib/ui` | What gets drawn: text widgets, the font, the analog dial (`dial`) and how its needle moves (`dial_motion`). |
+| `lib/ui` | What gets drawn: text widgets, the font (B612 Mono, anti-aliased bitmaps that `tools/gen_font.py` makes into `font_b612.c`), the analog dial (`dial`) and how its needle moves (`dial_motion`). |
 
 | App file | What it does |
 | --- | --- |

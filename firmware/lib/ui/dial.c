@@ -58,8 +58,23 @@
 /* Tick numbers are drawn at this text size, chosen for the 240 px panel. */
 #define DIAL_LABEL_SCALE UI_TEXT_SCALE( 2 )
 
-/* Where the tick numbers sit, from the center. */
+/* Where the tick numbers sit, from the center. Numbers on the full sweep sit
+ * on one circle. Numbers on the upper arc sit as close to their tick as the
+ * gap below allows, so wide numbers at the steep ends are not pushed over a
+ * long tick and short ones are not left far from theirs. */
 #define DIAL_LABEL_R UI_LEN( 584 )
+
+/* How far an arc number's ink starts out from the end of its tick, in
+ * thousandths of a pixel, before the search below closes in: one empty pixel
+ * from pixel center to pixel center. The box it is measured from is only a
+ * bound, so the real number can be placed further out than this. */
+#define DIAL_ARC_LABEL_GAP ( 2000 )
+
+/* The empty pixels left between an arc number's ink and its tick. */
+#define DIAL_ARC_LABEL_EMPTY_PX ( 1 )
+
+/* Ink at least this strong counts as visible, a quarter of full. */
+#define DIAL_INK_VISIBLE ( 4u )
 
 #define DIAL_MAX_TICKS  ( 48u )
 #define DIAL_MAX_LABELS ( 16u )
@@ -267,13 +282,42 @@ static int32_t label_width(
 )
 {
     int32_t characters  = ( int32_t )length;
-    int32_t glyph_width = ( int32_t )FONT_W + 1;
+    int32_t glyph_width = ( int32_t )FONT_CELL_W;
 
     return characters * glyph_width * ( int32_t )scale;
 }
 
 /* Test a radial segment without square root or angle calculations. */
-static bool on_radial_line(
+/* How much of a pixel a shape covers, from its edge's distance: positive
+ * inside, in thousandths of a pixel, measured from the pixel's center. A
+ * center on the edge is half covered, and one half a pixel in or out is all
+ * or none, so a slanted edge fades over one pixel instead of stair-stepping.
+ * The distance is straight across the edge, which the rows of the shape's own
+ * axis give exactly and a slanted edge to within a few percent. */
+static uint8_t edge_alpha( int32_t dist_milli )
+{
+    uint8_t alpha = 0u;
+
+    if ( dist_milli >= 500 )
+    {
+        alpha = FONT_ALPHA_MAX;
+    }
+    else if ( dist_milli > -500 )
+    {
+        int32_t levels = ( int32_t )FONT_ALPHA_MAX;
+        int32_t scaled = ( ( ( dist_milli + 500 ) * levels ) + 500 ) / 1000;
+
+        alpha = ( uint8_t )scaled;
+    }
+    else
+    {
+        /* outside the shape */
+    }
+    return alpha;
+}
+
+/* The pixel's coverage by a straight bar of constant width. */
+static uint8_t radial_line_alpha(
     int32_t dx,
     int32_t dy,
     int32_t sin_milli,
@@ -283,42 +327,293 @@ static bool on_radial_line(
     int32_t half_w
 )
 {
-    int32_t proj = ( dx * sin_milli ) - ( dy * cos_milli );
-    int32_t perp = ( dx * cos_milli ) + ( dy * sin_milli );
+    int32_t proj   = ( dx * sin_milli ) - ( dy * cos_milli );
+    int32_t perp   = ( dx * cos_milli ) + ( dy * sin_milli );
+    int32_t across = ( half_w * 1000 ) - ( ( perp < 0 ) ? -perp : perp );
+    int32_t before = proj - ( inner_r * 1000 );
+    int32_t beyond = ( outer_r * 1000 ) - proj;
+    int32_t dist   = across;
 
-    return ( proj >= ( inner_r * 1000 ) ) && ( proj <= ( outer_r * 1000 ) )
-           && ( perp <= ( half_w * 1000 ) ) && ( perp >= -( half_w * 1000 ) );
+    dist = ( before < dist ) ? before : dist;
+    dist = ( beyond < dist ) ? beyond : dist;
+    return edge_alpha( dist );
 }
 
 /* The needle: a straight bar of constant width from the hub, ending in a
  * triangle that narrows to a point. The point keeps half a pixel of width on
  * each side, so it never thins out to nothing. */
-static bool on_needle(
+static uint8_t needle_alpha(
     int32_t dx,
     int32_t dy,
     int32_t sin_milli,
     int32_t cos_milli
 )
 {
-    int32_t proj = ( dx * sin_milli ) - ( dy * cos_milli );
-    int32_t len  = DIAL_NEEDLE_LEN;
-    bool hit     = false;
+    int32_t proj   = ( dx * sin_milli ) - ( dy * cos_milli );
+    int32_t len    = DIAL_NEEDLE_LEN;
+    uint8_t alpha  = 0u;
+    int32_t beyond = ( len * 1000 ) - proj;
 
-    if ( ( proj >= 0 ) && ( proj <= ( len * 1000 ) ) )
+    if ( ( proj >= -500 ) && ( beyond >= -500 ) )
     {
-        int32_t perp   = ( dx * cos_milli ) + ( dy * sin_milli );
-        int32_t across = ( perp < 0 ) ? -perp : perp;
-        int32_t room   = ( DIAL_NEEDLE_HALF_W * ( ( len * 1000 ) - proj ) )
-                           / DIAL_NEEDLE_TIP_LEN
-                       + 500;
+        int32_t perp    = ( dx * cos_milli ) + ( dy * sin_milli );
+        int32_t across  = ( perp < 0 ) ? -perp : perp;
+        int32_t tip_run = ( beyond > 0 ) ? beyond : 0;
+        int32_t room =
+            ( ( DIAL_NEEDLE_HALF_W * tip_run ) / DIAL_NEEDLE_TIP_LEN ) + 500;
+        int32_t dist;
 
         if ( room > ( DIAL_NEEDLE_HALF_W * 1000 ) )
         {
             room = DIAL_NEEDLE_HALF_W * 1000; /* the straight part */
         }
-        hit = across <= room;
+        dist  = room - across;
+        dist  = ( beyond < dist ) ? beyond : dist;
+        dist  = ( proj < dist ) ? proj : dist;
+        alpha = edge_alpha( dist );
     }
-    return hit;
+    return alpha;
+}
+
+/* A disc of this radius at the center: coverage from how far the pixel's
+ * distance is inside the edge, taking (r*r - d*d) / 2r for r - d. */
+static uint8_t disc_alpha(
+    int32_t dist_sq,
+    int32_t radius
+)
+{
+    return edge_alpha( ( ( ( radius * radius ) - dist_sq ) * 500 ) / radius );
+}
+
+/* The ink at pixel (x, y) from the top left corner of a label, whose
+ * characters sit side by side in cells. Both are inside the label. */
+static uint8_t label_ink_at(
+    const char * text,
+    uint8_t scale,
+    int32_t x,
+    int32_t y
+)
+{
+    int32_t cell_w = ( int32_t )FONT_CELL_W * ( int32_t )scale;
+    int32_t glyph  = x / cell_w;
+    int32_t within = x % cell_w;
+
+    return font_alpha( text[glyph], scale, ( uint16_t )within, ( uint16_t )y );
+}
+
+/* The smallest box, in pixels from the label's top left corner, that holds
+ * the label's visible ink: x0 and y0 are the first pixel with ink and x1 and
+ * y1 the last. A label with no ink gets its whole cell. */
+static void label_ink_box(
+    const char * text,
+    uint8_t scale,
+    int32_t * x0,
+    int32_t * y0,
+    int32_t * x1,
+    int32_t * y1
+)
+{
+    int32_t width  = label_width( strlen( text ), scale );
+    int32_t height = ( int32_t )FONT_CELL_H * ( int32_t )scale;
+    bool any       = false;
+
+    *x0 = width;
+    *y0 = height;
+    *x1 = 0;
+    *y1 = 0;
+    for ( int32_t y = 0; y < height; y++ )
+    {
+        for ( int32_t x = 0; x < width; x++ )
+        {
+            uint8_t ink = label_ink_at( text, scale, x, y );
+
+            if ( ink >= DIAL_INK_VISIBLE )
+            {
+                any = true;
+                *x0 = ( x < *x0 ) ? x : *x0;
+                *y0 = ( y < *y0 ) ? y : *y0;
+                *x1 = ( x > *x1 ) ? x : *x1;
+                *y1 = ( y > *y1 ) ? y : *y1;
+            }
+        }
+    }
+    if ( !any )
+    {
+        *x0 = 0;
+        *y0 = 0;
+        *x1 = width - 1;
+        *y1 = height - 1;
+    }
+}
+
+/* The top left corner of a label whose middle is r pixels from the dial's
+ * center along this direction. */
+static void place_label(
+    size_t length,
+    uint8_t scale,
+    int32_t r,
+    int32_t sin_m,
+    int32_t cos_m,
+    int32_t * x,
+    int32_t * y
+)
+{
+    int32_t label_h = ( int32_t )FONT_CELL_H * ( int32_t )scale;
+
+    *x = DIAL_CX + ( ( r * sin_m ) / 1000 )
+         - ( label_width( length, scale ) / 2 );
+    *y = DIAL_CY - ( ( r * cos_m ) / 1000 ) - ( label_h / 2 );
+}
+
+/* Whether any ink of the label, with its middle r pixels out, falls on its own
+ * long tick once that tick is grown by grow pixels: longer toward the center
+ * and wider on both sides. Growing by 1 reaches the pixels right beside the
+ * tick, so a label that is clear at grow 1 has an empty pixel between. */
+static bool arc_label_touches_tick(
+    const char * text,
+    uint8_t scale,
+    int32_t r,
+    int32_t sin_m,
+    int32_t cos_m,
+    int32_t grow
+)
+{
+    size_t length   = strlen( text );
+    int32_t width   = label_width( length, scale );
+    int32_t height  = ( int32_t )FONT_CELL_H * ( int32_t )scale;
+    int32_t inner_r = DIAL_TICK_R - DIAL_TICK_MAJOR_LEN;
+    int32_t x0;
+    int32_t y0;
+    bool touches = false;
+
+    place_label( length, scale, r, sin_m, cos_m, &x0, &y0 );
+    for ( int32_t y = 0; !touches && ( y < height ); y++ )
+    {
+        for ( int32_t x = 0; !touches && ( x < width ); x++ )
+        {
+            uint8_t ink = label_ink_at( text, scale, x, y );
+
+            if ( ink >= DIAL_INK_VISIBLE )
+            {
+                touches = radial_line_alpha(
+                              ( x0 + x ) - DIAL_CX,
+                              ( y0 + y ) - DIAL_CY,
+                              sin_m,
+                              cos_m,
+                              inner_r - grow,
+                              DIAL_TICK_R,
+                              DIAL_TICK_MAJOR_HALF_W + grow
+                          )
+                          >= DIAL_INK_VISIBLE;
+            }
+        }
+    }
+    return touches;
+}
+
+/* How far from the center the middle of an arc number goes, in pixels, for
+ * its ink to sit DIAL_ARC_LABEL_EMPTY_PX from the end of its long tick: as
+ * close as it can without touching. The ink's bounding box gives a first
+ * guess that is never too far out (it is axis aligned and the tick is not),
+ * and whole pixels then close the rest of the way against the real ink. */
+static int32_t arc_label_radius_search(
+    const char * text,
+    uint8_t scale,
+    int32_t sin_m,
+    int32_t cos_m
+)
+{
+    int32_t x0;
+    int32_t y0;
+    int32_t x1;
+    int32_t y1;
+    int32_t width   = label_width( strlen( text ), scale );
+    int32_t height  = ( int32_t )FONT_CELL_H * ( int32_t )scale;
+    int32_t reach   = INT32_MIN;
+    int32_t inner_r = DIAL_TICK_R - DIAL_TICK_MAJOR_LEN;
+    int32_t r;
+
+    label_ink_box( text, scale, &x0, &y0, &x1, &y1 );
+    for ( int32_t i = 0; i < 4; i++ )
+    {
+        /* Corner pixel centers, from the middle of the label, in thousandths
+         * of a pixel. */
+        int32_t cx =
+            ( ( 2 * ( ( ( i % 2 ) == 0 ) ? x0 : x1 ) ) - ( width - 1 ) ) * 500;
+        int32_t cy = ( ( 2 * ( ( i < 2 ) ? y0 : y1 ) ) - ( height - 1 ) ) * 500;
+        int32_t along = ( ( cx * sin_m ) - ( cy * cos_m ) ) / 1000;
+
+        reach = ( along > reach ) ? along : reach;
+    }
+    r = ( ( ( inner_r * 1000 ) - DIAL_ARC_LABEL_GAP - reach ) + 500 ) / 1000;
+
+    /* Back in if the guess touches, then out while one more step is clear. */
+    for ( int32_t guard = 0;
+          ( guard < inner_r )
+          && arc_label_touches_tick(
+              text, scale, r, sin_m, cos_m, DIAL_ARC_LABEL_EMPTY_PX
+          );
+          guard++ )
+    {
+        r--;
+    }
+    for ( int32_t guard = 0;
+          ( guard < inner_r )
+          && !arc_label_touches_tick(
+              text, scale, r + 1, sin_m, cos_m, DIAL_ARC_LABEL_EMPTY_PX
+          );
+          guard++ )
+    {
+        r++;
+    }
+    return r;
+}
+
+/* The search above reads the font pixel by pixel, which is too slow to repeat
+ * for every needle frame, and a dial's numbers never move. The radius of each
+ * arc number is kept for as long as the scale that decides its text and angle
+ * stays the same, so another dial, or this one changed, starts afresh. */
+typedef struct
+{
+    int32_t min_value;
+    int32_t max_value;
+    int32_t major_step;
+    int32_t label_div;
+    bool known[DIAL_MAX_LABELS];
+    int16_t radius[DIAL_MAX_LABELS];
+} arc_radius_cache_t;
+
+static int32_t arc_label_radius(
+    const dial_cfg_t * cfg,
+    size_t index,
+    const char * text,
+    int32_t sin_m,
+    int32_t cos_m
+)
+{
+    static arc_radius_cache_t cache;
+    int32_t r;
+
+    if ( ( cache.min_value != cfg->min_value )
+         || ( cache.max_value != cfg->max_value )
+         || ( cache.major_step != cfg->major_step )
+         || ( cache.label_div != cfg->label_div ) )
+    {
+        cache            = ( arc_radius_cache_t ){ 0 };
+        cache.min_value  = cfg->min_value;
+        cache.max_value  = cfg->max_value;
+        cache.major_step = cfg->major_step;
+        cache.label_div  = cfg->label_div;
+    }
+    if ( !cache.known[index] )
+    {
+        cache.radius[index] = ( int16_t )arc_label_radius_search(
+            text, DIAL_LABEL_SCALE, sin_m, cos_m
+        );
+        cache.known[index] = true;
+    }
+    r = cache.radius[index];
+    return r;
 }
 
 static void build_ticks(
@@ -353,15 +648,15 @@ static void build_ticks(
             size_t len;
             int32_t x;
             int32_t y;
-            int32_t label_h = ( int32_t )FONT_H * ( int32_t )DIAL_LABEL_SCALE;
 
             angle_vec( deg, &sin_m, &cos_m );
             len = textfit_int( text, DIAL_LABEL_BUF, value / cfg->label_div );
-            int32_t label_r = DIAL_LABEL_R;
+            int32_t label_r =
+                ( cfg->style == DIAL_STYLE_UPPER_ARC )
+                    ? arc_label_radius( cfg, nl, text, sin_m, cos_m )
+                    : DIAL_LABEL_R;
 
-            x = DIAL_CX + ( ( label_r * sin_m ) / 1000 )
-                - ( label_width( len, DIAL_LABEL_SCALE ) / 2 );
-            y = DIAL_CY - ( ( label_r * cos_m ) / 1000 ) - ( label_h / 2 );
+            place_label( len, DIAL_LABEL_SCALE, label_r, sin_m, cos_m, &x, &y );
             labels[nl].x     = ( int16_t )x;
             labels[nl].y     = ( int16_t )y;
             labels[nl].scale = DIAL_LABEL_SCALE;
@@ -428,18 +723,17 @@ static void add_fixed_labels(
     *label_count = n;
 }
 
+/* Whether a label covers this pixel, and how much ink it puts there. */
 static bool label_pixel(
     const dial_label_t * lb,
     int16_t row,
     int16_t col,
-    uint16_t fg,
-    uint16_t * out_color
+    uint8_t * out_alpha
 )
 {
     size_t len         = strlen( lb->text );
-    uint16_t cell_w    = ( uint16_t )( ( FONT_W + 1u ) * lb->scale );
-    uint16_t glyph_px  = ( uint16_t )( FONT_W * lb->scale );
-    uint16_t font_rows = ( uint16_t )( FONT_H * lb->scale );
+    uint16_t cell_w    = ( uint16_t )( FONT_CELL_W * lb->scale );
+    uint16_t font_rows = ( uint16_t )( FONT_CELL_H * lb->scale );
     uint16_t width     = ( uint16_t )( cell_w * ( uint16_t )len );
     bool hit           = false;
 
@@ -454,21 +748,13 @@ static bool label_pixel(
         uint16_t rel_col     = ( uint16_t )col_offset;
         uint16_t glyph_index = ( uint16_t )( rel_col / cell_w );
         uint16_t within      = ( uint16_t )( rel_col % cell_w );
+        uint8_t alpha =
+            font_alpha( lb->text[glyph_index], lb->scale, within, rel_row );
 
-        if ( within < glyph_px )
+        if ( alpha != 0u )
         {
-            const font_glyph_t * gl = font_glyph( lb->text[glyph_index] );
-            uint8_t glyph_row       = ( uint8_t )( rel_row / lb->scale );
-            uint8_t font_col        = ( uint8_t )( within / lb->scale );
-            uint8_t bit             = ( uint8_t )( ( gl->rows[glyph_row]
-                                         >> ( FONT_W - 1u - font_col ) )
-                                       & 1u );
-
-            if ( bit != 0u )
-            {
-                *out_color = fg;
-                hit        = true;
-            }
+            *out_alpha = alpha;
+            hit        = true;
         }
     }
     return hit;
@@ -491,39 +777,12 @@ static uint16_t pixel_color(
     int32_t dy      = ( int32_t )row - DIAL_CY;
     int32_t dist_sq = ( dx * dx ) + ( dy * dy );
     uint16_t color  = cfg->face_bg;
-    bool set        = false;
+    uint8_t ink;
 
-    if ( dist_sq <= ( DIAL_HUB_R * DIAL_HUB_R ) )
-    {
-        color = ( dist_sq <= ( DIAL_HUB_INNER_R * DIAL_HUB_INNER_R ) )
-                    ? 0xE73Cu
-                    : 0xA514u;
-        set   = true;
-    }
-
-    if ( on_radial_line(
-             dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
-         ) )
-    {
-        color = 0xCE79u;
-        set   = true;
-    }
-    if ( !set && on_needle( dx, dy, needle_sin, needle_cos ) )
-    {
-        color = cfg->needle_fg;
-        set   = true;
-    }
-    for ( size_t i = 0; ( !set ) && ( i < label_count ); i++ )
-    {
-        uint16_t lc = 0u;
-
-        if ( label_pixel( &labels[i], row, col, cfg->tick_fg, &lc ) )
-        {
-            color = lc;
-            set   = true;
-        }
-    }
-    for ( size_t i = 0; ( !set ) && ( i < tick_count ); i++ )
+    /* Bottom up, each layer blended over what is under it, so every edge
+     * softens against the right color: ticks, tick numbers, needle, hub,
+     * counterweight. */
+    for ( size_t i = 0; i < tick_count; i++ )
     {
         int32_t sin_m;
         int32_t cos_m;
@@ -532,19 +791,49 @@ static uint16_t pixel_color(
         int32_t outer_r = DIAL_TICK_R;
 
         angle_vec( ticks[i].deg, &sin_m, &cos_m );
-        if ( on_radial_line(
-                 dx,
-                 dy,
-                 sin_m,
-                 cos_m,
-                 outer_r - len,
-                 outer_r,
-                 ticks[i].major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
-             ) )
+        ink = radial_line_alpha(
+            dx,
+            dy,
+            sin_m,
+            cos_m,
+            outer_r - len,
+            outer_r,
+            ticks[i].major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
+        );
+        if ( ink != 0u )
         {
-            color = cfg->tick_fg;
-            set   = true;
+            color = font_blend( cfg->tick_fg, color, ink );
         }
+    }
+    for ( size_t i = 0; i < label_count; i++ )
+    {
+        ink = 0u;
+        if ( label_pixel( &labels[i], row, col, &ink ) )
+        {
+            color = font_blend( cfg->tick_fg, color, ink );
+        }
+    }
+    ink = needle_alpha( dx, dy, needle_sin, needle_cos );
+    if ( ink != 0u )
+    {
+        color = font_blend( cfg->needle_fg, color, ink );
+    }
+    ink = disc_alpha( dist_sq, DIAL_HUB_R );
+    if ( ink != 0u )
+    {
+        color = font_blend( 0xA514u, color, ink );
+        ink   = disc_alpha( dist_sq, DIAL_HUB_INNER_R );
+        if ( ink != 0u )
+        {
+            color = font_blend( 0xE73Cu, color, ink );
+        }
+    }
+    ink = radial_line_alpha(
+        dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
+    );
+    if ( ink != 0u )
+    {
+        color = font_blend( 0xCE79u, color, ink );
     }
     return color;
 }

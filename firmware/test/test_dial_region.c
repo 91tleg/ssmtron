@@ -11,6 +11,36 @@
 #include "lib/ui/dial.c"
 #include "test/minitest.h"
 
+/* A pixel is part of a shape when its center is inside the edge, which is
+ * at least half covered. */
+#define HALF_COVERED ( 8u )
+
+static bool on_needle(
+    int32_t dx,
+    int32_t dy,
+    int32_t sin_milli,
+    int32_t cos_milli
+)
+{
+    return needle_alpha( dx, dy, sin_milli, cos_milli ) >= HALF_COVERED;
+}
+
+static bool on_radial_line(
+    int32_t dx,
+    int32_t dy,
+    int32_t sin_milli,
+    int32_t cos_milli,
+    int32_t inner_r,
+    int32_t outer_r,
+    int32_t half_w
+)
+{
+    return radial_line_alpha(
+               dx, dy, sin_milli, cos_milli, inner_r, outer_r, half_w
+           )
+           >= HALF_COVERED;
+}
+
 static uint16_t shadow[DISPLAY_HEIGHT][DISPLAY_WIDTH];
 static uint16_t partial[DISPLAY_HEIGHT][DISPLAY_WIDTH];
 
@@ -461,6 +491,238 @@ static void test_upper_arc( void )
     }
 }
 
+/* The coolant and voltage dials as gauge.c sets them up: three ticks between
+ * the numbers. test_gauge_dial checks that gauge.c still has these values. */
+static const dial_cfg_t coolant_like = {
+    1000,
+    2600,
+    400,
+    3u,
+    10,
+    "COOLANT",
+    "F",
+    NULL,
+    0xEF5Bu,
+    0x632Cu,
+    0xF922u,
+    900u,
+    DIAL_STYLE_UPPER_ARC
+};
+static const dial_cfg_t voltage_like = {
+    800,
+    1600,
+    200,
+    3u,
+    100,
+    "VOLTAGE",
+    "V",
+    NULL,
+    0xEF5Bu,
+    0x632Cu,
+    0xF922u,
+    900u,
+    DIAL_STYLE_UPPER_ARC
+};
+
+/* Whether any ink of this label lands on a visible part of a tick that is
+ * grown by grow pixels: longer toward the center and wider on both sides.
+ * Growing by 1 reaches the pixels right next to a tick, so a label that is
+ * first hit at grow k has k - 1 empty pixels between its ink and the tick. */
+static bool label_hits_a_tick(
+    const dial_label_t * lb,
+    const dial_tick_t * ticks,
+    size_t nt,
+    int32_t grow
+)
+{
+    size_t len = strlen( lb->text );
+    bool hit   = false;
+
+    for ( int16_t row = lb->y;
+          !hit && ( row < ( lb->y + ( int16_t )( FONT_CELL_H * lb->scale ) ) );
+          row++ )
+    {
+        for ( int16_t col = lb->x;
+              !hit
+              && ( col
+                   < ( lb->x + ( int16_t )( len * FONT_CELL_W * lb->scale ) ) );
+              col++ )
+        {
+            uint8_t ink = 0u;
+
+            if ( label_pixel( lb, row, col, &ink ) && ( ink >= 4u ) )
+            {
+                for ( size_t t = 0; !hit && ( t < nt ); t++ )
+                {
+                    int32_t sin_m;
+                    int32_t cos_m;
+                    int32_t tick_len = ticks[t].major ? DIAL_TICK_MAJOR_LEN
+                                                      : DIAL_TICK_MINOR_LEN;
+                    int32_t half     = ticks[t].major ? DIAL_TICK_MAJOR_HALF_W
+                                                      : DIAL_TICK_HALF_W;
+
+                    angle_vec( ticks[t].deg, &sin_m, &cos_m );
+                    hit = radial_line_alpha(
+                              col - DIAL_CX,
+                              row - DIAL_CY,
+                              sin_m,
+                              cos_m,
+                              ( DIAL_TICK_R - tick_len ) - grow,
+                              DIAL_TICK_R,
+                              half + grow
+                          )
+                          >= 4u;
+                }
+            }
+        }
+    }
+    return hit;
+}
+
+/* Empty pixels between a label's ink and the nearest tick: 0 when they touch.
+ * Capped at 8, which is far. */
+static int32_t gap_to_ticks(
+    const dial_label_t * lb,
+    const dial_tick_t * ticks,
+    size_t nt
+)
+{
+    int32_t grow = 0;
+
+    while ( ( grow < 8 ) && !label_hits_a_tick( lb, ticks, nt, grow ) )
+    {
+        grow++;
+    }
+    return ( grow == 0 ) ? 0 : ( grow - 1 );
+}
+
+/* Three ticks between each pair of numbers, and each number sits one or two
+ * empty pixels from the tick it belongs to: close, never touching. */
+static void
+test_arc_dials_have_three_ticks_between_numbers_and_snug_labels( void )
+{
+    const dial_cfg_t * arcs[] = { &coolant_like, &voltage_like };
+
+    for ( size_t i = 0; i < 2u; i++ )
+    {
+        dial_tick_t ticks[DIAL_MAX_TICKS];
+        dial_label_t labels[DIAL_MAX_LABELS];
+        size_t nt;
+        size_t nl;
+        size_t minors_since_major = 0u;
+
+        build_ticks( arcs[i], ticks, &nt, labels, &nl );
+        CHECK_EQ( nt, 17u );
+        CHECK_EQ( nl, 5u );
+        for ( size_t t = 0; t < nt; t++ )
+        {
+            if ( ticks[t].major )
+            {
+                CHECK( ( t == 0u ) || ( minors_since_major == 3u ) );
+                minors_since_major = 0u;
+            }
+            else
+            {
+                minors_since_major++;
+            }
+        }
+        for ( size_t l = 0; l < nl; l++ )
+        {
+            int32_t gap = gap_to_ticks( &labels[l], ticks, nt );
+
+            if ( ( gap < 1 ) || ( gap > 2 ) )
+            {
+                printf(
+                    "  dial %zu, number %s: %d empty pixels to the ticks\n",
+                    i,
+                    labels[l].text,
+                    ( int )gap
+                );
+            }
+            CHECK( gap >= 1 ); /* never touching */
+            CHECK( gap <= 2 ); /* and close */
+        }
+    }
+}
+
+/* Whether build_ticks puts every number of this dial where a search made now,
+ * with nothing kept from before, puts it. */
+static bool labels_match_a_fresh_search( const dial_cfg_t * c )
+{
+    dial_tick_t ticks[DIAL_MAX_TICKS];
+    dial_label_t labels[DIAL_MAX_LABELS];
+    size_t nt;
+    size_t nl;
+    size_t major = 0u;
+    bool match   = true;
+
+    build_ticks( c, ticks, &nt, labels, &nl );
+    for ( size_t t = 0; t < nt; t++ )
+    {
+        if ( ticks[t].major )
+        {
+            int32_t sin_m;
+            int32_t cos_m;
+            int32_t r;
+            int32_t x;
+            int32_t y;
+
+            angle_vec( ticks[t].deg, &sin_m, &cos_m );
+            r = arc_label_radius_search(
+                labels[major].text, DIAL_LABEL_SCALE, sin_m, cos_m
+            );
+            place_label(
+                strlen( labels[major].text ),
+                DIAL_LABEL_SCALE,
+                r,
+                sin_m,
+                cos_m,
+                &x,
+                &y
+            );
+            match =
+                match && ( labels[major].x == x ) && ( labels[major].y == y );
+            major++;
+        }
+    }
+    return match && ( major == nl ) && ( nl > 0u );
+}
+
+/* Arc number positions are worked out once per dial and kept, so another dial
+ * in between, or a dial changed where it stands, in any one of the values that
+ * decide its numbers, must not leave old positions behind. */
+static void test_arc_number_positions_are_not_stale( void )
+{
+    dial_cfg_t moved = coolant_like;
+
+    CHECK( labels_match_a_fresh_search( &coolant_like ) );
+    CHECK( labels_match_a_fresh_search( &coolant_like ) ); /* from the cache */
+    CHECK( labels_match_a_fresh_search( &voltage_like ) );
+    CHECK( labels_match_a_fresh_search( &coolant_like ) ); /* after another */
+
+    /* The same dial, at the same address, changed one value at a time: each
+     * starts from the cache of the dial before it. */
+    moved = coolant_like;
+    CHECK( labels_match_a_fresh_search( &moved ) );
+    moved.max_value = 2200;
+    CHECK( labels_match_a_fresh_search( &moved ) );
+
+    moved = coolant_like;
+    CHECK( labels_match_a_fresh_search( &moved ) );
+    moved.min_value = 1200;
+    CHECK( labels_match_a_fresh_search( &moved ) );
+
+    moved = coolant_like;
+    CHECK( labels_match_a_fresh_search( &moved ) );
+    moved.major_step = 200;
+    CHECK( labels_match_a_fresh_search( &moved ) );
+
+    moved = coolant_like;
+    CHECK( labels_match_a_fresh_search( &moved ) );
+    moved.label_div = 100;
+    CHECK( labels_match_a_fresh_search( &moved ) );
+}
+
 int main( void )
 {
     test_fixed_label_is_centered_at_its_drawn_size();
@@ -471,5 +733,7 @@ int main( void )
     test_ticks_are_evenly_spaced_across_zero();
     test_a_scale_with_small_ticks_fits_every_tick();
     test_upper_arc();
+    test_arc_dials_have_three_ticks_between_numbers_and_snug_labels();
+    test_arc_number_positions_are_not_stale();
     return MT_RESULT();
 }

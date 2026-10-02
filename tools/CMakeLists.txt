@@ -19,6 +19,7 @@ add_executable(preview_ui
   ../firmware/lib/ui/text.c
   ../firmware/lib/ui/dial.c
   ../firmware/lib/ui/font.c
+  ../firmware/lib/ui/font_b612.c
   ../firmware/lib/ui/dial_motion.c
 )
 target_include_directories(preview_ui PRIVATE

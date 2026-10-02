@@ -17,15 +17,15 @@ typedef struct
     uint16_t x;
     uint16_t y;
     uint16_t w;
-    uint16_t h; /* must be FONT_H * scale; see font.h */
+    uint16_t h; /* must be FONT_CELL_H * scale; see font.h */
 } text_rect_t;
 
 /* The size of a rect that holds this many glyphs at this scale, so a
  * widget's rect follows its text size instead of a hand-counted number.
  * chars and scale are plain int constants. */
 #define TEXT_RECT_W( chars, scale )                                            \
-    ( ( chars ) * ( ( int )FONT_W + 1 ) * ( scale ) )
-#define TEXT_RECT_H( scale ) ( ( int )FONT_H * ( scale ) )
+    ( ( chars ) * ( int )FONT_CELL_W * ( scale ) )
+#define TEXT_RECT_H( scale ) ( ( int )FONT_CELL_H * ( scale ) )
 
 typedef enum
 {
@@ -42,7 +42,7 @@ typedef struct
     text_rect_t rect;
     uint16_t fg;   /* RGB565 */
     uint16_t bg;   /* RGB565; also what erases now-shorter stale text */
-    uint8_t scale; /* 1 = 5x7 px per glyph, 2 = 10x14, ... */
+    uint8_t scale; /* 1 = 6x7 px per character, 2 = 12x14, ... */
     char cache[TEXT_MAX + 1u]; /* last text actually drawn */
 } text_widget_t;
 

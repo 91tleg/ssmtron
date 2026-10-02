@@ -17,15 +17,13 @@ static void draw_widget(
 {
     static uint16_t row_buf[TEXT_MAX_ROW_PX];
     size_t text_len    = strlen( text );
-    uint16_t cell_w    = ( uint16_t )( ( FONT_W + 1u ) * w->scale );
-    uint16_t glyph_px  = ( uint16_t )( FONT_W * w->scale );
-    uint16_t font_rows = ( uint16_t )( FONT_H * w->scale );
+    uint16_t cell_w    = ( uint16_t )( FONT_CELL_W * w->scale );
+    uint16_t font_rows = ( uint16_t )( FONT_CELL_H * w->scale );
     uint16_t row_pixels =
         ( w->rect.w <= TEXT_MAX_ROW_PX ) ? w->rect.w : TEXT_MAX_ROW_PX;
-    /* The last glyph has no trailing gap, so it does not skew the center. */
-    uint16_t gap_px = ( uint16_t )( cell_w - glyph_px );
-    uint16_t text_px =
-        ( text_len > 0u ) ? ( uint16_t )( ( text_len * cell_w ) - gap_px ) : 0u;
+    /* Every character fills its whole cell, spacing included, so the text is
+     * centered by its cells, as the dial centers its labels. */
+    uint16_t text_px = ( uint16_t )( text_len * cell_w );
     uint16_t x_off =
         ( ( w->align == TEXT_ALIGN_CENTER ) && ( row_pixels > text_px ) )
             ? ( uint16_t )( ( row_pixels - text_px ) / 2u )
@@ -33,8 +31,7 @@ static void draw_widget(
 
     for ( uint16_t row = 0; row < w->rect.h; row++ )
     {
-        bool in_font      = ( row < font_rows ) && ( cell_w > 0u );
-        uint8_t glyph_row = ( uint8_t )( row / w->scale );
+        bool in_font = ( row < font_rows ) && ( cell_w > 0u );
 
         for ( uint16_t col = 0; col < row_pixels; col++ )
         {
@@ -46,16 +43,13 @@ static void draw_widget(
                 uint16_t glyph_index = ( uint16_t )( text_col / cell_w );
                 uint16_t within      = ( uint16_t )( text_col % cell_w );
 
-                if ( ( glyph_index < ( uint16_t )text_len )
-                     && ( within < glyph_px ) )
+                if ( glyph_index < ( uint16_t )text_len )
                 {
-                    const font_glyph_t * gl = font_glyph( text[glyph_index] );
-                    uint8_t font_col        = ( uint8_t )( within / w->scale );
-                    uint8_t bit             = ( uint8_t )( ( gl->rows[glyph_row]
-                                                 >> ( FONT_W - 1u - font_col ) )
-                                               & 1u );
-
-                    px = ( bit != 0u ) ? w->fg : w->bg;
+                    px = font_blend(
+                        w->fg,
+                        w->bg,
+                        font_alpha( text[glyph_index], w->scale, within, row )
+                    );
                 }
             }
             row_buf[col] = px;
