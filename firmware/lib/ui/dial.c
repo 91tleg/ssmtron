@@ -6,6 +6,7 @@
 #include "lib/display/display.h"
 #include "lib/textfit/textfit.h"
 #include "lib/ui/font.h"
+#include "lib/ui/logo_maxtek.h"
 #include "lib/ui/dial_motion.h"
 #include "lib/ui/ui_geom.h"
 
@@ -48,6 +49,26 @@
 
 /* How much of the needle's end is the triangle. */
 #define DIAL_NEEDLE_TIP_LEN UI_LEN( 100 )
+
+/* Two slotted screws on the face, as on a gauge's bezel plate. Centers are
+ * in thousandths of the radius from the dial's center, clear of the label,
+ * the units and the tick numbers. The needle passes over them. */
+#define DIAL_SCREW_R            UI_LEN( 66 )
+#define DIAL_SCREW_SLOT_HALF_W  ( 650 )
+#define DIAL_SCREW_COUNT        ( 2u )
+#define DIAL_SCREW_FACE_COLOR   ( 0xA514u )
+#define DIAL_SCREW_SLOT_COLOR   ( 0x4208u )
+#define DIAL_SLOT_SIN_COS_MILLI ( 707 )
+
+/* The Maxtek logo on the full sweep faces, under the positive unit: the
+ * middle of its width, and its top edge, from the center. It is drawn black
+ * on a light face and white on a dark one. */
+#define DIAL_LOGO_X UI_LEN( 510 )
+#define DIAL_LOGO_Y UI_LEN( 60 )
+
+/* The title of a full sweep face (TURBO) sits higher than the units, from
+ * the center to its top edge. */
+#define DIAL_TITLE_Y UI_LEN( 384 )
 
 /* The label and units around the center use this text size. */
 #define DIAL_FIXED_SCALE UI_TEXT_SCALE( 1 )
@@ -410,8 +431,16 @@ static void add_ticks(
         if ( tick->major )
         {
             char text[DIAL_LABEL_BUF];
-            size_t len =
-                textfit_int( text, DIAL_LABEL_BUF, value / cfg->label_div );
+            int32_t shown = value / cfg->label_div;
+            size_t len;
+
+            /* A scale with its own unit below zero reads as a plain
+             * magnitude there: the unit says which side it is. */
+            if ( ( cfg->unit_neg != NULL ) && ( shown < 0 ) )
+            {
+                shown = -shown;
+            }
+            len = textfit_int( text, DIAL_LABEL_BUF, shown );
 
             /* The number's middle is r from the center along the tick. */
             add_label(
@@ -442,7 +471,7 @@ static void add_fixed_labels(
             DIAL_FIXED_SCALE,
             DIAL_CX
                 - ( label_width( strlen( cfg->label ), DIAL_FIXED_SCALE ) / 2 ),
-            DIAL_CY - ( arc ? UI_LEN( 300 ) : UI_LEN( 259 ) )
+            DIAL_CY - ( arc ? UI_LEN( 300 ) : DIAL_TITLE_Y )
         );
     }
     if ( cfg->unit_pos != NULL )
@@ -454,8 +483,8 @@ static void add_fixed_labels(
             arc ? ( DIAL_CX
                     - ( label_width( strlen( cfg->unit_pos ), DIAL_FIXED_SCALE )
                         / 2 ) )
-                : ( DIAL_CX + UI_LEN( 325 ) ),
-            arc ? ( DIAL_CY - UI_LEN( 192 ) ) : ( DIAL_CY + UI_LEN( 42 ) )
+                : ( DIAL_CX + UI_LEN( 435 ) ),
+            arc ? ( DIAL_CY - UI_LEN( 192 ) ) : ( DIAL_CY - UI_LEN( 42 ) )
         );
     }
     if ( cfg->unit_neg != NULL )
@@ -519,7 +548,88 @@ static bool label_pixel(
     return hit;
 }
 
-/* Draw order: hub, needle, labels, ticks, face. */
+/* Where the screws sit: x then y, thousandths of the radius from center. */
+static const int16_t SCREW_PERMILLE[DIAL_SCREW_COUNT][2] = {
+    { 280, -190 }, { 120, 260 }
+};
+
+static int32_t abs_i32( int32_t v )
+{
+    return ( v < 0 ) ? -v : v;
+}
+
+/* One slot of the X: a thin bar along a diagonal through the screw's
+ * center, reaching half way to the screw's edge. diag is +1 or -1. */
+static uint8_t slot_alpha(
+    int32_t sdx,
+    int32_t sdy,
+    int32_t diag
+)
+{
+    int32_t perp = ( ( sdx * diag ) + sdy ) * DIAL_SLOT_SIN_COS_MILLI;
+    int32_t proj = ( ( sdx * diag ) - sdy ) * DIAL_SLOT_SIN_COS_MILLI;
+    int32_t dist = DIAL_SCREW_SLOT_HALF_W - abs_i32( perp );
+    int32_t ends = ( DIAL_SCREW_R * 500 ) - abs_i32( proj );
+
+    dist = ( ends < dist ) ? ends : dist;
+    return edge_alpha( dist );
+}
+
+/* Both screws blended over color, each a disc with an X cut in it. */
+static uint16_t screw_layer(
+    uint16_t color,
+    int32_t dx,
+    int32_t dy
+)
+{
+    uint16_t out = color;
+
+    for ( size_t i = 0; i < DIAL_SCREW_COUNT; i++ )
+    {
+        int32_t sdx = dx - UI_LEN( SCREW_PERMILLE[i][0] );
+        int32_t sdy = dy - UI_LEN( SCREW_PERMILLE[i][1] );
+        uint8_t ink = disc_alpha( ( sdx * sdx ) + ( sdy * sdy ), DIAL_SCREW_R );
+
+        if ( ink != 0u )
+        {
+            uint8_t slot_a = slot_alpha( sdx, sdy, 1 );
+            uint8_t slot_b = slot_alpha( sdx, sdy, -1 );
+            uint8_t slot   = ( slot_a > slot_b ) ? slot_a : slot_b;
+
+            out = font_blend( DIAL_SCREW_FACE_COLOR, out, ink );
+            if ( slot != 0u )
+            {
+                out = font_blend( DIAL_SCREW_SLOT_COLOR, out, slot );
+            }
+        }
+    }
+    return out;
+}
+
+/* Black on a light face, white on a dark one, by the face's green. */
+static uint16_t logo_color( uint16_t face_bg )
+{
+    return ( ( ( face_bg >> 5 ) & 0x3Fu ) >= 0x20u ) ? 0x0000u : 0xFFFFu;
+}
+
+/* Ink of the logo at this pixel, relative to the dial's center. */
+static uint8_t logo_ink(
+    int32_t dx,
+    int32_t dy
+)
+{
+    int32_t x   = dx - ( DIAL_LOGO_X - ( ( int32_t )LOGO_MAXTEK_W / 2 ) );
+    int32_t y   = dy - DIAL_LOGO_Y;
+    uint8_t ink = 0u;
+
+    if ( ( x >= 0 ) && ( y >= 0 ) )
+    {
+        ink = logo_maxtek_alpha( ( uint16_t )x, ( uint16_t )y );
+    }
+    return ink;
+}
+
+/* Draw order: hub, needle, screws, logo, labels, ticks, face. */
 static uint16_t pixel_color(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
@@ -565,7 +675,16 @@ static uint16_t pixel_color(
             color = font_blend( cfg->tick_fg, color, ink );
         }
     }
-    ink = needle_alpha( dx, dy, needle_sin, needle_cos );
+    if ( cfg->style == DIAL_STYLE_FULL_SWEEP )
+    {
+        ink = logo_ink( dx, dy );
+        if ( ink != 0u )
+        {
+            color = font_blend( logo_color( cfg->face_bg ), color, ink );
+        }
+    }
+    color = screw_layer( color, dx, dy );
+    ink   = needle_alpha( dx, dy, needle_sin, needle_cos );
     if ( ink != 0u )
     {
         color = font_blend( cfg->needle_fg, color, ink );
