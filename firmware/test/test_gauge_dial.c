@@ -533,6 +533,11 @@ int main( void )
     tap_next(); /* whole F */
     CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
     CHECK_EQ( last_dial_cfg->min_value, 1000 );
+    /* test_dial_region checks the numbers clear of the ticks for these. */
+    CHECK_EQ( last_dial_cfg->max_value, 2600 );
+    CHECK_EQ( last_dial_cfg->major_step, 400 );
+    CHECK_EQ( last_dial_cfg->minor_per_major, 3u );
+    CHECK_EQ( last_dial_cfg->label_div, 10 );
     CHECK_EQ( last_dial_value, 1800 );
     tap_next(); /* tenths F */
     CHECK_EQ( last_dial_value, 1805 );
@@ -540,6 +545,9 @@ int main( void )
     CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
     CHECK_EQ( last_dial_cfg->min_value, 800 );
     CHECK_EQ( last_dial_cfg->max_value, 1600 );
+    CHECK_EQ( last_dial_cfg->major_step, 200 );
+    CHECK_EQ( last_dial_cfg->minor_per_major, 3u );
+    CHECK_EQ( last_dial_cfg->label_div, 100 );
     CHECK_EQ( last_dial_value, 1425 );
 
     return MT_RESULT();
