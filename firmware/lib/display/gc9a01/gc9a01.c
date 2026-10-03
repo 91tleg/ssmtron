@@ -1,6 +1,8 @@
 /* Blocking, single-instance GC9A01 SPI display driver.
- * Verify init_steps against the panel vendor's values before use on
- * hardware; gamma and voltage settings can vary between panels. */
+ * init_steps follow Zephyr's gc9x01x driver and the Adafruit and Waveshare
+ * sequences: FEh and EFh unlock the extended registers before anything else
+ * is written. Verify the gamma and voltage values against the panel
+ * vendor's before use on hardware; they can vary between panels. */
 #include <stddef.h>
 
 #include "hal/hal_time.h"
@@ -130,6 +132,7 @@ static void run_init_steps( void )
     static const uint8_t d_98[]     = { 0x3Eu, 0x07u };
     /* {command, data length, delay after (ms), data} */
     static const init_step_t init_steps[] = {
+        { 0xFEu, 0, 0, NULL },
         { 0xEFu, 0, 0, NULL },
         { 0xEBu, 1, 0, d_eb },
         { 0x84u, 1, 0, d_84 },
