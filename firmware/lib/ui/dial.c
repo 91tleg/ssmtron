@@ -32,6 +32,13 @@
 #define DIAL_TICK_MAJOR_LEN UI_LEN( 134 )
 #define DIAL_TICK_MINOR_LEN UI_LEN( 67 )
 
+/* A pixel a tick touches is in this ring around the center: no nearer than a
+ * long tick's inner end (less a pixel for its soft edge) and no further than
+ * the outer end plus a long tick's half-width (and a pixel). Everything
+ * inside or outside it can skip every tick. */
+#define DIAL_TICK_RING_IN  ( DIAL_TICK_R - DIAL_TICK_MAJOR_LEN - 1 )
+#define DIAL_TICK_RING_OUT ( DIAL_TICK_R + DIAL_TICK_MAJOR_HALF_W + 1 )
+
 /* Line thicknesses are half-widths, so 1 is a line 3 px wide. They follow
  * the panel size, rounded down. */
 #define DIAL_TICK_HALF_W       UI_LEN( 9 )
@@ -648,23 +655,28 @@ static uint16_t pixel_color(
     /* Bottom up, each layer blended over what is under it, so every edge
      * softens against the right color: ticks, tick numbers, needle, hub,
      * counterweight. */
-    for ( size_t i = 0; i < face->tick_count; i++ )
+    if ( ( dist_sq >= ( DIAL_TICK_RING_IN * DIAL_TICK_RING_IN ) )
+         && ( dist_sq <= ( DIAL_TICK_RING_OUT * DIAL_TICK_RING_OUT ) ) )
     {
-        const dial_tick_t * tick = &face->ticks[i];
-
-        ink = radial_line_alpha(
-            dx,
-            dy,
-            tick->sin_m,
-            tick->cos_m,
-            DIAL_TICK_R
-                - ( tick->major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN ),
-            DIAL_TICK_R,
-            tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
-        );
-        if ( ink != 0u )
+        for ( size_t i = 0; i < face->tick_count; i++ )
         {
-            color = font_blend( cfg->tick_fg, color, ink );
+            const dial_tick_t * tick = &face->ticks[i];
+
+            ink = radial_line_alpha(
+                dx,
+                dy,
+                tick->sin_m,
+                tick->cos_m,
+                DIAL_TICK_R
+                    - ( tick->major ? DIAL_TICK_MAJOR_LEN
+                                    : DIAL_TICK_MINOR_LEN ),
+                DIAL_TICK_R,
+                tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
+            );
+            if ( ink != 0u )
+            {
+                color = font_blend( cfg->tick_fg, color, ink );
+            }
         }
     }
     for ( size_t i = 0; i < face->label_count; i++ )

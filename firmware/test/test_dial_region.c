@@ -608,6 +608,86 @@ static void test_arc_numbers_clear_the_ticks( void )
     }
 }
 
+/* The ticks are only worked out for pixels in the tick ring, so no tick may
+ * touch a pixel outside it. Checked against every tick of every pixel, for a
+ * full sweep dial with small ticks, one with a negative side, and an arc. */
+static void test_no_tick_reaches_outside_the_tick_ring( void )
+{
+    static const dial_cfg_t tach = {
+        0,
+        8000,
+        1000,
+        4u,
+        1000,
+        "RPM",
+        "x1000",
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_FULL_SWEEP
+    };
+    static const dial_cfg_t boost = {
+        -30000,
+        30000,
+        10000,
+        4u,
+        1000,
+        "TURBO",
+        "PSI",
+        "INHG",
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_FULL_SWEEP
+    };
+    const dial_cfg_t * cfgs[] = { &tach, &boost, &coolant_like };
+
+    for ( size_t c = 0; c < ( sizeof( cfgs ) / sizeof( cfgs[0] ) ); c++ )
+    {
+        dial_face_t face;
+        unsigned strays = 0u;
+
+        make_face( cfgs[c], &face );
+        for ( int32_t dy = -DIAL_CY; dy < DIAL_CY; dy++ )
+        {
+            for ( int32_t dx = -DIAL_CX; dx < DIAL_CX; dx++ )
+            {
+                int32_t d2 = ( dx * dx ) + ( dy * dy );
+                bool inside =
+                    ( d2 >= ( DIAL_TICK_RING_IN * DIAL_TICK_RING_IN ) )
+                    && ( d2 <= ( DIAL_TICK_RING_OUT * DIAL_TICK_RING_OUT ) );
+
+                for ( size_t t = 0; ( !inside ) && ( t < face.tick_count );
+                      t++ )
+                {
+                    const dial_tick_t * tick = &face.ticks[t];
+
+                    if ( radial_line_alpha(
+                             dx,
+                             dy,
+                             tick->sin_m,
+                             tick->cos_m,
+                             DIAL_TICK_R
+                                 - ( tick->major ? DIAL_TICK_MAJOR_LEN
+                                                 : DIAL_TICK_MINOR_LEN ),
+                             DIAL_TICK_R,
+                             tick->major ? DIAL_TICK_MAJOR_HALF_W
+                                         : DIAL_TICK_HALF_W
+                         )
+                         != 0u )
+                    {
+                        strays++;
+                    }
+                }
+            }
+        }
+        CHECK_EQ( strays, 0u );
+    }
+}
+
 /* A dial's face is worked out when it opens. Changing the dial's settings
  * afterwards changes nothing already drawn: the ticks and numbers are the
  * ones from the start. */
@@ -649,6 +729,7 @@ int main( void )
     test_ticks_are_evenly_spaced_across_zero();
     test_a_scale_without_a_vacuum_unit_keeps_minus_signs();
     test_a_scale_with_small_ticks_fits_every_tick();
+    test_no_tick_reaches_outside_the_tick_ring();
     test_upper_arc();
     test_arc_numbers_clear_the_ticks();
     test_a_dial_face_is_made_when_the_dial_opens();
