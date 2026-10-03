@@ -1,6 +1,7 @@
 /* The GC9A01 driver's power-up behavior against fake HAL calls: the panel and
- * the backlight stay off until display_on, and a board with no backlight
- * line never has it touched. The bytes sent to the panel are not checked. */
+ * the backlight stay off until display_on, a board with no backlight line
+ * never has it touched, and the init commands start in the order the
+ * controller needs. The rest of the bytes sent to the panel are not checked. */
 #include <stdbool.h>
 
 #include "lib/display/display.h"
@@ -8,6 +9,12 @@
 
 #define BACKLIGHT_ID ( 9u )
 
+#define DC_ID       ( 2u )
+#define CMD_LOG_MAX ( 64u )
+
+static bool dc_level;
+static uint8_t cmd_log[CMD_LOG_MAX];
+static unsigned cmd_count;
 static unsigned backlight_opens;
 static unsigned backlight_writes;
 static bool backlight_level;
@@ -30,6 +37,10 @@ void hal_gpio_write(
     bool asserted
 )
 {
+    if ( id == DC_ID )
+    {
+        dc_level = asserted;
+    }
     if ( id == BACKLIGHT_ID )
     {
         backlight_writes++;
@@ -55,9 +66,13 @@ hal_status_t hal_spi_transfer(
 )
 {
     ( void )id;
-    ( void )tx;
     ( void )rx;
-    ( void )len;
+    /* A command is a transfer with DC low. */
+    if ( !dc_level && ( len > 0u ) && ( cmd_count < CMD_LOG_MAX ) )
+    {
+        cmd_log[cmd_count] = tx[0];
+        cmd_count++;
+    }
     return HAL_OK;
 }
 
@@ -106,9 +121,26 @@ static void test_a_board_without_a_backlight_line_leaves_it_alone( void )
     CHECK_EQ( backlight_writes, writes_before );
 }
 
+/* The extended registers only take values once FEh and EFh have unlocked
+ * them, so those come right after the software reset and before the first
+ * register. Zephyr's gc9x01x driver sends them first for the same reason. */
+static void test_init_unlocks_the_extended_registers_first( void )
+{
+    const display_pins_t pins = pins_with( false );
+
+    cmd_count = 0u;
+    CHECK_EQ( display_init( &pins ), HAL_OK );
+    CHECK( cmd_count > 4u );
+    CHECK_EQ( cmd_log[0], 0x01u ); /* software reset */
+    CHECK_EQ( cmd_log[1], 0xFEu );
+    CHECK_EQ( cmd_log[2], 0xEFu );
+    CHECK_EQ( cmd_log[3], 0xEBu ); /* the first extended register */
+}
+
 int main( void )
 {
     test_the_backlight_is_off_until_display_on();
     test_a_board_without_a_backlight_line_leaves_it_alone();
+    test_init_unlocks_the_extended_registers_first();
     return MT_RESULT();
 }
