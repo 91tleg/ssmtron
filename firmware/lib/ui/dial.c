@@ -6,7 +6,6 @@
 #include "lib/display/display.h"
 #include "lib/textfit/textfit.h"
 #include "lib/ui/font.h"
-#include "lib/ui/logo_maxtek.h"
 #include "lib/ui/dial_motion.h"
 #include "lib/ui/ui_geom.h"
 
@@ -66,12 +65,6 @@
 #define DIAL_SCREW_FACE_COLOR   ( 0xA514u )
 #define DIAL_SCREW_SLOT_COLOR   ( 0x4208u )
 #define DIAL_SLOT_SIN_COS_MILLI ( 707 )
-
-/* The Maxtek logo on the full sweep faces, under the positive unit: the
- * middle of its width, and its top edge, from the center. It is drawn black
- * on a light face and white on a dark one. */
-#define DIAL_LOGO_X UI_LEN( 510 )
-#define DIAL_LOGO_Y UI_LEN( 60 )
 
 /* The title of a full sweep face (TURBO) sits higher than the units, from
  * the center to its top edge. */
@@ -613,30 +606,7 @@ static uint16_t screw_layer(
     return out;
 }
 
-/* Black on a light face, white on a dark one, by the face's green. */
-static uint16_t logo_color( uint16_t face_bg )
-{
-    return ( ( ( face_bg >> 5 ) & 0x3Fu ) >= 0x20u ) ? 0x0000u : 0xFFFFu;
-}
-
-/* Ink of the logo at this pixel, relative to the dial's center. */
-static uint8_t logo_ink(
-    int32_t dx,
-    int32_t dy
-)
-{
-    int32_t x   = dx - ( DIAL_LOGO_X - ( ( int32_t )LOGO_MAXTEK_W / 2 ) );
-    int32_t y   = dy - DIAL_LOGO_Y;
-    uint8_t ink = 0u;
-
-    if ( ( x >= 0 ) && ( y >= 0 ) )
-    {
-        ink = logo_maxtek_alpha( ( uint16_t )x, ( uint16_t )y );
-    }
-    return ink;
-}
-
-/* Draw order: hub, needle, screws, logo, labels, ticks, face. */
+/* Draw order: hub, needle, screws, labels, ticks, face. */
 static uint16_t pixel_color(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
@@ -685,14 +655,6 @@ static uint16_t pixel_color(
         if ( label_pixel( &face->labels[i], row, col, &ink ) )
         {
             color = font_blend( cfg->tick_fg, color, ink );
-        }
-    }
-    if ( cfg->style == DIAL_STYLE_FULL_SWEEP )
-    {
-        ink = logo_ink( dx, dy );
-        if ( ink != 0u )
-        {
-            color = font_blend( logo_color( cfg->face_bg ), color, ink );
         }
     }
     color = screw_layer( color, dx, dy );

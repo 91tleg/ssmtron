@@ -1,4 +1,4 @@
-set(UI_SOURCES text.c font.c font_b612.c logo_maxtek.c dial.c dial_motion.c)
+set(UI_SOURCES text.c font.c font_b612.c dial.c dial_motion.c)
 
 if(COMMAND zephyr_library_named)
   zephyr_library_named(ui)
