@@ -66,27 +66,15 @@ static void unit_text( char * buf )
 static text_widget_t number_page[] = {
     /* The name sits where the dials put their label: centered, above the
      * center. */
-    { .rect  = UI_CENTERED_RECT( 24, NAME_SCALE, UI_CY - UI_LEN( 259 ) ),
-      .scale = NAME_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = name_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
-    { .rect  = UI_CENTERED_RECT( 8, VALUE_SCALE, UI_CY - UI_LEN( 134 ) ),
-      .scale = VALUE_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = value_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
-    { .rect  = UI_CENTERED_RECT( 12, UNIT_SCALE, UI_CY + UI_LEN( 167 ) ),
-      .scale = UNIT_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = unit_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
+    UI_CENTERED_WIDGET(
+        24, NAME_SCALE, UI_CY - UI_LEN( 259 ), name_text, TEXT_ALIGN_CENTER
+    ),
+    UI_CENTERED_WIDGET(
+        8, VALUE_SCALE, UI_CY - UI_LEN( 134 ), value_text, TEXT_ALIGN_CENTER
+    ),
+    UI_CENTERED_WIDGET(
+        12, UNIT_SCALE, UI_CY + UI_LEN( 167 ), unit_text, TEXT_ALIGN_CENTER
+    ),
 };
 #define NUMBER_PAGE_COUNT ( sizeof( number_page ) / sizeof( number_page[0] ) )
 

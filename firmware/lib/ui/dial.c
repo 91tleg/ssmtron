@@ -11,6 +11,7 @@
 #include "lib/ui/dial_cover.h"
 #include "lib/ui/dial_face.h"
 #include "lib/ui/dial_layout.h"
+#include "lib/ui/ui_math.h"
 #include "lib/ui/dial_motion.h"
 #include "lib/ui/dial_shape.h"
 #include "lib/ui/font.h"
@@ -91,7 +92,7 @@ static uint16_t hub_color(
     uint16_t rim;
     uint16_t face;
 
-    light = ( light < 0 ) ? 0 : light;
+    light = ui_max( light, 0 );
     light = ( light > ( int32_t )FONT_ALPHA_MAX ) ? ( int32_t )FONT_ALPHA_MAX
                                                   : light;
     rim   = font_blend( 0xFFFEu, 0x9492u, ( uint8_t )light );
@@ -112,15 +113,15 @@ static uint16_t needle_color(
 )
 {
     int32_t across       = ( dx * cos_m ) + ( dy * sin_m );
-    int32_t magnitude    = ( across < 0 ) ? -across : across;
+    int32_t magnitude    = ui_abs( across );
     int32_t amount       = ( magnitude * 4 ) / ( DIAL_NEEDLE_HALF_W * 1000 );
     int32_t normal_light = sin_m + cos_m;
     bool bright          = ( ( across < 0 ) && ( normal_light >= 0 ) )
                   || ( ( across > 0 ) && ( normal_light < 0 ) );
     uint16_t light       = bright ? 0xFFFFu : 0x0000u;
-    int32_t illumination = ( normal_light < 0 ) ? -normal_light : normal_light;
+    int32_t illumination = ui_abs( normal_light );
 
-    amount = ( amount > 4 ) ? 4 : amount;
+    amount = ui_min( amount, 4 );
     /* Fade through zero as the blade turns across the light direction,
      * rather than swapping its highlight abruptly between the two edges. */
     amount = ( amount * illumination ) / 1414;
@@ -283,10 +284,10 @@ static void needle_extent(
     back_x = -( back_r * sin_m ) / 1000;
     back_y = ( back_r * cos_m ) / 1000;
 
-    min_x = ( fwd_x < back_x ) ? fwd_x : back_x;
-    max_x = ( fwd_x > back_x ) ? fwd_x : back_x;
-    min_y = ( fwd_y < back_y ) ? fwd_y : back_y;
-    max_y = ( fwd_y > back_y ) ? fwd_y : back_y;
+    min_x = ui_min( fwd_x, back_x );
+    max_x = ui_max( fwd_x, back_x );
+    min_y = ui_min( fwd_y, back_y );
+    max_y = ui_max( fwd_y, back_y );
 
     *x0 = ( int16_t )( ( DIAL_CX + min_x ) - DIAL_REGION_MARGIN );
     *y0 = ( int16_t )( ( pivot_y + min_y ) - DIAL_REGION_MARGIN );
@@ -442,10 +443,10 @@ static void redraw_needle(
 
     needle_extent( d->cfg, old_deg, &ox0, &oy0, &ox1, &oy1 );
     needle_extent( d->cfg, d->displayed_deg, &nx0, &ny0, &nx1, &ny1 );
-    x0 = ( ox0 < nx0 ) ? ox0 : nx0;
-    y0 = ( oy0 < ny0 ) ? oy0 : ny0;
-    x1 = ( ox1 > nx1 ) ? ox1 : nx1;
-    y1 = ( oy1 > ny1 ) ? oy1 : ny1;
+    x0 = ( int16_t )ui_min( ox0, nx0 );
+    y0 = ( int16_t )ui_min( oy0, ny0 );
+    x1 = ( int16_t )ui_max( ox1, nx1 );
+    y1 = ( int16_t )ui_max( oy1, ny1 );
     clamp_box( &x0, &y0, &x1, &y1 );
     width  = ( int32_t )x1 - ( int32_t )x0;
     height = ( int32_t )y1 - ( int32_t )y0;

@@ -58,6 +58,13 @@
 #define DIAL_COVER_FOOT_SHADOW   UI_LEN( 9 )
 /* Lower the ear and its screw together, keeping a small gap at the rim. */
 #define DIAL_COVER_FOOT_DOWN UI_LEN( 100 )
+/* The ear's top is not level: it rises 0.12 for every 1 across, about seven
+ * degrees. A line with that slope is longer than its rise by 1.0072, so the
+ * distance to it is its offset times 993 over 1000 (1 / 1.0072), and a
+ * circle of the ear's radius sits 1007 per 1000 of that radius above it. */
+#define DIAL_COVER_FOOT_SLOPE_MILLI ( 120 )
+#define DIAL_COVER_FOOT_LEN_MILLI   ( 1007 )
+#define DIAL_COVER_FOOT_NORM_MILLI  ( 993 )
 /* Centered in the exposed part of each mounting ear. */
 #define DIAL_ARC_SCREW_X UI_LEN( 684 )
 #define DIAL_ARC_SCREW_Y ( UI_LEN( 425 ) + DIAL_COVER_FOOT_DOWN )

@@ -98,41 +98,29 @@ static void info_notice_text( char * buf )
 #define INFO_ROW_Y( n ) ( UI_CY - UI_LEN( 200 ) + ( ( n ) * UI_LEN( 134 ) ) )
 
 static text_widget_t info_page[] = {
-    { .rect  = UI_CENTERED_RECT( 20, INFO_SCALE, UI_CY - UI_LEN( 800 ) ),
-      .scale = INFO_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = info_title_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
-    { .rect  = UI_CENTERED_RECT( 20, INFO_SCALE, INFO_ROW_Y( 0 ) ),
-      .scale = INFO_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = info_version_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( 20, INFO_SCALE, INFO_ROW_Y( 1 ) ),
-      .scale = INFO_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = info_rom_id_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( 20, INFO_SCALE, INFO_ROW_Y( 2 ) ),
-      .scale = INFO_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = info_link_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( 20, INFO_SCALE, UI_CY + UI_LEN( 550 ) ),
-      .scale = INFO_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = info_notice_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
+    UI_CENTERED_WIDGET(
+        20,
+        INFO_SCALE,
+        UI_CY - UI_LEN( 800 ),
+        info_title_text,
+        TEXT_ALIGN_CENTER
+    ),
+    UI_CENTERED_WIDGET(
+        20, INFO_SCALE, INFO_ROW_Y( 0 ), info_version_text, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        20, INFO_SCALE, INFO_ROW_Y( 1 ), info_rom_id_text, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        20, INFO_SCALE, INFO_ROW_Y( 2 ), info_link_text, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        20,
+        INFO_SCALE,
+        UI_CY + UI_LEN( 550 ),
+        info_notice_text,
+        TEXT_ALIGN_CENTER
+    ),
 };
 #define INFO_PAGE_COUNT ( sizeof( info_page ) / sizeof( info_page[0] ) )
 

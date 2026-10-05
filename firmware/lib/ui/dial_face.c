@@ -7,6 +7,7 @@
 #include "lib/textfit/textfit.h"
 #include "lib/ui/dial_angle.h"
 #include "lib/ui/dial_layout.h"
+#include "lib/ui/ui_math.h"
 #include "lib/ui/font.h"
 
 /* The top left corner of a label whose middle is r pixels from the dial's
@@ -61,8 +62,8 @@ static void add_number(
     width = font_text_width( len, DIAL_LABEL_SCALE );
     if ( dial_is_arc( cfg ) )
     {
-        int32_t sin_abs = ( tick->sin_m < 0 ) ? -tick->sin_m : tick->sin_m;
-        int32_t cos_abs = ( tick->cos_m < 0 ) ? -tick->cos_m : tick->cos_m;
+        int32_t sin_abs = ui_abs( tick->sin_m );
+        int32_t cos_abs = ui_abs( tick->cos_m );
         int32_t reach   = ( ( width * sin_abs ) + ( height * cos_abs ) ) / 2000;
 
         r = ( dial_tick_radius( cfg ) - DIAL_TICK_MAJOR_LEN )

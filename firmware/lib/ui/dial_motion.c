@@ -1,4 +1,5 @@
 #include "lib/ui/dial_motion.h"
+#include "lib/ui/ui_math.h"
 
 /* The position is kept in 1/64 degree. Only whole degrees are drawn, but a
  * slow approach would otherwise stall a fraction short of its target. */
@@ -73,7 +74,7 @@ static bool time_reached(
  * one degree short, so the sign is taken off first. */
 static int16_t round_deg( int32_t pos )
 {
-    int32_t magnitude = ( pos < 0 ) ? -pos : pos;
+    int32_t magnitude = ui_abs( pos );
     int32_t whole =
         ( magnitude + ( DIAL_MOTION_SUBDEG / 2 ) ) / DIAL_MOTION_SUBDEG;
 

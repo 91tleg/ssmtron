@@ -37,4 +37,17 @@
       TEXT_RECT_W( chars, scale ),                                             \
       TEXT_RECT_H( scale ) }
 
+/* A text widget centered across the panel like UI_CENTERED_RECT: its rect,
+ * text size, text callback and alignment, with no colors yet (the page sets
+ * them for its theme) and nothing drawn. Every widget of a page is written
+ * with this, so a new field of text_widget_t is added in one place. */
+#define UI_CENTERED_WIDGET( chars_, scale_, y_, text_fn_, align_ )             \
+    { .rect  = UI_CENTERED_RECT( chars_, scale_, y_ ),                         \
+      .scale = ( scale_ ),                                                     \
+      .fg    = 0u,                                                             \
+      .bg    = 0u,                                                             \
+      .text  = ( text_fn_ ),                                                   \
+      .cache = { 0 },                                                          \
+      .align = ( align_ ) }
+
 #endif /* UI_GEOM_H */

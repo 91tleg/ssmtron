@@ -3,13 +3,9 @@
 #include "lib/ui/dial_cover.h"
 
 #include "lib/ui/dial_layout.h"
+#include "lib/ui/ui_math.h"
 #include "lib/ui/dial_shape.h"
 #include "lib/ui/font.h"
-
-static int32_t abs_i32( int32_t v )
-{
-    return ( v < 0 ) ? -v : v;
-}
 
 /* A recessed cross with arms that narrow toward their ends. Coordinates
  * are rotated into the screw's axes, in thousandths of a pixel. */
@@ -20,12 +16,12 @@ static int32_t slot_dist(
 {
     int32_t reach     = DIAL_SCREW_R * 650;
     int32_t width     = DIAL_SCREW_R * 130;
-    int32_t long_axis = abs_i32( along );
+    int32_t long_axis = ui_abs( along );
     int32_t dist =
-        width - ( ( width * long_axis ) / ( reach * 2 ) ) - abs_i32( across );
+        width - ( ( width * long_axis ) / ( reach * 2 ) ) - ui_abs( across );
     int32_t ends = reach - long_axis;
 
-    dist = ( ends < dist ) ? ends : dist;
+    dist = ui_min( ends, dist );
     return dist;
 }
 
@@ -44,13 +40,13 @@ static uint16_t screw_head(
     int32_t along  = ( dy * cos_m ) - ( dx * sin_m );
     int32_t slot_a = slot_dist( across, along );
     int32_t slot_b = slot_dist( along, across );
-    int32_t slot   = ( slot_a > slot_b ) ? slot_a : slot_b;
+    int32_t slot   = ui_max( slot_a, slot_b );
     uint16_t rim;
     uint16_t metal;
     uint16_t out;
 
-    light = ( light < 0 ) ? 0 : light;
-    light = ( light > 10 ) ? 10 : light;
+    light = ui_max( light, 0 );
+    light = ui_min( light, 10 );
     rim   = font_blend( 0xD6BAu, 0x738Eu, ( uint8_t )light );
     metal = font_blend( 0xEF5Du, DIAL_SCREW_FACE_COLOR, ( uint8_t )light );
     out   = font_blend(
@@ -167,7 +163,7 @@ static int32_t body_dist(
     int32_t * up_m
 )
 {
-    int32_t across_m = ( ( dx < 0 ) ? -dx : dx ) * 1000;
+    int32_t across_m = ui_abs( dx ) * 1000;
     int32_t spread =
         ( int32_t )DIAL_COVER_BOTTOM_HALF_W - ( int32_t )DIAL_COVER_TOP_HALF_W;
     int32_t half_m = ( ( int32_t )DIAL_COVER_TOP_HALF_W * 1000 )
@@ -181,7 +177,7 @@ static int32_t body_dist(
     int32_t corner_y = round_m - 500;
     int32_t top_m    = ( dy * 1000 ) + 500;
     int32_t side_m   = ( half_m + 500 ) - across_m;
-    int32_t dist     = ( top_m < side_m ) ? top_m : side_m;
+    int32_t dist     = ui_min( top_m, side_m );
 
     *up_m = ( top_m < side_m ) ? 1000 : 0;
     if ( ( across_m > corner_x ) && ( ( dy * 1000 ) < corner_y ) )
@@ -219,7 +215,7 @@ static uint16_t body_color(
     uint16_t color  = font_blend( high, cfg->face_bg, light ? 7u : 3u );
     int32_t bevel_m = ( int32_t )DIAL_COVER_BEVEL * 1000;
     int32_t shade_m = ( int32_t )DIAL_COVER_SIDE_SHADE * 1000;
-    int32_t near    = ( rim_m > 0 ) ? rim_m : 0;
+    int32_t near    = ui_max( rim_m, 0 );
 
     if ( near < bevel_m )
     {
@@ -273,17 +269,16 @@ static int32_t foot_dist(
      * rim gap and a smooth join to the rounded tip. */
     int32_t gauge_r_m = hypot_m( cx_m, panel_cy_m ) + round_m;
     int32_t curve     = gauge_r_m - hypot_m( x_m, panel_y_m );
-    /* A 0.12 slope is about seven degrees. 1007 and 993 normalize the
-     * sloped top's offset and distance, respectively. */
-    int32_t top = ( int32_t )( ey_m - ( ( ex_m * 120 ) / 1000 ) )
-                  + ( DIAL_COVER_FOOT_R * 1007 );
+    int32_t top =
+        ( int32_t )( ey_m - ( ( ex_m * DIAL_COVER_FOOT_SLOPE_MILLI ) / 1000 ) )
+        + ( DIAL_COVER_FOOT_R * DIAL_COVER_FOOT_LEN_MILLI );
     int32_t dist;
 
-    top  = ( top * 993 ) / 1000;
-    dist = ( top < curve ) ? top : curve;
+    top  = ( top * DIAL_COVER_FOOT_NORM_MILLI ) / 1000;
+    dist = ui_min( top, curve );
     /* Between the top's outward normal and the circular edge's normal,
      * the small corner circle replaces their sharp intersection. */
-    if ( ( ( ( ex_m * 1000 ) + ( ey_m * 120 ) ) > 0 )
+    if ( ( ( ( ex_m * 1000 ) + ( ey_m * DIAL_COVER_FOOT_SLOPE_MILLI ) ) > 0 )
          && ( ( ey_m * cx_m ) < ( ex_m * panel_cy_m ) ) )
     {
         dist = round_m - hypot_m( ex_m, ey_m );
@@ -299,7 +294,7 @@ uint16_t dial_cover_feet(
     int32_t dy
 )
 {
-    int32_t across = ( dx < 0 ) ? -dx : dx;
+    int32_t across = ui_abs( dx );
     int32_t foot_y = dy - DIAL_COVER_FOOT_DOWN;
     uint16_t out   = color;
 
