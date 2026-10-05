@@ -24,6 +24,19 @@ size_t textfit_int(
     int32_t v
 );
 
+/* Writes value / div as a decimal, the way a gauge face prints it: a whole
+ * number has no point, otherwise the fraction follows with its trailing
+ * zeros dropped, and below one there is no zero before the point. 20 over 100
+ * is ".2", 105 over 100 is "1.05", -50 over 100 is "-.5". div is a power of
+ * ten, 1 or more; anything smaller counts as 1. Cut like the others if it
+ * does not fit. */
+size_t textfit_scaled(
+    char * buf,
+    size_t max,
+    int32_t value,
+    int32_t div
+);
+
 /* Writes label, spaces up to label_w columns, then value. The whole row is
  * cut to row_w columns, so the value gets row_w - label_w of them. */
 size_t textfit_row(

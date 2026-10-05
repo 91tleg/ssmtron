@@ -184,11 +184,41 @@ static void test_center( void )
     CHECK( guard_intact( 0u ) );
 }
 
+/* A value over a divisor, the way a gauge face prints it. */
+static void test_scaled_prints_a_gauge_number( void )
+{
+    char buf[16];
+
+    CHECK_EQ( textfit_scaled( buf, sizeof( buf ), 0, 100 ), 1u );
+    CHECK( strcmp( buf, "0" ) == 0 );
+    CHECK_EQ( textfit_scaled( buf, sizeof( buf ), 20, 100 ), 2u );
+    CHECK( strcmp( buf, ".2" ) == 0 );
+    ( void )textfit_scaled( buf, sizeof( buf ), 100, 100 );
+    CHECK( strcmp( buf, "1" ) == 0 );
+    ( void )textfit_scaled( buf, sizeof( buf ), 105, 100 );
+    CHECK( strcmp( buf, "1.05" ) == 0 );
+    ( void )textfit_scaled( buf, sizeof( buf ), -50, 100 );
+    CHECK( strcmp( buf, "-.5" ) == 0 );
+    ( void )textfit_scaled( buf, sizeof( buf ), 12000, 1000 );
+    CHECK( strcmp( buf, "12" ) == 0 );
+    ( void )textfit_scaled( buf, sizeof( buf ), -30, 1 );
+    CHECK( strcmp( buf, "-30" ) == 0 );
+    ( void )textfit_scaled( buf, sizeof( buf ), 7, 0 ); /* no divisor: whole */
+    CHECK( strcmp( buf, "7" ) == 0 );
+    ( void )textfit_scaled( buf, sizeof( buf ), INT32_MIN, 10 );
+    CHECK( strcmp( buf, "-214748364.8" ) == 0 );
+    /* Cut to the buffer, and nothing at all with no room. */
+    CHECK_EQ( textfit_scaled( buf, 3u, 12345, 100 ), 2u );
+    CHECK( strcmp( buf, "12" ) == 0 );
+    CHECK_EQ( textfit_scaled( buf, 0u, 5, 1 ), 0u );
+}
+
 int main( void )
 {
     test_copy();
     test_int();
     test_row();
     test_center();
+    test_scaled_prints_a_gauge_number();
     return MT_RESULT();
 }

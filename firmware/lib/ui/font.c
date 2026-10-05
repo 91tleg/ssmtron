@@ -20,6 +20,14 @@ static unsigned char code_index( char c )
                : ( unsigned char )( ( unsigned char )' ' - FONT_B612_FIRST );
 }
 
+int32_t font_text_width(
+    size_t chars,
+    uint8_t scale
+)
+{
+    return ( ( int32_t )chars * ( int32_t )FONT_CELL_W ) * ( int32_t )scale;
+}
+
 uint8_t font_alpha(
     char c,
     uint8_t scale,
