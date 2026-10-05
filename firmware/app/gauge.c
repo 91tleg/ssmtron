@@ -465,7 +465,7 @@ static bool is_o2( const ecu_param_info_t * info )
 typedef struct
 {
     bool ( *matches )( const ecu_param_info_t * info );
-    const dial_cfg_t * cfg;
+    dial_cfg_t * cfg; /* not const: apply_theme sets its colors */
 } dial_entry_t;
 
 /* Dials are picked by index into the table. Their widgets live in a
@@ -478,93 +478,91 @@ typedef struct
  * the tick numbers are in. Colors are set by apply_theme(), so these are
  * not const. */
 static dial_cfg_t boost_dial_cfg = {
-    -30000,
-    30000,
-    5000,
-    4u,
-    1000,
-    "TURBO",
-    "PSI",
-    "INHG",
-    0xEF5Bu,
-    0x632Cu,
-    NEEDLE_RED,
-    900u,
-    DIAL_STYLE_FULL_SWEEP,
-    10000,
-    1u
+    .min_value           = -30000,
+    .max_value           = 30000,
+    .major_step          = 5000,
+    .minor_per_major     = 4u,
+    .label_div           = 1000,
+    .label               = "TURBO",
+    .unit_pos            = "PSI",
+    .unit_neg            = "INHG",
+    .face_bg             = 0xEF5Bu,
+    .tick_fg             = 0x632Cu,
+    .needle_fg           = NEEDLE_RED,
+    .max_deg_per_s       = 900u,
+    .style               = DIAL_STYLE_FULL_SWEEP,
+    .neg_major_step      = 10000,
+    .neg_minor_per_major = 1u
 };
 
 /* Upper scales use tenths F and hundredths V to keep ECU precision. */
 static dial_cfg_t coolant_dial_cfg = {
-    1000,
-    2600,
-    400,
-    3u,
-    10,
-    "COOLANT",
-    "F",
-    NULL,
-    0xEF5Bu,
-    0x632Cu,
-    NEEDLE_RED,
-    900u,
-    DIAL_STYLE_UPPER_ARC,
-    0,
-    0u
+    .min_value       = 1000,
+    .max_value       = 2600,
+    .major_step      = 400,
+    .minor_per_major = 3u,
+    .label_div       = 10,
+    .label           = "COOLANT",
+    .unit_pos        = "F",
+    .face_bg         = 0xEF5Bu,
+    .tick_fg         = 0x632Cu,
+    .needle_fg       = NEEDLE_RED,
+    .max_deg_per_s   = 900u,
+    .style           = DIAL_STYLE_UPPER_ARC
 };
 
 static dial_cfg_t voltage_dial_cfg = {
-    800,
-    1600,
-    200,
-    3u,
-    100,
-    "VOLTAGE",
-    "V",
-    NULL,
-    0xEF5Bu,
-    0x632Cu,
-    NEEDLE_RED,
-    900u,
-    DIAL_STYLE_UPPER_ARC,
-    0,
-    0u
+    .min_value       = 800,
+    .max_value       = 1600,
+    .major_step      = 200,
+    .minor_per_major = 3u,
+    .label_div       = 100,
+    .label           = "VOLTAGE",
+    .unit_pos        = "V",
+    .face_bg         = 0xEF5Bu,
+    .tick_fg         = 0x632Cu,
+    .needle_fg       = NEEDLE_RED,
+    .max_deg_per_s   = 900u,
+    .style           = DIAL_STYLE_UPPER_ARC
 };
 
 /* The oxygen sensor swings between about 0.1 V (lean) and 0.9 V (rich), in
  * hundredths of a volt. Its numbers are in volts, 0.2 apart, with three
  * ticks between them, like the coolant dial. */
 static dial_cfg_t o2_dial_cfg = {
-    0,
-    100,
-    20,
-    3u,
-    100,
-    "O2",
-    "V",
-    NULL,
-    0xEF5Bu,
-    0x632Cu,
-    NEEDLE_RED,
-    900u,
-    DIAL_STYLE_UPPER_ARC,
-    0,
-    0u
+    .min_value       = 0,
+    .max_value       = 100,
+    .major_step      = 20,
+    .minor_per_major = 3u,
+    .label_div       = 100,
+    .label           = "O2",
+    .unit_pos        = "V",
+    .face_bg         = 0xEF5Bu,
+    .tick_fg         = 0x632Cu,
+    .needle_fg       = NEEDLE_RED,
+    .max_deg_per_s   = 900u,
+    .style           = DIAL_STYLE_UPPER_ARC
+};
+
+/* Every dial, tried in order: the first whose match function accepts the
+ * parameter is the one drawn. apply_theme colors them all from here, so a
+ * new dial only has to be added to this table. */
+static const dial_entry_t dial_table[DIAL_COUNT] = {
+    { is_boost, &boost_dial_cfg },
+    { is_coolant, &coolant_dial_cfg },
+    { is_voltage, &voltage_dial_cfg },
+    { is_o2, &o2_dial_cfg },
 };
 
 static void apply_theme( void )
 {
     const theme_t * t = &themes[theme_idx];
 
-    boost_dial_cfg.face_bg   = t->face;
-    boost_dial_cfg.tick_fg   = t->ink;
-    coolant_dial_cfg.face_bg = t->face;
-    coolant_dial_cfg.tick_fg = t->ink;
-    voltage_dial_cfg.face_bg = t->face;
-    voltage_dial_cfg.tick_fg = t->ink;
-    o2_dial_cfg.face_bg      = t->face;
-    o2_dial_cfg.tick_fg      = t->ink;
+    for ( size_t i = 0; i < DIAL_COUNT; i++ )
+    {
+        dial_table[i].cfg->face_bg = t->face;
+        dial_table[i].cfg->tick_fg = t->ink;
+    }
     gauge_info_set_colors( t->face, t->ink );
     gauge_update_set_colors( t->face, t->ink );
     gauge_number_set_colors( t->face, t->ink );
@@ -577,12 +575,6 @@ static void apply_theme( void )
 static void update_face( uint32_t now_ms )
 {
     static dial_widget_t dial_widgets[DIAL_COUNT];
-    static const dial_entry_t dial_table[DIAL_COUNT] = {
-        { is_boost, &boost_dial_cfg },
-        { is_coolant, &coolant_dial_cfg },
-        { is_voltage, &voltage_dial_cfg },
-        { is_o2, &o2_dial_cfg },
-    };
     static size_t active_dial = NO_DIAL;
 
     static bool flags_active;

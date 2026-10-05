@@ -78,21 +78,18 @@ hal_status_t display_clear( uint16_t color_rgb565 )
 
 /* One value per degree of sweep, so value v is exactly angle 135 + v. */
 static const dial_cfg_t cfg = {
-    0,
-    300,
-    100,
-    1u,
-    1,
-    "TEST",
-    "UNIT",
-    NULL,
-    0xEF5Bu,
-    0x632Cu,
-    0xF922u,
-    900u,
-    DIAL_STYLE_FULL_SWEEP,
-    0,
-    0u
+    .min_value       = 0,
+    .max_value       = 300,
+    .major_step      = 100,
+    .minor_per_major = 1u,
+    .label_div       = 1,
+    .label           = "TEST",
+    .unit_pos        = "UNIT",
+    .face_bg         = 0xEF5Bu,
+    .tick_fg         = 0x632Cu,
+    .needle_fg       = 0xF922u,
+    .max_deg_per_s   = 900u,
+    .style           = DIAL_STYLE_FULL_SWEEP
 };
 
 static uint32_t now = 1000u;
@@ -217,21 +214,17 @@ static size_t number_count(
 static void test_tick_numbers_use_label_div( void )
 {
     static const dial_cfg_t fine = {
-        0,
-        8000,
-        1000,
-        0u,
-        1000,
-        "RPM",
-        NULL,
-        NULL,
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 0,
+        .max_value       = 8000,
+        .major_step      = 1000,
+        .minor_per_major = 0u,
+        .label_div       = 1000,
+        .label           = "RPM",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     dial_face_t face;
 
@@ -250,51 +243,43 @@ static void test_tick_numbers_use_label_div( void )
 static void test_needle_ends_line_up_with_the_scale_ends( void )
 {
     static const dial_cfg_t cfgs[] = {
-        { -30000,
-          30000,
-          10000,
-          4u,
-          1000,
-          "TURBO",
-          "PSI",
-          "INHG",
-          1u,
-          2u,
-          3u,
-          900u,
-          DIAL_STYLE_FULL_SWEEP,
-          0,
-          0u },
-        { 0,
-          8000,
-          1000,
-          4u,
-          1000,
-          "RPM",
-          "x1000",
-          NULL,
-          1u,
-          2u,
-          3u,
-          900u,
-          DIAL_STYLE_FULL_SWEEP,
-          0,
-          0u },
-        { 1000,
-          2600,
-          400,
-          1u,
-          10,
-          "COOLANT",
-          "F",
-          NULL,
-          1u,
-          2u,
-          3u,
-          900u,
-          DIAL_STYLE_UPPER_ARC,
-          0,
-          0u },
+        { .min_value       = -30000,
+          .max_value       = 30000,
+          .major_step      = 10000,
+          .minor_per_major = 4u,
+          .label_div       = 1000,
+          .label           = "TURBO",
+          .unit_pos        = "PSI",
+          .unit_neg        = "INHG",
+          .face_bg         = 1u,
+          .tick_fg         = 2u,
+          .needle_fg       = 3u,
+          .max_deg_per_s   = 900u,
+          .style           = DIAL_STYLE_FULL_SWEEP },
+        { .min_value       = 0,
+          .max_value       = 8000,
+          .major_step      = 1000,
+          .minor_per_major = 4u,
+          .label_div       = 1000,
+          .label           = "RPM",
+          .unit_pos        = "x1000",
+          .face_bg         = 1u,
+          .tick_fg         = 2u,
+          .needle_fg       = 3u,
+          .max_deg_per_s   = 900u,
+          .style           = DIAL_STYLE_FULL_SWEEP },
+        { .min_value       = 1000,
+          .max_value       = 2600,
+          .major_step      = 400,
+          .minor_per_major = 1u,
+          .label_div       = 10,
+          .label           = "COOLANT",
+          .unit_pos        = "F",
+          .face_bg         = 1u,
+          .tick_fg         = 2u,
+          .needle_fg       = 3u,
+          .max_deg_per_s   = 900u,
+          .style           = DIAL_STYLE_UPPER_ARC },
     };
 
     for ( size_t c = 0; c < ( sizeof( cfgs ) / sizeof( cfgs[0] ) ); c++ )
@@ -338,21 +323,18 @@ static void test_needle_ends_line_up_with_the_scale_ends( void )
 static void test_a_scale_without_a_vacuum_unit_keeps_minus_signs( void )
 {
     static const dial_cfg_t signed_scale = {
-        -30,
-        20,
-        10,
-        4u,
-        1,
-        "T",
-        "U",
-        NULL,
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = -30,
+        .max_value       = 20,
+        .major_step      = 10,
+        .minor_per_major = 4u,
+        .label_div       = 1,
+        .label           = "T",
+        .unit_pos        = "U",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     dial_face_t face;
 
@@ -365,21 +347,18 @@ static void test_a_scale_without_a_vacuum_unit_keeps_minus_signs( void )
 static void test_a_scale_with_small_ticks_fits_every_tick( void )
 {
     static const dial_cfg_t tach = {
-        0,
-        8000,
-        1000,
-        4u,
-        1000,
-        "RPM",
-        "x1000",
-        NULL,
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 0,
+        .max_value       = 8000,
+        .major_step      = 1000,
+        .minor_per_major = 4u,
+        .label_div       = 1000,
+        .label           = "RPM",
+        .unit_pos        = "x1000",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     dial_face_t face;
     size_t majors = 0;
@@ -402,21 +381,18 @@ static void test_a_scale_with_small_ticks_fits_every_tick( void )
 static void test_upper_arc( void )
 {
     static const dial_cfg_t upper = {
-        1000,
-        2600,
-        400,
-        1u,
-        10,
-        "COOLANT",
-        "F",
-        NULL,
-        0xEF5Bu,
-        0x632Cu,
-        0xF922u,
-        900u,
-        DIAL_STYLE_UPPER_ARC,
-        0,
-        0u
+        .min_value       = 1000,
+        .max_value       = 2600,
+        .major_step      = 400,
+        .minor_per_major = 1u,
+        .label_div       = 10,
+        .label           = "COOLANT",
+        .unit_pos        = "F",
+        .face_bg         = 0xEF5Bu,
+        .tick_fg         = 0x632Cu,
+        .needle_fg       = 0xF922u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_UPPER_ARC
     };
     dial_face_t face;
     dial_widget_t d;
@@ -449,21 +425,18 @@ static void test_upper_arc( void )
 
 /* A coolant-like arc dial, three ticks between the numbers. */
 static const dial_cfg_t coolant_like = {
-    1000,
-    2600,
-    400,
-    3u,
-    10,
-    "COOLANT",
-    "F",
-    NULL,
-    0xEF5Bu,
-    0x632Cu,
-    0xF922u,
-    900u,
-    DIAL_STYLE_UPPER_ARC,
-    0,
-    0u
+    .min_value       = 1000,
+    .max_value       = 2600,
+    .major_step      = 400,
+    .minor_per_major = 3u,
+    .label_div       = 10,
+    .label           = "COOLANT",
+    .unit_pos        = "F",
+    .face_bg         = 0xEF5Bu,
+    .tick_fg         = 0x632Cu,
+    .needle_fg       = 0xF922u,
+    .max_deg_per_s   = 900u,
+    .style           = DIAL_STYLE_UPPER_ARC
 };
 
 /* The ticks are only worked out for pixels in the tick ring, so no tick may
@@ -472,38 +445,33 @@ static const dial_cfg_t coolant_like = {
 static void test_no_tick_reaches_outside_the_tick_ring( void )
 {
     static const dial_cfg_t tach = {
-        0,
-        8000,
-        1000,
-        4u,
-        1000,
-        "RPM",
-        "x1000",
-        NULL,
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 0,
+        .max_value       = 8000,
+        .major_step      = 1000,
+        .minor_per_major = 4u,
+        .label_div       = 1000,
+        .label           = "RPM",
+        .unit_pos        = "x1000",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     static const dial_cfg_t boost = {
-        -30000,
-        30000,
-        10000,
-        4u,
-        1000,
-        "TURBO",
-        "PSI",
-        "INHG",
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = -30000,
+        .max_value       = 30000,
+        .major_step      = 10000,
+        .minor_per_major = 4u,
+        .label_div       = 1000,
+        .label           = "TURBO",
+        .unit_pos        = "PSI",
+        .unit_neg        = "INHG",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     const dial_cfg_t * cfgs[] = { &tach, &boost, &coolant_like };
 
@@ -587,8 +555,48 @@ static void test_a_dial_face_is_made_when_the_dial_opens( void )
     CHECK_EQ( differences(), 0u );
 }
 
+/* Check every moving frame through the motion module. The opaque cap must
+ * remain identical to the first frame, regardless of the needle's angle, and
+ * a needle of no length draws nothing. */
+static void test_round_hub_stays_fixed_above_the_moving_needle( void )
+{
+    static const int32_t values[] = { 135, 300, 0, 150 };
+    dial_widget_t d;
+    int32_t fixed_r = DIAL_HUB_R - 1;
+
+    CHECK_EQ( dial_needle_alpha( 0, 0, 0, 1000, 0 ), 0u );
+    dial_init( &d, &cfg, now );
+    ( void )memcpy( partial, shadow, sizeof( shadow ) );
+    for ( size_t i = 0u; i < ( sizeof( values ) / sizeof( values[0] ) ); i++ )
+    {
+        unsigned polls = 0u;
+
+        do
+        {
+            now += DIAL_MOTION_FRAME_MS;
+            dial_poll( &d, now, true, values[i] );
+            for ( int32_t y = -fixed_r; y <= fixed_r; y++ )
+            {
+                for ( int32_t x = -fixed_r; x <= fixed_r; x++ )
+                {
+                    if ( ( ( x * x ) + ( y * y ) ) <= ( fixed_r * fixed_r ) )
+                    {
+                        CHECK_EQ(
+                            shadow[DIAL_CY + y][DIAL_CX + x],
+                            partial[DIAL_CY + y][DIAL_CX + x]
+                        );
+                    }
+                }
+            }
+            polls++;
+        } while ( !dial_settled( &d ) && ( polls < 200u ) );
+        CHECK( dial_settled( &d ) );
+    }
+}
+
 int main( void )
 {
+    test_round_hub_stays_fixed_above_the_moving_needle();
     test_partial_redraw_matches_a_fresh_frame();
     test_tick_numbers_use_label_div();
     test_needle_ends_line_up_with_the_scale_ends();

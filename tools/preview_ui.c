@@ -13,6 +13,8 @@
 #include "hal/hal_nvm.h"
 #include "lib/display/display.h"
 #include "lib/ecu/ecu.h"
+#include "lib/ui/dial.h"
+#include "lib/ui/dial_layout.h"
 
 #define PANEL_W (DISPLAY_WIDTH)
 #define PANEL_H (DISPLAY_HEIGHT)
@@ -20,6 +22,17 @@
 #define ACTION_ID ((hal_gpio_id_t)2u)
 
 static uint16_t frame[PANEL_W * PANEL_H];
+static const dial_widget_t *observed_dial;
+static int32_t observed_aim;
+
+/* Only gauge.c's host build calls this observer. The actual drawing and
+ * motion still go through the production dial_poll. */
+void preview_dial_poll(dial_widget_t *d, uint32_t now_ms, bool has_value,
+                       int32_t aim) {
+  dial_poll(d, now_ms, has_value, aim);
+  observed_dial = d;
+  observed_aim = aim;
+}
 static size_t selected;
 static size_t initial_selection;
 static size_t initial_theme; /* 0 light, 1 dark */
@@ -321,9 +334,6 @@ static bool choose_scene(const char *scene) {
   } else if ((strcmp(scene, "anim_boost_step") == 0) ||
              (strcmp(scene, "anim_boost_ramp") == 0)) {
     value = 0;
-  } else if (strcmp(scene, "anim_rpm_blip") == 0) {
-    initial_selection = 1u;
-    value = 0;
   } else if (strcmp(scene, "anim_coolant_sweep") == 0) {
     initial_selection = 5u;
     value = 1000;
@@ -375,13 +385,6 @@ static int32_t anim_value(const char *scene, uint32_t t) {
     return (t < 1200u) ? ramp(t, 0u, 800u, 0, 30000)
                        : ramp(t, 1200u, 2400u, 30000, -30000);
   }
-  if (strcmp(scene, "anim_rpm_blip") == 0) {
-    if (t < 1000u) {
-      return ramp(t, 300u, 600u, 0, 800); /* the engine starts and idles */
-    }
-    return (t < 2200u) ? ramp(t, 1000u, 1800u, 800, 6500)
-                       : ramp(t, 2200u, 3400u, 6500, 2000);
-  }
   if (strcmp(scene, "anim_coolant_sweep") == 0) {
     return (t < 1200u) ? ramp(t, 0u, 800u, 1000, 2600)
                        : ramp(t, 1200u, 2400u, 2600, 1000);
@@ -420,7 +423,8 @@ static int run_anim(const char *scene, const char *path, unsigned duration_ms,
   if ((output == NULL) || (csv == NULL)) {
     return 1;
   }
-  (void)fputs("t_ms,value\n", csv);
+  (void)fputs("t_ms,value,aim_value,target_deg,displayed_deg,pivot_x,pivot_y\n",
+              csv);
   /* Only the power-on scene shows the sweep; the others start at rest and
    * follow their script. */
   if (strcmp(scene, "anim_power_on") != 0) {
@@ -428,8 +432,18 @@ static int run_anim(const char *scene, const char *path, unsigned duration_ms,
   }
   while ((now - start) <= duration_ms) {
     value = anim_value(scene, now - start);
+    observed_dial = NULL;
     gauge_poll(now);
-    (void)fprintf(csv, "%u,%d\n", (unsigned)(now - start), (int)value);
+    if (observed_dial == NULL) {
+      (void)fputs("animation scene has no analog dial\n", stderr);
+      (void)fclose(csv);
+      (void)fclose(output);
+      return 1;
+    }
+    (void)fprintf(csv, "%u,%d,%d,%d,%d,%d,%d\n", (unsigned)(now - start),
+                  (int)value, (int)observed_aim, (int)observed_dial->target_deg,
+                  (int)observed_dial->displayed_deg, (int)DIAL_CX,
+                  (int)(DIAL_CY + dial_pivot_down(observed_dial->cfg)));
     if (!append_frame(output)) {
       return 1;
     }
@@ -476,7 +490,8 @@ int main(int argc, char **argv) {
   }
   if ((argc < 3) || !choose_scene(scene)) {
     (void)fputs("usage: preview_ui SCENE OUTPUT.rgb565 [POLLS]\n"
-                 "       preview_ui anim_NAME OUTPUT.frames [DURATION_MS]\n", stderr);
+                "       preview_ui anim_NAME OUTPUT.frames [DURATION_MS]\n",
+                stderr);
     return 2;
   }
   if (argc == 4) {

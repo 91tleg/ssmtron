@@ -76,21 +76,16 @@ static bool shadow_has_color(
 /* 0..100 over the full 135..435 sweep, with no face label or units. Its top
  * speed is 300 degrees per second, a full sweep in one second. */
 static const dial_cfg_t test_cfg = {
-    0,
-    100,
-    25,
-    0u,
-    1,
-    NULL,
-    NULL,
-    NULL,
-    1u,
-    2u,
-    3u,
-    300u,
-    DIAL_STYLE_FULL_SWEEP,
-    0,
-    0u
+    .min_value       = 0,
+    .max_value       = 100,
+    .major_step      = 25,
+    .minor_per_major = 0u,
+    .label_div       = 1,
+    .face_bg         = 1u,
+    .tick_fg         = 2u,
+    .needle_fg       = 3u,
+    .max_deg_per_s   = 300u,
+    .style           = DIAL_STYLE_FULL_SWEEP
 };
 
 static void reset( void )
@@ -247,21 +242,17 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
      * since the needle covers every pixel along its stripe regardless of
      * what glyph pixel is under it. */
     static const dial_cfg_t cfg = {
-        0,
-        100,
-        25,
-        0u,
-        1,
-        "TURBO",
-        NULL,
-        NULL,
-        0x1111u,
-        0x2222u,
-        0x3333u,
-        150u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 0,
+        .max_value       = 100,
+        .major_step      = 25,
+        .minor_per_major = 0u,
+        .label_div       = 1,
+        .label           = "TURBO",
+        .face_bg         = 0x1111u,
+        .tick_fg         = 0x2222u,
+        .needle_fg       = 0x3333u,
+        .max_deg_per_s   = 150u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     const uint16_t label_y0 = 74u;
     const uint16_t label_y1 = 82u;
@@ -309,21 +300,18 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
 static void test_a_fine_scale_keeps_its_precision( void )
 {
     static const dial_cfg_t cfg = {
-        0,
-        8000,
-        1000,
-        0u,
-        1000,
-        "RPM",
-        "x1000",
-        NULL,
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 0,
+        .max_value       = 8000,
+        .major_step      = 1000,
+        .minor_per_major = 0u,
+        .label_div       = 1000,
+        .label           = "RPM",
+        .unit_pos        = "x1000",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
     int16_t at_3000;
@@ -342,21 +330,18 @@ static void test_a_fine_scale_keeps_its_precision( void )
 static void test_upper_arc_settles_on_both_ends( void )
 {
     static const dial_cfg_t arc = {
-        1000,
-        2600,
-        400,
-        1u,
-        10,
-        "COOLANT",
-        "F",
-        NULL,
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_UPPER_ARC,
-        0,
-        0u
+        .min_value       = 1000,
+        .max_value       = 2600,
+        .major_step      = 400,
+        .minor_per_major = 1u,
+        .label_div       = 10,
+        .label           = "COOLANT",
+        .unit_pos        = "F",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_UPPER_ARC
     };
     dial_widget_t d;
     uint32_t now = 0u;
@@ -377,21 +362,19 @@ static void test_upper_arc_settles_on_both_ends( void )
 static void test_two_sided_scale_and_rest( void )
 {
     static const dial_cfg_t cfg = {
-        -30,
-        20,
-        10,
-        4u,
-        1,
-        "TURBO",
-        "PSI",
-        "INHG",
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = -30,
+        .max_value       = 20,
+        .major_step      = 10,
+        .minor_per_major = 4u,
+        .label_div       = 1,
+        .label           = "TURBO",
+        .unit_pos        = "PSI",
+        .unit_neg        = "INHG",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
 
@@ -418,21 +401,18 @@ static void test_two_sided_scale_and_rest( void )
 static void test_rpm_face_scale( void )
 {
     static const dial_cfg_t cfg = {
-        0,
-        8,
-        1,
-        0u,
-        1,
-        "RPM",
-        "x1000",
-        NULL,
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 0,
+        .max_value       = 8,
+        .major_step      = 1,
+        .minor_per_major = 0u,
+        .label_div       = 1,
+        .label           = "RPM",
+        .unit_pos        = "x1000",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     dial_widget_t d;
 
@@ -503,21 +483,19 @@ static void test_a_reading_past_the_scale_stops_at_its_end( void )
     {
         /* Two sided: lowest at 6 o'clock, highest at 3 o'clock. */
         static const dial_cfg_t two = {
-            -30,
-            20,
-            10,
-            4u,
-            1,
-            "T",
-            "P",
-            "I",
-            1u,
-            2u,
-            3u,
-            900u,
-            DIAL_STYLE_FULL_SWEEP,
-            0,
-            0u
+            .min_value       = -30,
+            .max_value       = 20,
+            .major_step      = 10,
+            .minor_per_major = 4u,
+            .label_div       = 1,
+            .label           = "T",
+            .unit_pos        = "P",
+            .unit_neg        = "I",
+            .face_bg         = 1u,
+            .tick_fg         = 2u,
+            .needle_fg       = 3u,
+            .max_deg_per_s   = 900u,
+            .style           = DIAL_STYLE_FULL_SWEEP
         };
 
         check_beyond_the_ends( &two, 180, 450 );
@@ -525,42 +503,37 @@ static void test_a_reading_past_the_scale_stops_at_its_end( void )
     {
         /* Two sided with a longer positive side: the same two end angles. */
         static const dial_cfg_t wide = {
-            -10,
-            50,
-            10,
-            0u,
-            1,
-            "T",
-            "P",
-            "I",
-            1u,
-            2u,
-            3u,
-            900u,
-            DIAL_STYLE_FULL_SWEEP,
-            0,
-            0u
+            .min_value       = -10,
+            .max_value       = 50,
+            .major_step      = 10,
+            .minor_per_major = 0u,
+            .label_div       = 1,
+            .label           = "T",
+            .unit_pos        = "P",
+            .unit_neg        = "I",
+            .face_bg         = 1u,
+            .tick_fg         = 2u,
+            .needle_fg       = 3u,
+            .max_deg_per_s   = 900u,
+            .style           = DIAL_STYLE_FULL_SWEEP
         };
 
         check_beyond_the_ends( &wide, 180, 450 );
     }
     {
         static const dial_cfg_t arc = {
-            1000,
-            2600,
-            400,
-            1u,
-            10,
-            "C",
-            "F",
-            NULL,
-            1u,
-            2u,
-            3u,
-            900u,
-            DIAL_STYLE_UPPER_ARC,
-            0,
-            0u
+            .min_value       = 1000,
+            .max_value       = 2600,
+            .major_step      = 400,
+            .minor_per_major = 1u,
+            .label_div       = 10,
+            .label           = "C",
+            .unit_pos        = "F",
+            .face_bg         = 1u,
+            .tick_fg         = 2u,
+            .needle_fg       = 3u,
+            .max_deg_per_s   = 900u,
+            .style           = DIAL_STYLE_UPPER_ARC
         };
 
         check_beyond_the_ends( &arc, -45, 45 );
@@ -571,21 +544,18 @@ static void test_a_reading_past_the_scale_stops_at_its_end( void )
 static void test_an_empty_scale_rests_at_its_start( void )
 {
     static const dial_cfg_t empty = {
-        50,
-        50,
-        25,
-        0u,
-        1,
-        "E",
-        "U",
-        NULL,
-        1u,
-        2u,
-        3u,
-        900u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 50,
+        .max_value       = 50,
+        .major_step      = 25,
+        .minor_per_major = 0u,
+        .label_div       = 1,
+        .label           = "E",
+        .unit_pos        = "U",
+        .face_bg         = 1u,
+        .tick_fg         = 2u,
+        .needle_fg       = 3u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     const int32_t values[] = { INT32_MIN, 0, 49, 50, 51, INT32_MAX };
     dial_widget_t d;

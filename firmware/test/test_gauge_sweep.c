@@ -8,21 +8,19 @@
 
 /* A scale of -30 to 20, like the boost dial, in plain units: 50 across. */
 static const dial_cfg_t cfg = {
-    -30,
-    20,
-    10,
-    4u,
-    1,
-    "TURBO",
-    "PSI",
-    "INHG",
-    0u,
-    0u,
-    0u,
-    900u,
-    DIAL_STYLE_FULL_SWEEP,
-    0,
-    0u
+    .min_value       = -30,
+    .max_value       = 20,
+    .major_step      = 10,
+    .minor_per_major = 4u,
+    .label_div       = 1,
+    .label           = "TURBO",
+    .unit_pos        = "PSI",
+    .unit_neg        = "INHG",
+    .face_bg         = 0u,
+    .tick_fg         = 0u,
+    .needle_fg       = 0u,
+    .max_deg_per_s   = 900u,
+    .style           = DIAL_STYLE_FULL_SWEEP
 };
 
 /* Each leg ends one poll after its time is up, since the dial is given the
@@ -122,38 +120,32 @@ static void test_a_stalled_loop_does_not_skip_ahead( void )
 static void test_a_dial_change_ends_the_sweep( void )
 {
     static const dial_cfg_t tach = {
-        0,
-        8000,
-        1000,
-        4u,
-        1000,
-        "RPM",
-        "x1000",
-        NULL,
-        0u,
-        0u,
-        0u,
-        1200u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 0,
+        .max_value       = 8000,
+        .major_step      = 1000,
+        .minor_per_major = 4u,
+        .label_div       = 1000,
+        .label           = "RPM",
+        .unit_pos        = "x1000",
+        .face_bg         = 0u,
+        .tick_fg         = 0u,
+        .needle_fg       = 0u,
+        .max_deg_per_s   = 1200u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
     static const dial_cfg_t arc = {
-        1000,
-        2600,
-        400,
-        1u,
-        10,
-        "COOLANT",
-        "F",
-        NULL,
-        0u,
-        0u,
-        0u,
-        900u,
-        DIAL_STYLE_UPPER_ARC,
-        0,
-        0u
+        .min_value       = 1000,
+        .max_value       = 2600,
+        .major_step      = 400,
+        .minor_per_major = 1u,
+        .label_div       = 10,
+        .label           = "COOLANT",
+        .unit_pos        = "F",
+        .face_bg         = 0u,
+        .tick_fg         = 0u,
+        .needle_fg       = 0u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_UPPER_ARC
     };
 
     active = gauge_sweep_target( &tach, true, clock_ms, &aim );
@@ -186,21 +178,18 @@ static void test_cancelled_before_it_starts_never_sweeps( void )
 static void test_a_scale_from_zero_goes_up_and_down( void )
 {
     static const dial_cfg_t tach = {
-        0,
-        8000,
-        1000,
-        4u,
-        1000,
-        "RPM",
-        "x1000",
-        NULL,
-        0u,
-        0u,
-        0u,
-        1200u,
-        DIAL_STYLE_FULL_SWEEP,
-        0,
-        0u
+        .min_value       = 0,
+        .max_value       = 8000,
+        .major_step      = 1000,
+        .minor_per_major = 4u,
+        .label_div       = 1000,
+        .label           = "RPM",
+        .unit_pos        = "x1000",
+        .face_bg         = 0u,
+        .tick_fg         = 0u,
+        .needle_fg       = 0u,
+        .max_deg_per_s   = 1200u,
+        .style           = DIAL_STYLE_FULL_SWEEP
     };
 
     active = gauge_sweep_target( &tach, true, clock_ms, &aim );
@@ -222,21 +211,18 @@ static void test_a_scale_from_zero_goes_up_and_down( void )
 static void test_a_raised_scale_rests_at_its_bottom( void )
 {
     static const dial_cfg_t arc = {
-        1000,
-        2600,
-        400,
-        1u,
-        10,
-        "COOLANT",
-        "F",
-        NULL,
-        0u,
-        0u,
-        0u,
-        900u,
-        DIAL_STYLE_UPPER_ARC,
-        0,
-        0u
+        .min_value       = 1000,
+        .max_value       = 2600,
+        .major_step      = 400,
+        .minor_per_major = 1u,
+        .label_div       = 10,
+        .label           = "COOLANT",
+        .unit_pos        = "F",
+        .face_bg         = 0u,
+        .tick_fg         = 0u,
+        .needle_fg       = 0u,
+        .max_deg_per_s   = 900u,
+        .style           = DIAL_STYLE_UPPER_ARC
     };
 
     active = gauge_sweep_target( &arc, true, clock_ms, &aim );

@@ -180,6 +180,20 @@ static void test_centered_text_is_centered_to_the_pixel( void )
     CHECK_EQ( last, left_last + 17 );
 }
 
+/* A page's theme: every widget gets the colors, and the count is respected. */
+static void test_set_colors_reaches_every_widget_and_stops_at_count( void )
+{
+    text_widget_t w[3] = { { 0 } };
+
+    text_set_colors( w, 2u, 0x1234u, 0xABCDu );
+    CHECK_EQ( w[0].bg, 0x1234u );
+    CHECK_EQ( w[0].fg, 0xABCDu );
+    CHECK_EQ( w[1].bg, 0x1234u );
+    CHECK_EQ( w[1].fg, 0xABCDu );
+    CHECK_EQ( w[2].bg, 0u );
+    CHECK_EQ( w[2].fg, 0u );
+}
+
 int main( void )
 {
     test_init_draws_and_clears();
@@ -187,5 +201,6 @@ int main( void )
     test_poll_redraws_on_change();
     test_centered_text_is_centered_to_the_pixel();
 
+    test_set_colors_reaches_every_widget_and_stops_at_count();
     return MT_RESULT();
 }

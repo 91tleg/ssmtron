@@ -184,80 +184,44 @@ static void row7( char * buf )
 #define FLAGS_SCALE UI_TEXT_SCALE( 1 )
 
 static text_widget_t page[] = {
-    { .rect = UI_CENTERED_RECT(
-          FLAG_TITLE_CHARS, FLAGS_SCALE, UI_CY - UI_LEN( 800 )
-      ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = title_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 0 ) ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = row0,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 1 ) ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = row1,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 2 ) ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = row2,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 3 ) ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = row3,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 4 ) ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = row4,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 5 ) ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = row5,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 6 ) ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = row6,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 7 ) ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = row7,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect = UI_CENTERED_RECT(
-          FLAG_STATUS_CHARS, FLAGS_SCALE, UI_CY + UI_LEN( 550 )
-      ),
-      .scale = FLAGS_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = status_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
+    UI_CENTERED_WIDGET(
+        FLAG_TITLE_CHARS,
+        FLAGS_SCALE,
+        UI_CY - UI_LEN( 800 ),
+        title_text,
+        TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 0 ), row0, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 1 ), row1, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 2 ), row2, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 3 ), row3, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 4 ), row4, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 5 ), row5, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 6 ), row6, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_ROW_CHARS, FLAGS_SCALE, ROW_Y( 7 ), row7, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        FLAG_STATUS_CHARS,
+        FLAGS_SCALE,
+        UI_CY + UI_LEN( 550 ),
+        status_text,
+        TEXT_ALIGN_LEFT
+    ),
 };
 #define PAGE_COUNT ( sizeof( page ) / sizeof( page[0] ) )
 
@@ -266,11 +230,7 @@ void gauge_flags_set_colors(
     uint16_t ink
 )
 {
-    for ( size_t i = 0; i < PAGE_COUNT; i++ )
-    {
-        page[i].bg = face;
-        page[i].fg = ink;
-    }
+    text_set_colors( page, PAGE_COUNT, face, ink );
 }
 
 /* The callbacks draw from these, so they are set before anything is drawn. */

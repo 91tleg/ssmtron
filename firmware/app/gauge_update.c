@@ -189,41 +189,33 @@ static void update_hint_text( char * buf )
 #define UPDATE_ROW_Y( n ) ( UI_CY - UI_LEN( 200 ) + ( ( n ) * UI_LEN( 134 ) ) )
 
 static text_widget_t update_page[] = {
-    { .rect  = UI_CENTERED_RECT( 20, UPDATE_SCALE, UI_CY - UI_LEN( 800 ) ),
-      .scale = UPDATE_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = update_title_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
-    { .rect  = UI_CENTERED_RECT( 20, UPDATE_SCALE, UPDATE_ROW_Y( 0 ) ),
-      .scale = UPDATE_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = update_passkey_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( 20, UPDATE_SCALE, UPDATE_ROW_Y( 1 ) ),
-      .scale = UPDATE_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = update_status_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( 20, UPDATE_SCALE, UPDATE_ROW_Y( 2 ) ),
-      .scale = UPDATE_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = update_time_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_LEFT },
-    { .rect  = UI_CENTERED_RECT( 20, UPDATE_SCALE, UI_CY + UI_LEN( 550 ) ),
-      .scale = UPDATE_SCALE,
-      .fg    = 0u,
-      .bg    = 0u,
-      .text  = update_hint_text,
-      .cache = { 0 },
-      .align = TEXT_ALIGN_CENTER },
+    UI_CENTERED_WIDGET(
+        20,
+        UPDATE_SCALE,
+        UI_CY - UI_LEN( 800 ),
+        update_title_text,
+        TEXT_ALIGN_CENTER
+    ),
+    UI_CENTERED_WIDGET(
+        20,
+        UPDATE_SCALE,
+        UPDATE_ROW_Y( 0 ),
+        update_passkey_text,
+        TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        20, UPDATE_SCALE, UPDATE_ROW_Y( 1 ), update_status_text, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        20, UPDATE_SCALE, UPDATE_ROW_Y( 2 ), update_time_text, TEXT_ALIGN_LEFT
+    ),
+    UI_CENTERED_WIDGET(
+        20,
+        UPDATE_SCALE,
+        UI_CY + UI_LEN( 550 ),
+        update_hint_text,
+        TEXT_ALIGN_CENTER
+    ),
 };
 #define UPDATE_PAGE_COUNT ( sizeof( update_page ) / sizeof( update_page[0] ) )
 
@@ -232,11 +224,7 @@ void gauge_update_set_colors(
     uint16_t ink
 )
 {
-    for ( size_t i = 0; i < UPDATE_PAGE_COUNT; i++ )
-    {
-        update_page[i].bg = face;
-        update_page[i].fg = ink;
-    }
+    text_set_colors( update_page, UPDATE_PAGE_COUNT, face, ink );
 }
 
 void gauge_update_open(
