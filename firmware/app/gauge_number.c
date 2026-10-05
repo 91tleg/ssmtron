@@ -95,11 +95,7 @@ void gauge_number_set_colors(
     uint16_t ink
 )
 {
-    for ( size_t i = 0; i < NUMBER_PAGE_COUNT; i++ )
-    {
-        number_page[i].bg = face;
-        number_page[i].fg = ink;
-    }
+    text_set_colors( number_page, NUMBER_PAGE_COUNT, face, ink );
 }
 
 /* The callbacks draw from these, so they are set before anything is drawn. */

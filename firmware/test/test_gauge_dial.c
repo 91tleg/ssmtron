@@ -427,6 +427,8 @@ int main( void )
     static const display_pins_t pins = { 0 };
     const dial_cfg_t * boost_cfg;
     const dial_cfg_t * volt_cfg;
+    const dial_cfg_t * coolant_cfg;
+    const dial_cfg_t * o2_cfg;
 
     ( void )gauge_init( &pins, NEXT_ID, ACTION_ID );
 
@@ -536,6 +538,7 @@ int main( void )
     tap_next(); /* load */
     tap_next(); /* whole F */
     CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
+    coolant_cfg = last_dial_cfg;
     CHECK_EQ( last_dial_value, 1800 );
     tap_next(); /* tenths F */
     CHECK_EQ( last_dial_value, 1805 );
@@ -546,11 +549,31 @@ int main( void )
     CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
     CHECK_EQ( last_dial_value, 45 );
     CHECK( strcmp( last_dial_cfg->label, "O2" ) == 0 );
+    o2_cfg = last_dial_cfg;
     {
         unsigned texts_before = text_init_count;
 
         tap_next(); /* the same name with other decimals is not that dial */
         CHECK_EQ( text_init_count, texts_before + 1u );
+    }
+
+    /* A tap on ACTION changes the theme, and every dial takes it. */
+    {
+        uint16_t light = boost_cfg->face_bg;
+
+        press_action( true );
+        tick( 1 );
+        tick( 35 );
+        press_action( false );
+        tick( 1 );
+        tick( 35 );
+        CHECK( boost_cfg->face_bg != light );
+        CHECK_EQ( volt_cfg->face_bg, boost_cfg->face_bg );
+        CHECK_EQ( coolant_cfg->face_bg, boost_cfg->face_bg );
+        CHECK_EQ( o2_cfg->face_bg, boost_cfg->face_bg );
+        CHECK_EQ( volt_cfg->tick_fg, boost_cfg->tick_fg );
+        CHECK_EQ( coolant_cfg->tick_fg, boost_cfg->tick_fg );
+        CHECK_EQ( o2_cfg->tick_fg, boost_cfg->tick_fg );
     }
 
     return MT_RESULT();

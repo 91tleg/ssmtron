@@ -232,11 +232,7 @@ void gauge_update_set_colors(
     uint16_t ink
 )
 {
-    for ( size_t i = 0; i < UPDATE_PAGE_COUNT; i++ )
-    {
-        update_page[i].bg = face;
-        update_page[i].fg = ink;
-    }
+    text_set_colors( update_page, UPDATE_PAGE_COUNT, face, ink );
 }
 
 void gauge_update_open(

@@ -141,11 +141,7 @@ void gauge_info_set_colors(
     uint16_t ink
 )
 {
-    for ( size_t i = 0; i < INFO_PAGE_COUNT; i++ )
-    {
-        info_page[i].bg = face;
-        info_page[i].fg = ink;
-    }
+    text_set_colors( info_page, INFO_PAGE_COUNT, face, ink );
 }
 
 /* The callbacks draw from this, so it is set before anything is drawn. */

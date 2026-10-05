@@ -266,11 +266,7 @@ void gauge_flags_set_colors(
     uint16_t ink
 )
 {
-    for ( size_t i = 0; i < PAGE_COUNT; i++ )
-    {
-        page[i].bg = face;
-        page[i].fg = ink;
-    }
+    text_set_colors( page, PAGE_COUNT, face, ink );
 }
 
 /* The callbacks draw from these, so they are set before anything is drawn. */

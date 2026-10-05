@@ -46,6 +46,22 @@ typedef struct
     char cache[TEXT_MAX + 1u]; /* last text actually drawn */
 } text_widget_t;
 
+/* Sets every widget's text color and background, for a page's theme. A
+ * header function, so a page's tests need no text engine to use it. */
+static inline void text_set_colors(
+    text_widget_t * widgets,
+    size_t count,
+    uint16_t face,
+    uint16_t ink
+)
+{
+    for ( size_t i = 0; i < count; i++ )
+    {
+        widgets[i].bg = face;
+        widgets[i].fg = ink;
+    }
+}
+
 /* Clears the whole panel to page_bg, then draws every widget once,
  * regardless of its cache (there is nothing to compare against yet). */
 void text_init(
