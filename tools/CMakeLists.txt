@@ -18,6 +18,10 @@ add_executable(preview_ui
   ../firmware/lib/textfit/textfit.c
   ../firmware/lib/ui/text.c
   ../firmware/lib/ui/dial.c
+  ../firmware/lib/ui/dial_angle.c
+  ../firmware/lib/ui/dial_shape.c
+  ../firmware/lib/ui/dial_cover.c
+  ../firmware/lib/ui/dial_face.c
   ../firmware/lib/ui/font.c
   ../firmware/lib/ui/font_b612.c
   ../firmware/lib/ui/dial_motion.c

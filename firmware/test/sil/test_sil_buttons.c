@@ -81,15 +81,15 @@ static void test_a_tap_and_a_bouncy_tap_each_move_one_page( void )
  * and does not also move the page. It fires once however long it lasts. */
 static void test_a_hold_saves_once_and_does_not_move_the_page( void )
 {
-    /* Page 2 is the rpm dial. */
+    /* Page 2 is the engine speed, a number page. */
     button( &next_edges, true );
     run( 1600u );
-    CHECK_EQ( strcmp( row( 0 ), "SAVED" ), 0 ); /* the dial gives way */
+    CHECK_EQ( strcmp( row( 0 ), "SAVED" ), 0 ); /* the page gives way */
     CHECK_EQ( nvm_saves, 3u ); /* the page, the theme and the ECU profile */
     button( &next_edges, false );
     run( 1500u );
-    CHECK( page == NULL ); /* the dial is back */
-    CHECK( strcmp( dial_cfg->label, "RPM" ) == 0 );
+    CHECK( page != NULL ); /* the page is back */
+    CHECK( strcmp( row( 0 ), ecu_param_info( 2 )->name ) == 0 );
     CHECK_EQ( page_now(), 2u );
     CHECK_EQ( stored( "param_idx" ), 2u );
 

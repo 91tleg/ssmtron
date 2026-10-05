@@ -435,16 +435,10 @@ static flags_status_t flags_status( void )
     return status;
 }
 
-/* Boost is unique by decode; rpm shares ECU_DEC_LINEAR, so match by unit
- * instead. Tried in order; first match wins. */
+/* Boost is unique by decode. Tried in order; first match wins. */
 static bool is_boost( const ecu_param_info_t * info )
 {
     return info->decode == ECU_DEC_BOOST;
-}
-
-static bool is_rpm( const ecu_param_info_t * info )
-{
-    return strcmp( info->unit, "rpm" ) == 0;
 }
 
 /* Match the parameter identity, so other temperature and voltage readings
@@ -461,6 +455,13 @@ static bool is_voltage( const ecu_param_info_t * info )
            && ( strcmp( info->unit, "V" ) == 0 ) && ( info->decimals == 2u );
 }
 
+/* The oxygen sensor's voltage, in hundredths of a volt. */
+static bool is_o2( const ecu_param_info_t * info )
+{
+    return ( strcmp( info->name, "Oxygen Sensor" ) == 0 )
+           && ( strcmp( info->unit, "V" ) == 0 ) && ( info->decimals == 2u );
+}
+
 typedef struct
 {
     bool ( *matches )( const ecu_param_info_t * info );
@@ -473,8 +474,8 @@ typedef struct
 #define NO_DIAL    ( SIZE_MAX )
 
 /* The scales are in the ECU's own units, so the needle keeps every digit of
- * the reading: thousandths of a psi or inHg here, rpm below. label_div makes
- * the tick numbers whole units. Colors are set by apply_theme(), so these are
+ * the reading: thousandths of a psi or inHg here. label_div sets the units
+ * the tick numbers are in. Colors are set by apply_theme(), so these are
  * not const. */
 static dial_cfg_t boost_dial_cfg = {
     -30000,
@@ -492,25 +493,6 @@ static dial_cfg_t boost_dial_cfg = {
     DIAL_STYLE_FULL_SWEEP,
     10000,
     1u
-};
-
-/* The tachometer displays thousands of rpm on the same face. */
-static dial_cfg_t rpm_dial_cfg = {
-    0,
-    8000,
-    1000,
-    4u,
-    1000,
-    "RPM",
-    "x1000",
-    NULL,
-    0xEF5Bu,
-    0x632Cu,
-    NEEDLE_RED,
-    1200u,
-    DIAL_STYLE_FULL_SWEEP,
-    0,
-    0u
 };
 
 /* Upper scales use tenths F and hundredths V to keep ECU precision. */
@@ -550,18 +532,39 @@ static dial_cfg_t voltage_dial_cfg = {
     0u
 };
 
+/* The oxygen sensor swings between about 0.1 V (lean) and 0.9 V (rich), in
+ * hundredths of a volt. Its numbers are in volts, 0.2 apart, with three
+ * ticks between them, like the coolant dial. */
+static dial_cfg_t o2_dial_cfg = {
+    0,
+    100,
+    20,
+    3u,
+    100,
+    "O2",
+    "V",
+    NULL,
+    0xEF5Bu,
+    0x632Cu,
+    NEEDLE_RED,
+    900u,
+    DIAL_STYLE_UPPER_ARC,
+    0,
+    0u
+};
+
 static void apply_theme( void )
 {
     const theme_t * t = &themes[theme_idx];
 
     boost_dial_cfg.face_bg   = t->face;
     boost_dial_cfg.tick_fg   = t->ink;
-    rpm_dial_cfg.face_bg     = t->face;
-    rpm_dial_cfg.tick_fg     = t->ink;
     coolant_dial_cfg.face_bg = t->face;
     coolant_dial_cfg.tick_fg = t->ink;
     voltage_dial_cfg.face_bg = t->face;
     voltage_dial_cfg.tick_fg = t->ink;
+    o2_dial_cfg.face_bg      = t->face;
+    o2_dial_cfg.tick_fg      = t->ink;
     gauge_info_set_colors( t->face, t->ink );
     gauge_update_set_colors( t->face, t->ink );
     gauge_number_set_colors( t->face, t->ink );
@@ -576,9 +579,9 @@ static void update_face( uint32_t now_ms )
     static dial_widget_t dial_widgets[DIAL_COUNT];
     static const dial_entry_t dial_table[DIAL_COUNT] = {
         { is_boost, &boost_dial_cfg },
-        { is_rpm, &rpm_dial_cfg },
         { is_coolant, &coolant_dial_cfg },
         { is_voltage, &voltage_dial_cfg },
+        { is_o2, &o2_dial_cfg },
     };
     static size_t active_dial = NO_DIAL;
 

@@ -5,6 +5,7 @@
 #ifndef FONT_H_
 #define FONT_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 /* One character's cell at text size 1. At size n the cell is n times this:
@@ -31,6 +32,12 @@ uint16_t font_blend(
     uint16_t fg,
     uint16_t bg,
     uint8_t alpha
+);
+
+/* How wide this many characters are at this text size, in pixels. */
+int32_t font_text_width(
+    size_t chars,
+    uint8_t scale
 );
 
 #endif /* FONT_H_ */

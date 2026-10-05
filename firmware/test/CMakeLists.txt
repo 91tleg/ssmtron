@@ -96,9 +96,13 @@ add_executable(test_gauge_settings test_gauge_settings.c
 target_include_directories(test_gauge_settings PRIVATE ../app ../hal)
 add_test(NAME gauge_settings COMMAND test_gauge_settings)
 
+# The dial's parts, which every dial test builds with.
+set(DIAL_PARTS ../lib/ui/dial_angle.c ../lib/ui/dial_shape.c
+    ../lib/ui/dial_cover.c ../lib/ui/dial_face.c ../lib/ui/dial_motion.c)
+
 # Includes dial.c itself, to reach its static full-frame draw.
 add_executable(test_dial_region test_dial_region.c ../lib/ui/font.c ../lib/ui/font_b612.c
-               ../lib/ui/dial_motion.c)
+               ${DIAL_PARTS})
 target_include_directories(test_dial_region PRIVATE ../lib/ui ../lib/display
                                                      ../hal)
 target_link_libraries(test_dial_region PRIVATE textfit)
@@ -107,7 +111,7 @@ add_test(NAME dial_region COMMAND test_dial_region)
 # The same code compiled for a 360 x 360 panel, to keep it free of hard-coded
 # 240 px assumptions. This checks correctness only, not how it looks.
 add_executable(test_dial_region_360 test_dial_region.c ../lib/ui/font.c ../lib/ui/font_b612.c
-               ../lib/ui/dial_motion.c)
+               ${DIAL_PARTS})
 target_include_directories(test_dial_region_360 PRIVATE ../lib/ui
                            ../lib/display ../hal)
 target_link_libraries(test_dial_region_360 PRIVATE textfit)
@@ -178,7 +182,7 @@ target_include_directories(test_text PRIVATE ../lib/ui ../lib/display ../hal)
 add_test(NAME text COMMAND test_text)
 
 add_executable(test_dial test_dial.c ../lib/ui/dial.c ../lib/ui/font.c ../lib/ui/font_b612.c
-               ../lib/ui/dial_motion.c)
+               ${DIAL_PARTS})
 target_include_directories(test_dial PRIVATE ../lib/ui ../lib/display ../hal)
 target_link_libraries(test_dial PRIVATE textfit)
 add_test(NAME dial COMMAND test_dial)

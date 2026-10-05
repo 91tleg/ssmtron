@@ -29,13 +29,18 @@ static void test_next_stops_the_stream_and_reads_the_new_parameter( void )
     CHECK( strcmp( row( 1 ), text ) == 0 );
 }
 
-static void test_rpm_and_coolant_dials_get_the_right_scale( void )
+static void test_rpm_is_digits_and_coolant_dial_gets_the_right_scale( void )
 {
-    tap_next(); /* engine speed */
+    char text[TEXT_MAX + 1u];
+
+    tap_next(); /* engine speed: digits, no dial */
     run( 1500u );
-    CHECK( strcmp( dial_cfg->label, "RPM" ) == 0 );
-    CHECK( dial_has_value );
-    CHECK_EQ( dial_value, expected( 2 ) ); /* rpm itself */
+    CHECK( page != NULL );
+    CHECK( strcmp( row( 0 ), ecu_param_info( 2 )->name ) == 0 );
+    ( void )fmt_value(
+        text, sizeof( text ), ecu_param_info( 2 ), expected( 2 )
+    );
+    CHECK( strcmp( row( 1 ), text ) == 0 );
 
     tap_next(); /* coolant, whole F on this ECU: the dial wants tenths */
     run( 1500u );
@@ -49,6 +54,6 @@ int main( void )
     boot( ROM_KEY );
     run( 3000u ); /* identified, on the first page */
     test_next_stops_the_stream_and_reads_the_new_parameter();
-    test_rpm_and_coolant_dials_get_the_right_scale();
+    test_rpm_is_digits_and_coolant_dial_gets_the_right_scale();
     return MT_RESULT();
 }
