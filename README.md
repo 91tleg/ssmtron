@@ -15,40 +15,88 @@ The target is the nRF52840 DK. The ECU link uses UART1 through a suitable level 
 
 Bluetooth is used only for authenticated firmware updates and is off until update mode starts; the gauge does not stream ECU values over Bluetooth. Update mode uses a new random passkey each time and keeps no pairing.
 
-## Code map
+## Repository layout
 
-Start at `firmware/app/main.c` (startup and the main loop), then `firmware/app/gauge.c` (which page shows and what the buttons do), then `firmware/lib/ecu/ecu.h` (what the gauge asks of an ECU). Each layer uses only the ones below it.
+Start at `firmware/app/main.c` (startup and the main loop), then `firmware/app/gauge.c` (which page shows and what the buttons do), then `firmware/lib/ecu/ecu.h` (what the gauge asks of an ECU). Each layer uses only the ones below it: `app` uses `lib` and `hal`, `lib` uses nothing but the `hal` headers it is given, and `hal` is the only code that touches the chip. Most `.c` files have a `.h` beside them that says what they offer, and each folder has a `CMakeLists.txt` that lists what it builds.
 
 ```
-app/    what the gauge does: pages, buttons, themes, saved settings, update mode
-lib/    code with no hardware or app knowledge, one job per folder
-hal/    the chip interface (headers) and its nrf52/ drivers
-bsp/    the board's pins (devicetree overlay and bsp.h)
-test/   host tests, run with ctest
-hil/    tests on real hardware, which need a fixture
+.github/workflows/ci.yml        CI: clang-format, host tests, device build and the MISRA scan
+AGENTS.md                       how to work on this code: reviews, tests, commits
+README.md                       this file
+
+firmware/
+  .clang-format                 the code style CI checks
+
+  app/                          what the gauge does: pages, buttons, themes, saved settings, update mode
+    main.c                      startup order and the main loop
+    gauge.c                     picks which page or dial shows, turns button events into actions, applies the theme
+    gauge_input.c               debounces the two buttons and recognizes taps and holds
+    gauge_number.c              the plain number page
+    gauge_flags.c               the page for a switch or trouble-code byte: every flag name with 1 or 0
+    gauge_info.c                the Info page: version, ROM ID and whether the ECU is connected
+    gauge_update.c              the update-mode page: passkey, status and time left
+    gauge_sweep.c               the needle sweep at power-on
+    gauge_settings.c            what is saved: page, theme and ECU profile
+    ecu_io.c                    connects the UART to the ECU session
+    fw_info.c                   the firmware version
+    ble_log.c                   streams values over Bluetooth (kept for now, main.c does not call it)
+    hil_test.c                  a hang hook for the hardware test rig, built only with hil/prj_hil.conf
+    prj.conf, sysbuild.conf     Zephyr settings (Bluetooth, saved settings, MCUboot) and the MCUboot build
+    Kconfig, VERSION            the hardware-test option, and the firmware version
+
+  lib/                          code with no hardware or app knowledge, one job per folder
+    ecu/ecu.h                   the ECU interface: pages, values, clearing trouble codes
+    ssm1/                       the Subaru SSM1 implementation of that interface
+      ssm1.c                    the session: handshake, one read at a time, stall recovery, clear
+      ssm1_cmd.c                encodes the 4-byte commands
+      ssm1_rx.c                 finds frames in the reply bytes with a sliding window
+      ssm1_romid.c              parses the ROM ID reply
+      ssm1_params.c             the ECU profiles and the address and decoder of each parameter
+      ssm1_decode.c             raw byte to shown value
+    fmt/fmt.c                   turns ECU values and log lines into text
+    textfit/textfit.c           cuts, pads and centers text to a width, and prints numbers the way a gauge face does (".2")
+    display/
+      display.h                 the panel interface
+      gc9a01/gc9a01.c           the GC9A01 round display driver
+    ui/                         what gets drawn
+      ui_geom.h                 where things sit on a panel of any size, as parts of its radius
+      font.c, font_b612.c       the font: B612 Mono bitmaps made by tools/gen_font.py
+      text.c                    text widgets that redraw only what changed
+      dial.c                    the analog dial: draws it a pixel at a time, redraws the needle, opens and polls it
+      dial_layout.h             the dial's measurements, shared by the files below
+      dial_angle.c              where a reading points: the angle, and its sine and cosine
+      dial_face.c               works out the ticks, numbers, title and units once, when the dial opens
+      dial_shape.c              how much of a pixel a bar, a disc or the needle covers
+      dial_cover.c              the screws, and the arc style's cover plate with its shadow
+      dial_motion.c             how the needle moves: damped, speed-limited, in frames
+
+  hal/                          the chip interface
+    hal_*.h                     one header per service: gpio, uart, spi, time, nvm, ble, dfu, wdt, random, log
+    nrf52/                      the nRF52840 drivers behind those headers
+      uarte_baud.h              baud register math, so 1953 baud can be set
+
+  bsp/                          the board's pins
+    nrf52840dk/board.overlay    devicetree: UART1 for the ECU, SPI2 for the display, the two buttons
+    nrf52840dk/bsp.h            the pin and device ids the app uses
+
+  test/                         host tests, run with ctest
+    minitest.h                  a tiny test harness
+    test_*.c                    one test file per module, with fakes for what is below it
+    sil/                        whole-gauge scenarios: the real gauge and ECU session against a simulated ECU
+
+  hil/                          tests on real hardware, which need a bench fixture
+    test_*.py, conftest.py      pytest tests: watchdog recovery, button hold, Bluetooth update
+    fixture/                    the ESP32 sketch that plays the ECU and presses the button
+    prj_hil.conf                the settings that add the hang hook (never merged into prj.conf)
+
+tools/                          helpers that run on a computer, not on the gauge
+  gen_font.py                   makes lib/ui/font_b612.c from the font in fonts/
+  gen_logo.py                   makes a logo table from logos/ (the logo is not drawn at the moment)
+  preview_ui.c, preview_ui.py   draw the real UI code to PNG files, with no device
+  animate_ui.py                 animates the needle's motion to GIFs and CSVs
+  update_editor_commands.py     merges the build databases for VS Code IntelliSense
+  CMakeLists.txt, requirements.txt   build the preview program; the Python packages the tools need
 ```
-
-| Folder | What it does |
-| --- | --- |
-| `lib/ecu` | The ECU interface: what the rest of the firmware can ask for: pages, values, clearing trouble codes. |
-| `lib/ssm1` | The Subaru SSM1 implementation of that interface: the session, the ECU profiles and their parameters, and the decoders. |
-| `lib/fmt` | Turns ECU values and log lines into text. |
-| `lib/textfit` | Cuts, pads and centers text to a width. No dependencies. |
-| `lib/display` | The panel interface, with the GC9A01 driver in `gc9a01/`. |
-| `lib/ui` | What gets drawn: text widgets, the font (B612 Mono, anti-aliased bitmaps that `tools/gen_font.py` makes into `font_b612.c`), the analog dial (`dial`) and how its needle moves (`dial_motion`). |
-
-| App file | What it does |
-| --- | --- |
-| `main.c` | Startup order and the loop. |
-| `gauge.c` | Picks which page or dial shows, turns button events into actions, applies the theme. |
-| `gauge_input.c` | Debounces the two buttons and recognizes taps and holds. |
-| `gauge_number.c`, `gauge_flags.c`, `gauge_info.c`, `gauge_update.c` | The text pages: the number page, the flags page, the Info page and the update page. Each owns its own text and layout. |
-| `gauge_sweep.c` | The needle sweep at power-on. |
-| `gauge_settings.c` | What is saved: page, theme and ECU profile. |
-| `ecu_io.c` | Connects the UART to the ECU session. |
-| `fw_info.c` | The firmware version. |
-| `ble_log.c` | Streams values over Bluetooth. Kept for now, but `main.c` does not call it. |
-| `hil_test.c` | A hang hook that only hardware tests build in. |
 
 ## How the ECU link works
 

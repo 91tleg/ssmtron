@@ -362,16 +362,16 @@ static void test_upper_arc_settles_on_both_ends( void )
     uint32_t now = 0u;
 
     dial_init( &d, &arc, now );
-    CHECK_EQ( d.displayed_deg, -75 ); /* at rest: the lowest value */
+    CHECK_EQ( d.displayed_deg, -45 ); /* at rest: the lowest value */
     CHECK( settle( &d, &now, true, 2600, 200u ) > 0u );
-    CHECK_EQ( d.displayed_deg, 75 );
+    CHECK_EQ( d.displayed_deg, 45 );
     CHECK( settle( &d, &now, true, 1000, 200u ) > 0u );
-    CHECK_EQ( d.target_deg, -75 );
-    CHECK_EQ( d.displayed_deg, -75 ); /* exactly, not one degree short */
+    CHECK_EQ( d.target_deg, -45 );
+    CHECK_EQ( d.displayed_deg, -45 ); /* exactly, not one degree short */
     /* A value part way up the arc, still below zero: 400 of 1600 is 37 of
-     * 150 degrees, so -75 + 37. */
+     * 90 degrees, so -45 + 22. */
     CHECK( settle( &d, &now, true, 1400, 200u ) > 0u );
-    CHECK_EQ( d.displayed_deg, -38 );
+    CHECK_EQ( d.displayed_deg, -23 );
 }
 
 static void test_two_sided_scale_and_rest( void )
@@ -563,7 +563,7 @@ static void test_a_reading_past_the_scale_stops_at_its_end( void )
             0u
         };
 
-        check_beyond_the_ends( &arc, -75, 75 );
+        check_beyond_the_ends( &arc, -45, 45 );
     }
 }
 

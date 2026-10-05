@@ -86,14 +86,16 @@ static void test_a_dead_page_shows_nothing_and_does_not_block_the_next( void )
     size_t asked_from;
     char text[TEXT_MAX + 1u];
 
-    /* To page 2, the rpm dial, with a fresh reading. */
+    /* To page 2, the engine speed in digits, with a fresh reading. */
     press_next_for( 100u );
     run( 200u );
     press_next_for( 100u );
     run( SETTLE_MS );
-    CHECK( strcmp( dial_cfg->label, "RPM" ) == 0 );
-    CHECK( dial_has_value );
-    CHECK_EQ( dial_value, expected( 2 ) );
+    CHECK( page != NULL );
+    ( void )fmt_value(
+        text, sizeof( text ), ecu_param_info( 2 ), expected( 2 )
+    );
+    CHECK( strcmp( row( 1 ), text ) == 0 );
 
     /* Page 3 is the coolant dial, and its address gets no answer. */
     sim.dead_addr_set = true;
@@ -108,7 +110,7 @@ static void test_a_dead_page_shows_nothing_and_does_not_block_the_next( void )
              && ( strcmp( dial_cfg->label, "COOLANT" ) == 0 ) )
         {
             saw_dial = true;
-            CHECK( !dial_has_value ); /* not the rpm that is still fresh */
+            CHECK( !dial_has_value ); /* not the speed that is still fresh */
         }
     }
     CHECK( saw_dial );

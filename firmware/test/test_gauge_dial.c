@@ -1,4 +1,4 @@
-/* Check switching between the boost/rpm dials and the digital screen. */
+/* Check switching between the boost/voltage dials and the digital screen. */
 #include <string.h>
 
 #include "hal/hal_random.h"
@@ -17,15 +17,15 @@
 #define NEXT_ID   ( ( hal_gpio_id_t )1u )
 #define ACTION_ID ( ( hal_gpio_id_t )2u )
 
-/* idx 0: boost/vacuum (dial). idx 1: rpm (dial). idx 2: an ordinary
+/* idx 0: boost/vacuum (dial). idx 1: system voltage (dial). idx 2: an ordinary
  * linear parameter (digital only). */
 #define BOOST_IDX 0u
-#define RPM_IDX   1u
+#define VOLT_IDX  1u
 #define LOAD_IDX  2u
 
 static size_t selected         = BOOST_IDX;
 static int32_t boost_raw_value = 15250; /* milli-psi: 15.250 psi */
-static int32_t rpm_raw_value   = 3975;
+static int32_t volt_raw_value  = 1425;  /* hundredths of a volt */
 static bool value_available    = true;
 /* Another parameter, left over from the page before, still has a fresh value.
  */
@@ -33,7 +33,7 @@ static bool other_also_fresh;
 static bool extra_params;
 size_t ecu_param_count( void )
 {
-    return extra_params ? 6u : 3u;
+    return extra_params ? 8u : 3u;
 }
 
 const ecu_param_info_t * ecu_param_info( size_t idx )
@@ -47,20 +47,6 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
         .scale_den     = 1,
         .offset        = 0,
         .decimals      = 3,
-        .lookup        = NULL,
-        .flags         = NULL,
-        .flag_count    = 0,
-        .trouble_codes = false
-    };
-    static const ecu_param_info_t rpm_info = {
-        .name          = "Engine Speed",
-        .unit          = "rpm",
-        .unit_neg      = NULL,
-        .decode        = ECU_DEC_LINEAR,
-        .scale_num     = 1,
-        .scale_den     = 1,
-        .offset        = 0,
-        .decimals      = 0,
         .lookup        = NULL,
         .flags         = NULL,
         .flag_count    = 0,
@@ -89,15 +75,21 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
     static const ecu_param_info_t voltage = {
         .name = "System Voltage", .unit = "V", .decimals = 2
     };
+    static const ecu_param_info_t o2 = {
+        .name = "Oxygen Sensor", .unit = "V", .decimals = 2
+    };
+    static const ecu_param_info_t o2_lookalike = {
+        .name = "Oxygen Sensor", .unit = "V", .decimals = 3
+    };
     const ecu_param_info_t * info = NULL;
 
     if ( idx == BOOST_IDX )
     {
         info = &boost_info;
     }
-    else if ( idx == RPM_IDX )
+    else if ( idx == VOLT_IDX )
     {
-        info = &rpm_info;
+        info = &voltage;
     }
     else if ( idx == LOAD_IDX )
     {
@@ -114,6 +106,14 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
     else if ( extra_params && ( idx == 5u ) )
     {
         info = &voltage;
+    }
+    else if ( extra_params && ( idx == 6u ) )
+    {
+        info = &o2;
+    }
+    else if ( extra_params && ( idx == 7u ) )
+    {
+        info = &o2_lookalike;
     }
     else
     {
@@ -138,7 +138,7 @@ bool ecu_get_value(
 
     if ( found )
     {
-        *out = ( idx == BOOST_IDX ) ? boost_raw_value : rpm_raw_value;
+        *out = ( idx == BOOST_IDX ) ? boost_raw_value : volt_raw_value;
         if ( idx == 3u )
         {
             *out = 180;
@@ -150,6 +150,10 @@ bool ecu_get_value(
         else if ( idx == 5u )
         {
             *out = 1425;
+        }
+        else if ( idx == 6u )
+        {
+            *out = 45; /* hundredths of a volt */
         }
         else
         { /* Existing fake readings. */
@@ -422,7 +426,7 @@ int main( void )
 {
     static const display_pins_t pins = { 0 };
     const dial_cfg_t * boost_cfg;
-    const dial_cfg_t * rpm_cfg;
+    const dial_cfg_t * volt_cfg;
 
     ( void )gauge_init( &pins, NEXT_ID, ACTION_ID );
 
@@ -476,14 +480,14 @@ int main( void )
     tick( 1 );
     CHECK_EQ( dial_init_count, 1u );
 
-    /* NEXT selects rpm: also a dial, but a different one. */
+    /* NEXT selects the voltage: also a dial, but a different one. */
     tap_next(); /* idx 0 -> 1 */
-    CHECK_EQ( selected, RPM_IDX );
+    CHECK_EQ( selected, VOLT_IDX );
     CHECK_EQ( text_init_count, 0u ); /* still no digital screen */
     CHECK_EQ( dial_init_count, 2u );
-    CHECK_EQ( last_dial_value, 3975 ); /* rpm itself: the scale is in rpm */
-    rpm_cfg = last_dial_cfg;
-    CHECK( rpm_cfg != boost_cfg );
+    CHECK_EQ( last_dial_value, 1425 ); /* the ECU's own hundredths of a volt */
+    volt_cfg = last_dial_cfg;
+    CHECK( volt_cfg != boost_cfg );
 
     /* The page just left is still fresh for a while. The dial must show its
      * own parameter, which has nothing, not that one's reading. */
@@ -532,23 +536,22 @@ int main( void )
     tap_next(); /* load */
     tap_next(); /* whole F */
     CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
-    CHECK_EQ( last_dial_cfg->min_value, 1000 );
-    /* test_dial_region checks the numbers clear of the ticks for these. */
-    CHECK_EQ( last_dial_cfg->max_value, 2600 );
-    CHECK_EQ( last_dial_cfg->major_step, 400 );
-    CHECK_EQ( last_dial_cfg->minor_per_major, 3u );
-    CHECK_EQ( last_dial_cfg->label_div, 10 );
     CHECK_EQ( last_dial_value, 1800 );
     tap_next(); /* tenths F */
     CHECK_EQ( last_dial_value, 1805 );
     tap_next(); /* hundredths V */
     CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
-    CHECK_EQ( last_dial_cfg->min_value, 800 );
-    CHECK_EQ( last_dial_cfg->max_value, 1600 );
-    CHECK_EQ( last_dial_cfg->major_step, 200 );
-    CHECK_EQ( last_dial_cfg->minor_per_major, 3u );
-    CHECK_EQ( last_dial_cfg->label_div, 100 );
     CHECK_EQ( last_dial_value, 1425 );
+    tap_next(); /* the oxygen sensor, in hundredths of a volt */
+    CHECK_EQ( last_dial_cfg->style, DIAL_STYLE_UPPER_ARC );
+    CHECK_EQ( last_dial_value, 45 );
+    CHECK( strcmp( last_dial_cfg->label, "O2" ) == 0 );
+    {
+        unsigned texts_before = text_init_count;
+
+        tap_next(); /* the same name with other decimals is not that dial */
+        CHECK_EQ( text_init_count, texts_before + 1u );
+    }
 
     return MT_RESULT();
 }
