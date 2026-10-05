@@ -23,8 +23,14 @@
 #define DIAL_FULL_MIN_DEG  ( 135 )
 #define DIAL_FULL_ZERO_DEG ( 270 )
 #define DIAL_FULL_MAX_DEG  ( 435 )
-#define DIAL_UPPER_MIN_DEG ( -75 )
-#define DIAL_UPPER_MAX_DEG ( 75 )
+
+/* A scale on both sides of zero (boost and vacuum) has its lowest value at 6
+ * o'clock and its highest at 3 o'clock, with zero at 9 o'clock between them.
+ * Each side has its own degrees per unit. */
+#define DIAL_TWO_SIDED_MIN_DEG ( 180 )
+#define DIAL_TWO_SIDED_MAX_DEG ( 450 )
+#define DIAL_UPPER_MIN_DEG     ( -75 )
+#define DIAL_UPPER_MAX_DEG     ( 75 )
 
 #define DIAL_TICK_R UI_LEN( 825 )
 
@@ -69,6 +75,17 @@
 /* The title of a full sweep face (TURBO) sits higher than the units, from
  * the center to its top edge. */
 #define DIAL_TITLE_Y UI_LEN( 384 )
+
+/* Where the positive unit sits on a full sweep face, from the center. A dial
+ * with one unit has it right of center, a little above the middle. A dial
+ * with a unit for each side (boost: psi and inHg) has it lower, 67 px right
+ * and 20 px below center at 240 px. The negative unit sits beside the lowest
+ * number, this far from it. */
+#define DIAL_UNIT_X       UI_LEN( 435 )
+#define DIAL_UNIT_UP      UI_LEN( 42 )
+#define DIAL_PAIR_X       UI_LEN( 560 )
+#define DIAL_PAIR_DOWN    UI_LEN( 168 )
+#define DIAL_NEG_UNIT_GAP UI_LEN( 33 )
 
 /* The label and units around the center use this text size. */
 #define DIAL_FIXED_SCALE UI_TEXT_SCALE( 1 )
@@ -225,26 +242,19 @@ static int16_t value_to_deg(
     {
         if ( clamped <= 0 )
         {
-            offset =
-                ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                               * ( DIAL_FULL_ZERO_DEG - DIAL_FULL_MIN_DEG ) )
-                             / -cfg->min_value );
-            deg = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
+            offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
+                                    * ( DIAL_FULL_ZERO_DEG
+                                        - DIAL_TWO_SIDED_MIN_DEG ) )
+                                  / -cfg->min_value );
+            deg    = ( int16_t )( DIAL_TWO_SIDED_MIN_DEG + offset );
         }
         else
         {
-            /* The same degrees per unit as below zero, so the ticks are as
-             * far apart on both sides. The positive side ends where its
-             * scale does, not at the end of the sweep. */
-            offset =
-                ( int32_t )( ( ( int64_t )clamped
-                               * ( DIAL_FULL_ZERO_DEG - DIAL_FULL_MIN_DEG ) )
-                             / -cfg->min_value );
-            deg = ( int16_t )( DIAL_FULL_ZERO_DEG + offset );
-            if ( deg > DIAL_FULL_MAX_DEG )
-            {
-                deg = ( int16_t )DIAL_FULL_MAX_DEG;
-            }
+            offset = ( int32_t )( ( ( int64_t )clamped
+                                    * ( DIAL_TWO_SIDED_MAX_DEG
+                                        - DIAL_FULL_ZERO_DEG ) )
+                                  / cfg->max_value );
+            deg    = ( int16_t )( DIAL_FULL_ZERO_DEG + offset );
         }
     }
     else
@@ -401,28 +411,61 @@ static void add_label(
     }
 }
 
-/* The ticks, and a number at each long one. */
-static void add_ticks(
+/* The number at a long tick: its middle is r from the center along the
+ * tick. */
+static void add_number(
     const dial_cfg_t * cfg,
-    dial_face_t * face
+    dial_face_t * face,
+    int32_t value,
+    const dial_tick_t * tick
 )
 {
-    int32_t minor_step =
-        cfg->major_step / ( ( int32_t )cfg->minor_per_major + 1 );
+    char text[DIAL_LABEL_BUF];
+    int32_t shown  = value / cfg->label_div;
     int32_t r      = ( cfg->style == DIAL_STYLE_UPPER_ARC ) ? DIAL_ARC_LABEL_R
                                                             : DIAL_LABEL_R;
     int32_t height = ( int32_t )FONT_CELL_H * ( int32_t )DIAL_LABEL_SCALE;
+    size_t len;
 
-    for ( int32_t value = cfg->min_value;
-          ( value <= cfg->max_value ) && ( face->tick_count < DIAL_MAX_TICKS );
-          value += minor_step )
+    /* A scale with its own unit below zero reads as a plain magnitude
+     * there: the unit says which side it is. */
+    if ( ( cfg->unit_neg != NULL ) && ( shown < 0 ) )
+    {
+        shown = -shown;
+    }
+    len = textfit_int( text, DIAL_LABEL_BUF, shown );
+    add_label(
+        face,
+        text,
+        DIAL_LABEL_SCALE,
+        ( DIAL_CX + ( ( r * tick->sin_m ) / 1000 ) )
+            - ( label_width( len, DIAL_LABEL_SCALE ) / 2 ),
+        ( DIAL_CY - ( ( r * tick->cos_m ) / 1000 ) ) - ( height / 2 )
+    );
+}
+
+/* One run of ticks, from one value to another in equal steps. A tick is long
+ * (and numbered) when it is a whole number of major steps from anchor. */
+static void add_run(
+    const dial_cfg_t * cfg,
+    dial_face_t * face,
+    int32_t from,
+    int32_t to,
+    int32_t step,
+    int32_t major_step,
+    int32_t anchor
+)
+{
+    for ( int32_t value = from;
+          ( value <= to ) && ( face->tick_count < DIAL_MAX_TICKS );
+          value += step )
     {
         dial_tick_t * tick = &face->ticks[face->tick_count];
         int32_t sin_m;
         int32_t cos_m;
 
         tick->deg   = value_to_deg( cfg, value );
-        tick->major = ( ( ( value - cfg->min_value ) % cfg->major_step ) == 0 );
+        tick->major = ( ( ( value - anchor ) % major_step ) == 0 );
         angle_vec( tick->deg, &sin_m, &cos_m );
         tick->sin_m = ( int16_t )sin_m;
         tick->cos_m = ( int16_t )cos_m;
@@ -430,28 +473,57 @@ static void add_ticks(
 
         if ( tick->major )
         {
-            char text[DIAL_LABEL_BUF];
-            int32_t shown = value / cfg->label_div;
-            size_t len;
-
-            /* A scale with its own unit below zero reads as a plain
-             * magnitude there: the unit says which side it is. */
-            if ( ( cfg->unit_neg != NULL ) && ( shown < 0 ) )
-            {
-                shown = -shown;
-            }
-            len = textfit_int( text, DIAL_LABEL_BUF, shown );
-
-            /* The number's middle is r from the center along the tick. */
-            add_label(
-                face,
-                text,
-                DIAL_LABEL_SCALE,
-                ( DIAL_CX + ( ( r * sin_m ) / 1000 ) )
-                    - ( label_width( len, DIAL_LABEL_SCALE ) / 2 ),
-                ( DIAL_CY - ( ( r * cos_m ) / 1000 ) ) - ( height / 2 )
-            );
+            add_number( cfg, face, value, tick );
         }
+    }
+}
+
+/* The ticks, and a number at each long one. A scale on both sides of zero
+ * may space them differently on each side. */
+static void add_ticks(
+    const dial_cfg_t * cfg,
+    dial_face_t * face
+)
+{
+    int32_t minor_step =
+        cfg->major_step / ( ( int32_t )cfg->minor_per_major + 1 );
+
+    if ( ( cfg->min_value < 0 ) && ( cfg->max_value > 0 )
+         && ( cfg->neg_major_step > 0 ) )
+    {
+        int32_t neg_step =
+            cfg->neg_major_step / ( ( int32_t )cfg->neg_minor_per_major + 1 );
+
+        add_run(
+            cfg,
+            face,
+            cfg->min_value,
+            0,
+            neg_step,
+            cfg->neg_major_step,
+            cfg->min_value
+        );
+        add_run(
+            cfg,
+            face,
+            minor_step,
+            cfg->max_value,
+            minor_step,
+            cfg->major_step,
+            0
+        );
+    }
+    else
+    {
+        add_run(
+            cfg,
+            face,
+            cfg->min_value,
+            cfg->max_value,
+            minor_step,
+            cfg->major_step,
+            cfg->min_value
+        );
     }
 }
 
@@ -461,7 +533,8 @@ static void add_fixed_labels(
     dial_face_t * face
 )
 {
-    bool arc = ( cfg->style == DIAL_STYLE_UPPER_ARC );
+    bool arc    = ( cfg->style == DIAL_STYLE_UPPER_ARC );
+    bool paired = ( cfg->unit_neg != NULL );
 
     if ( cfg->label != NULL )
     {
@@ -483,18 +556,28 @@ static void add_fixed_labels(
             arc ? ( DIAL_CX
                     - ( label_width( strlen( cfg->unit_pos ), DIAL_FIXED_SCALE )
                         / 2 ) )
-                : ( DIAL_CX + UI_LEN( 435 ) ),
-            arc ? ( DIAL_CY - UI_LEN( 192 ) ) : ( DIAL_CY - UI_LEN( 42 ) )
+                : ( DIAL_CX + ( paired ? DIAL_PAIR_X : DIAL_UNIT_X ) ),
+            arc ? ( DIAL_CY - UI_LEN( 192 ) )
+                : ( paired ? ( DIAL_CY + DIAL_PAIR_DOWN )
+                           : ( DIAL_CY - DIAL_UNIT_UP ) )
         );
     }
-    if ( cfg->unit_neg != NULL )
+    if ( ( cfg->unit_neg != NULL ) && ( face->label_count > 0u ) )
     {
+        /* Beside the lowest number, which add_ticks made first. */
+        const dial_label_t lowest = face->labels[0];
+
         add_label(
             face,
             cfg->unit_neg,
             DIAL_FIXED_SCALE,
-            DIAL_CX - UI_LEN( 550 ),
-            DIAL_CY + UI_LEN( 192 )
+            lowest.x + label_width( strlen( lowest.text ), DIAL_LABEL_SCALE )
+                + DIAL_NEG_UNIT_GAP,
+            lowest.y
+                + ( ( ( ( int32_t )FONT_CELL_H * ( int32_t )DIAL_LABEL_SCALE )
+                      - ( ( int32_t )FONT_CELL_H
+                          * ( int32_t )DIAL_FIXED_SCALE ) )
+                    / 2 )
         );
     }
 }

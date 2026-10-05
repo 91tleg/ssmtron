@@ -88,7 +88,9 @@ static const dial_cfg_t cfg = {
     0x632Cu,
     0xF922u,
     900u,
-    DIAL_STYLE_FULL_SWEEP
+    DIAL_STYLE_FULL_SWEEP,
+    0,
+    0u
 };
 
 static uint32_t now = 1000u;
@@ -225,7 +227,9 @@ static void test_tick_numbers_use_label_div( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     dial_face_t face;
 
@@ -256,7 +260,9 @@ static void test_needle_ends_line_up_with_the_scale_ends( void )
           2u,
           3u,
           900u,
-          DIAL_STYLE_FULL_SWEEP },
+          DIAL_STYLE_FULL_SWEEP,
+          0,
+          0u },
         { 0,
           8000,
           1000,
@@ -269,7 +275,9 @@ static void test_needle_ends_line_up_with_the_scale_ends( void )
           2u,
           3u,
           900u,
-          DIAL_STYLE_FULL_SWEEP },
+          DIAL_STYLE_FULL_SWEEP,
+          0,
+          0u },
         { 1000,
           2600,
           400,
@@ -282,7 +290,9 @@ static void test_needle_ends_line_up_with_the_scale_ends( void )
           2u,
           3u,
           900u,
-          DIAL_STYLE_UPPER_ARC },
+          DIAL_STYLE_UPPER_ARC,
+          0,
+          0u },
     };
 
     for ( size_t c = 0; c < ( sizeof( cfgs ) / sizeof( cfgs[0] ) ); c++ )
@@ -322,14 +332,17 @@ static void test_needle_ends_line_up_with_the_scale_ends( void )
     }
 }
 
-/* A scale that crosses zero has the same gap between ticks on both sides: a
- * step of 10 vacuum units is as wide as a step of 10 boost units. */
-static void test_ticks_are_evenly_spaced_across_zero( void )
+/* The boost scale: vacuum fills the quarter turn from 9 o'clock down to 6,
+ * boost the half turn from 9 up over the top to 3. Vacuum has a long,
+ * numbered tick every 10 and a short one between (every 5), 15 degrees
+ * apart. Boost has a long tick every 5 units and four short ones between,
+ * 6 degrees apart. */
+static void test_boost_ticks_are_a_quarter_and_a_half_turn( void )
 {
     static const dial_cfg_t boost = {
         -30000,
-        20000,
-        10000,
+        30000,
+        5000,
         4u,
         1000,
         "TURBO",
@@ -339,27 +352,38 @@ static void test_ticks_are_evenly_spaced_across_zero( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        10000,
+        1u
+    };
+    static const char * const numbers[] = {
+        "30", "20", "10", "0", "5", "10", "15", "20", "25", "30"
     };
     dial_face_t face;
 
     make_face( &boost, &face );
-    CHECK_EQ( face.tick_count, 26u );
-    CHECK_EQ( face.ticks[0].deg, 135 );
-    CHECK_EQ( face.ticks[25].deg, 360 );
+    CHECK_EQ( face.tick_count, 37u );
+    CHECK_EQ( face.ticks[0].deg, 180 );  /* 30 inHg, 6 o'clock */
+    CHECK_EQ( face.ticks[6].deg, 270 );  /* zero, 9 o'clock */
+    CHECK_EQ( face.ticks[36].deg, 450 ); /* 30 psi, 3 o'clock */
     for ( size_t i = 1; i < face.tick_count; i++ )
     {
         CHECK_EQ(
-            face.ticks[i].deg - face.ticks[i - 1u].deg, 9
-        ); /* 2 units each */
+            face.ticks[i].deg - face.ticks[i - 1u].deg, ( i <= 6u ) ? 15 : 6
+        );
     }
-    CHECK_EQ( number_count( &boost, &face ), 6u );
-    /* Vacuum has its own unit, so its numbers have no minus sign. */
-    CHECK( strcmp( face.labels[0].text, "30" ) == 0 );
-    CHECK( strcmp( face.labels[1].text, "20" ) == 0 );
-    CHECK( strcmp( face.labels[2].text, "10" ) == 0 );
-    CHECK( strcmp( face.labels[3].text, "0" ) == 0 );
-    CHECK( strcmp( face.labels[5].text, "20" ) == 0 );
+    for ( size_t i = 0; i < face.tick_count; i++ )
+    {
+        bool long_tick =
+            ( i <= 6u ) ? ( ( i % 2u ) == 0u ) : ( ( ( i - 6u ) % 5u ) == 0u );
+
+        CHECK_EQ( face.ticks[i].major, long_tick );
+    }
+    CHECK_EQ( number_count( &boost, &face ), 10u );
+    for ( size_t i = 0; i < 10u; i++ )
+    {
+        CHECK( strcmp( face.labels[i].text, numbers[i] ) == 0 );
+    }
 }
 
 /* A scale that changes sign without its own unit keeps its minus signs. */
@@ -378,7 +402,9 @@ static void test_a_scale_without_a_vacuum_unit_keeps_minus_signs( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     dial_face_t face;
 
@@ -403,7 +429,9 @@ static void test_a_scale_with_small_ticks_fits_every_tick( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     dial_face_t face;
     size_t majors = 0;
@@ -438,7 +466,9 @@ static void test_upper_arc( void )
         0x632Cu,
         0xF922u,
         900u,
-        DIAL_STYLE_UPPER_ARC
+        DIAL_STYLE_UPPER_ARC,
+        0,
+        0u
     };
     dial_face_t face;
     dial_widget_t d;
@@ -484,7 +514,9 @@ static const dial_cfg_t coolant_like = {
     0x632Cu,
     0xF922u,
     900u,
-    DIAL_STYLE_UPPER_ARC
+    DIAL_STYLE_UPPER_ARC,
+    0,
+    0u
 };
 static const dial_cfg_t voltage_like = {
     800,
@@ -499,7 +531,9 @@ static const dial_cfg_t voltage_like = {
     0x632Cu,
     0xF922u,
     900u,
-    DIAL_STYLE_UPPER_ARC
+    DIAL_STYLE_UPPER_ARC,
+    0,
+    0u
 };
 
 /* Whether any ink of this label lands on a visible part of a tick that is
@@ -626,7 +660,9 @@ static void test_no_tick_reaches_outside_the_tick_ring( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     static const dial_cfg_t boost = {
         -30000,
@@ -641,7 +677,9 @@ static void test_no_tick_reaches_outside_the_tick_ring( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     const dial_cfg_t * cfgs[] = { &tach, &boost, &coolant_like };
 
@@ -688,6 +726,110 @@ static void test_no_tick_reaches_outside_the_tick_ring( void )
     }
 }
 
+/* The face's own words (title and units) must not run into a tick number or
+ * into each other, and must stay on the round panel. Checked on the faces
+ * that carry units: boost with its pair of units, and rpm with one. */
+static bool boxes_overlap(
+    const dial_label_t * a,
+    const dial_label_t * b
+)
+{
+    int32_t aw = label_width( strlen( a->text ), a->scale );
+    int32_t ah = ( int32_t )FONT_CELL_H * a->scale;
+    int32_t bw = label_width( strlen( b->text ), b->scale );
+    int32_t bh = ( int32_t )FONT_CELL_H * b->scale;
+
+    return ( a->x < ( b->x + bw ) ) && ( b->x < ( a->x + aw ) )
+           && ( a->y < ( b->y + bh ) ) && ( b->y < ( a->y + ah ) );
+}
+
+static bool on_the_panel( const dial_label_t * lb )
+{
+    int32_t w     = label_width( strlen( lb->text ), lb->scale );
+    int32_t h     = ( int32_t )FONT_CELL_H * lb->scale;
+    int32_t limit = ( int32_t )UI_RADIUS - 2;
+    bool ok       = true;
+
+    for ( int32_t corner = 0; corner < 4; corner++ )
+    {
+        int32_t dx = ( lb->x + ( ( ( corner % 2 ) != 0 ) ? w : 0 ) ) - DIAL_CX;
+        int32_t dy = ( lb->y + ( ( corner >= 2 ) ? h : 0 ) ) - DIAL_CY;
+
+        ok = ok && ( ( ( dx * dx ) + ( dy * dy ) ) <= ( limit * limit ) );
+    }
+    return ok;
+}
+
+static void test_fixed_words_keep_clear_of_the_numbers_and_each_other( void )
+{
+    static const dial_cfg_t boost = {
+        -30000,
+        30000,
+        5000,
+        4u,
+        1000,
+        "TURBO",
+        "PSI",
+        "INHG",
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_FULL_SWEEP,
+        10000,
+        1u
+    };
+    static const dial_cfg_t tach = {
+        0,
+        8000,
+        1000,
+        4u,
+        1000,
+        "RPM",
+        "x1000",
+        NULL,
+        1u,
+        2u,
+        3u,
+        900u,
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
+    };
+    const dial_cfg_t * cfgs[] = { &boost, &tach };
+
+    for ( size_t c = 0; c < 2u; c++ )
+    {
+        dial_face_t face;
+        size_t numbers;
+
+        make_face( cfgs[c], &face );
+        numbers = number_count( cfgs[c], &face );
+        CHECK( face.label_count > numbers );
+        for ( size_t n = 0; n < numbers; n++ )
+        {
+            /* The numbers themselves keep clear of one another and of the
+             * ticks. */
+            CHECK( gap_to_ticks( &face.labels[n], &face ) >= 1 );
+            for ( size_t o = n + 1u; o < numbers; o++ )
+            {
+                CHECK( !boxes_overlap( &face.labels[n], &face.labels[o] ) );
+            }
+        }
+        for ( size_t f = numbers; f < face.label_count; f++ )
+        {
+            CHECK( on_the_panel( &face.labels[f] ) );
+            for ( size_t o = 0; o < face.label_count; o++ )
+            {
+                if ( o != f )
+                {
+                    CHECK( !boxes_overlap( &face.labels[f], &face.labels[o] ) );
+                }
+            }
+        }
+    }
+}
+
 /* A dial's face is worked out when it opens. Changing the dial's settings
  * afterwards changes nothing already drawn: the ticks and numbers are the
  * ones from the start. */
@@ -726,12 +868,13 @@ int main( void )
     test_partial_redraw_matches_a_fresh_frame();
     test_tick_numbers_use_label_div();
     test_needle_ends_line_up_with_the_scale_ends();
-    test_ticks_are_evenly_spaced_across_zero();
+    test_boost_ticks_are_a_quarter_and_a_half_turn();
     test_a_scale_without_a_vacuum_unit_keeps_minus_signs();
     test_a_scale_with_small_ticks_fits_every_tick();
     test_no_tick_reaches_outside_the_tick_ring();
     test_upper_arc();
     test_arc_numbers_clear_the_ticks();
+    test_fixed_words_keep_clear_of_the_numbers_and_each_other();
     test_a_dial_face_is_made_when_the_dial_opens();
     return MT_RESULT();
 }

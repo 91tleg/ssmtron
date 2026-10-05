@@ -479,7 +479,7 @@ typedef struct
 static dial_cfg_t boost_dial_cfg = {
     -30000,
     30000,
-    10000,
+    5000,
     4u,
     1000,
     "TURBO",
@@ -489,7 +489,9 @@ static dial_cfg_t boost_dial_cfg = {
     0x632Cu,
     NEEDLE_RED,
     900u,
-    DIAL_STYLE_FULL_SWEEP
+    DIAL_STYLE_FULL_SWEEP,
+    10000,
+    1u
 };
 
 /* The tachometer displays thousands of rpm on the same face. */
@@ -506,7 +508,9 @@ static dial_cfg_t rpm_dial_cfg = {
     0x632Cu,
     NEEDLE_RED,
     1200u,
-    DIAL_STYLE_FULL_SWEEP
+    DIAL_STYLE_FULL_SWEEP,
+    0,
+    0u
 };
 
 /* Upper scales use tenths F and hundredths V to keep ECU precision. */
@@ -523,7 +527,9 @@ static dial_cfg_t coolant_dial_cfg = {
     0x632Cu,
     NEEDLE_RED,
     900u,
-    DIAL_STYLE_UPPER_ARC
+    DIAL_STYLE_UPPER_ARC,
+    0,
+    0u
 };
 
 static dial_cfg_t voltage_dial_cfg = {
@@ -539,7 +545,9 @@ static dial_cfg_t voltage_dial_cfg = {
     0x632Cu,
     NEEDLE_RED,
     900u,
-    DIAL_STYLE_UPPER_ARC
+    DIAL_STYLE_UPPER_ARC,
+    0,
+    0u
 };
 
 static void apply_theme( void )

@@ -53,6 +53,13 @@ typedef struct
     uint16_t max_deg_per_s; /* needle's fastest speed, degrees per second;
                              * must be > 0 or the needle can never move */
     dial_style_t style;
+    int32_t neg_major_step;      /* a scale on both sides of zero may space its
+                                  * labeled ticks differently below zero: this is
+                                  * major_step there, and it must divide
+                                  * (0 - min_value) evenly. 0 means the same as
+                                  * major_step. Ignored on other scales. */
+    uint8_t neg_minor_per_major; /* minor_per_major below zero, used with
+                                  * neg_major_step */
 } dial_cfg_t;
 
 /* One tick: where it points, as an angle and as the sine and cosine in
