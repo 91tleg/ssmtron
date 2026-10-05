@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 project(ssmtron_ui_preview C)
 
+# Observe the real dial poll in the host renderer without changing firmware.
+set_source_files_properties(../firmware/app/gauge.c PROPERTIES
+  COMPILE_DEFINITIONS "dial_poll=preview_dial_poll")
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 

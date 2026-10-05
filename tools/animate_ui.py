@@ -2,12 +2,12 @@
 """Animate the gauge dials so the needle's motion can be watched and measured.
 
 The real firmware code draws every frame, at its real 33 ms rhythm, while the
-reading follows a script (a step, a ramp, a rev blip, the power-on sweep).
+reading follows a script (a step, a ramp, the power-on sweep).
 Each scene gives an animated GIF, a CSV of the reading and the needle angle
 at every frame, a plot of the angle against its target, and a line of numbers:
 how long it took, how far it overshot and how fast it moved.
 
-Needs Pillow and Matplotlib:
+Needs NumPy, Pillow and Matplotlib:
     python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt
 Run from anywhere with: .venv/bin/python tools/animate_ui.py
 The files and index.html are written to firmware/build-ui-preview/anim/.
@@ -16,6 +16,7 @@ The files and index.html are written to firmware/build-ui-preview/anim/.
 from __future__ import annotations
 
 import argparse
+import csv
 import math
 from pathlib import Path
 import subprocess
@@ -32,7 +33,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from preview_ui import DEFAULT_SIZE, build_renderer  # noqa: E402
 
 FRAME_MS = 33
-NEEDLE_RED = 0xF922
 BACKGROUND = (0x20, 0x24, 0x2B)
 
 
@@ -41,41 +41,19 @@ def top_cw(deg: float) -> float:
     return deg % 360.0
 
 
-# For each scene: a title, how long it runs, and a function from the reading to
-# the angle the needle should reach. These restate the scales of the dials, so
-# they also check the firmware against an independent calculation.
-def boost_target(value: int) -> float:
-    """-30..30 psi, 45 degrees per 10 units, zero at 9 o'clock."""
-    return top_cw(270.0 + value * 45.0 / 10000.0)
-
-
-def rpm_target(value: int) -> float:
-    """0..8000 rpm over the full 300 degree sweep."""
-    return top_cw(135.0 + value * 300.0 / 8000.0)
-
-
-def coolant_target(value: int) -> float:
-    """100..260 F in tenths, on the upper arc."""
-    return top_cw(-75.0 + (value - 1000) * 150.0 / 1600.0)
-
-
-def voltage_target(value: int) -> float:
-    """8..16 V in hundredths, on the upper arc."""
-    return top_cw(-75.0 + (value - 800) * 150.0 / 800.0)
-
-
+# Targets and pivots come from the real firmware poll, including startup sweep
+# overrides. The needle angle is measured independently from rendered pixels.
 SCENES = {
-    "anim_power_on": ("Power-on sweep, boost: rest, full scale, bottom, rest", 3500, boost_target),
-    "anim_boost_step": ("Boost: step to 15 psi, then to -20 inHg", 4000, boost_target),
-    "anim_boost_ramp": ("Boost: ramp to 30 psi and down to -30 inHg", 3500, boost_target),
-    "anim_rpm_blip": ("RPM: idle, a rev to 6500 and back to 2000", 4500, rpm_target),
-    "anim_coolant_sweep": ("Coolant: 100 to 260 F and back on the upper arc", 3500, coolant_target),
-    "anim_voltage_ramp": ("Voltage: 8 to 16 V and back on the upper arc", 3500, voltage_target),
+    "anim_power_on": ("Power-on sweep, boost: rest, full scale, bottom, rest", 3500),
+    "anim_boost_step": ("Boost: step to 15 psi, then to -20 inHg", 4000),
+    "anim_boost_ramp": ("Boost: ramp to 30 psi and down to -30 inHg", 3500),
+    "anim_coolant_sweep": ("Coolant: 100 to 260 F and back on the upper arc", 3500),
+    "anim_voltage_ramp": ("Voltage: 8 to 16 V and back on the upper arc", 3500),
 }
 
 
 def rgb565_to_rgb(frames: np.ndarray) -> np.ndarray:
-    """(n, h, w) of RGB565 to (n, h, w, 3) of 8-bit RGB."""
+    """RGB565 frames or a single frame to 8-bit RGB."""
     r = ((frames >> 11) & 0x1F).astype(np.uint16) * 255 // 31
     g = ((frames >> 5) & 0x3F).astype(np.uint16) * 255 // 63
     b = (frames & 0x1F).astype(np.uint16) * 255 // 31
@@ -87,17 +65,26 @@ def circle_mask(size: int) -> np.ndarray:
     return (2 * x - (size - 1)) ** 2 + (2 * y - (size - 1)) ** 2 <= size**2
 
 
-def needle_angle(frame: np.ndarray, size: int) -> float:
-    """The needle's angle in degrees clockwise from the top: the direction of
-    its red pixel farthest from the center. NaN if there is none."""
-    ys, xs = np.nonzero(frame == NEEDLE_RED)
+def needle_angle(frame: np.ndarray, pivot_x: int, pivot_y: int) -> float:
+    """Measure the shaded red tip around the actual firmware needle pivot."""
+    rgb = rgb565_to_rgb(frame).astype(np.int16)
+    red = (
+        (rgb[..., 0] > 120)
+        & (rgb[..., 0] > 2 * rgb[..., 1])
+        & (rgb[..., 0] > 2 * rgb[..., 2])
+    )
+    ys, xs = np.nonzero(red)
     if len(xs) == 0:
         return float("nan")
-    cx = cy = (size - 1) / 2.0
-    dx = xs - cx
-    dy = ys - cy
-    i = int(np.argmax(dx * dx + dy * dy))
-    return math.degrees(math.atan2(dx[i], -dy[i])) % 360.0
+    dx = xs - pivot_x
+    dy = ys - pivot_y
+    radius = np.hypot(dx, dy)
+    # Average both edges of the tip so shading and rasterization do not bias
+    # the result toward one side of the blade.
+    tip = radius >= radius.max() - 3.0
+    return top_cw(math.degrees(math.atan2(
+        float(dx[tip].mean()), -float(dy[tip].mean())
+    )))
 
 
 def signed_gap(a: float, b: float) -> float:
@@ -105,12 +92,12 @@ def signed_gap(a: float, b: float) -> float:
     return (a - b + 180.0) % 360.0 - 180.0
 
 
-def read_csv(path: Path) -> list[tuple[int, int]]:
-    rows = path.read_text().splitlines()[1:]
-    return [tuple(int(x) for x in row.split(",")) for row in rows]  # type: ignore
-
-
-SWEEP_MS = 700  # the power-on sweep to full scale ends well before this
+def read_csv(path: Path) -> list[dict[str, int]]:
+    with path.open(newline="") as stream:
+        return [
+            {key: int(value) for key, value in row.items()}
+            for row in csv.DictReader(stream)
+        ]
 
 
 def unwrap(angles: list[float]) -> list[float]:
@@ -134,8 +121,8 @@ def unwrap(angles: list[float]) -> list[float]:
 
 
 def analyze(times, angles, targets):
-    """Numbers about the motion, after the power-on sweep: the fastest the
-    needle moved, how far it went past its target, how far it fell behind
+    """Numbers about the motion: the fastest the needle moved,
+    how far it went past its target, how far it fell behind
     while the reading was moving, and how long it took to settle after the
     reading stopped changing."""
     speeds = []
@@ -144,11 +131,10 @@ def analyze(times, angles, targets):
             speeds.append(
                 abs(angles[i] - angles[i - 1]) * 1000.0 / (times[i] - times[i - 1])
             )
-    after = [i for i, t in enumerate(times) if t >= SWEEP_MS]
     overshoot = 0.0
     lag = 0.0
     last_change = None
-    for i in after[1:]:
+    for i in range(1, len(times)):
         if math.isnan(angles[i]):
             continue
         gap = angles[i] - targets[i]
@@ -181,7 +167,7 @@ def analyze(times, angles, targets):
 
 
 def render_scene(renderer: Path, scene: str, size: int, output: Path) -> dict:
-    title, duration, target_of = SCENES[scene]
+    title, duration = SCENES[scene]
     frames_path = output / f"{scene}.frames"
     subprocess.run([str(renderer), scene, str(frames_path), str(duration)], check=True)
     raw = np.fromfile(frames_path, dtype="<u2")
@@ -192,14 +178,20 @@ def render_scene(renderer: Path, scene: str, size: int, output: Path) -> dict:
     frames_path.unlink()
     csv_path.unlink()
 
-    times = [t for t, _ in rows][:count]
-    values = [v for _, v in rows][:count]
-    angles = unwrap([needle_angle(frames[i], size) for i in range(count)])
-    targets = unwrap([target_of(v) for v in values])
-    # Put the two curves on the same turn of the circle.
-    first = next((a for a in angles if not math.isnan(a)), 0.0)
-    shift = 360.0 * round((first - targets[0]) / 360.0)
-    targets = [t + shift for t in targets]
+    if len(rows) != count:
+        raise ValueError(f"{scene}: {count} frames but {len(rows)} metadata rows")
+    times = [row["t_ms"] for row in rows]
+    angles = unwrap([
+        needle_angle(frame, row["pivot_x"], row["pivot_y"])
+        for frame, row in zip(frames, rows)
+    ])
+    if any(math.isnan(angle) for angle in angles):
+        raise ValueError(f"{scene}: could not measure the needle in every frame")
+    # Firmware targets already use an unwrapped scale. Preserve its intended
+    # direction even when a reading jumps by more than half a turn.
+    targets = [row["target_deg"] for row in rows]
+    shift = 360.0 * round((targets[0] - angles[0]) / 360.0)
+    angles = [angle + shift for angle in angles]
 
     # The animated GIF, with the panel's round edge.
     mask = circle_mask(size)
@@ -218,16 +210,19 @@ def render_scene(renderer: Path, scene: str, size: int, output: Path) -> dict:
 
     # The numbers, one line per frame.
     with open(output / f"{scene}.csv", "w") as f:
-        f.write("t_ms,value,target_deg,needle_deg\n")
-        for t, v, tg, a in zip(times, values, targets, angles):
-            f.write(f"{t},{v},{tg:.2f},{a:.2f}\n")
+        f.write("t_ms,value,aim_value,target_deg,displayed_deg,needle_deg\n")
+        for row, tg, a in zip(rows, targets, angles):
+            f.write(
+                f"{row['t_ms']},{row['value']},{row['aim_value']},"
+                f"{tg:.2f},{row['displayed_deg']},{a:.2f}\n"
+            )
 
     # The plot: where the needle was against where it should be.
     fig, ax = plt.subplots(figsize=(7, 3), dpi=110)
     ax.plot(times, targets, "--", color="#888", label="target")
     ax.plot(times, angles, "-", color="#d3342a", label="needle (drawn)")
     ax.set_xlabel("time (ms)")
-    ax.set_ylabel("degrees clockwise from the top (unwrapped)")
+    ax.set_ylabel("needle angle (degrees, unwrapped)")
     ax.set_title(title)
     ax.grid(alpha=0.3)
     ax.legend()
@@ -250,7 +245,7 @@ def write_index(output: Path, results: dict[str, dict], size: int) -> None:
             f'<div class="row"><img class="gif" src="{scene}.gif" alt="">'
             f'<img class="plot" src="{scene}.png" alt=""></div>'
             f"<p>{st['frames']} frames. Fastest {st['max_speed_dps']:.0f} deg/s. "
-            f"After the sweep: overshoot {st['overshoot_deg']:.1f} deg, "
+            f"Overshoot {st['overshoot_deg']:.1f} deg, "
             f"furthest behind the target {st['lag_deg']:.1f} deg, within 1 degree "
             f"of it {settle} after the last change. "
             f"<a href=\"{scene}.csv\">CSV</a></p></section>"
@@ -272,9 +267,12 @@ def main() -> None:
     parser.add_argument("--size", type=int, default=DEFAULT_SIZE,
                         help="panel width and height in pixels (default %(default)s)")
     parser.add_argument("--output", type=Path, default=None, help="output folder")
-    parser.add_argument("scenes", nargs="*", choices=list(SCENES),
+    parser.add_argument("scenes", nargs="*",
                         metavar="SCENE", help="scenes to render (default: all)")
     args = parser.parse_args()
+    for scene in args.scenes:
+        if scene not in SCENES:
+            parser.error(f"unknown scene {scene!r}; choose from {', '.join(SCENES)}")
     build, renderer = build_renderer(args.size)
     output = (args.output or build / "anim").resolve()
     output.mkdir(parents=True, exist_ok=True)
