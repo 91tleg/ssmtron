@@ -76,7 +76,21 @@ static bool shadow_has_color(
 /* 0..100 over the full 135..435 sweep, with no face label or units. Its top
  * speed is 300 degrees per second, a full sweep in one second. */
 static const dial_cfg_t test_cfg = {
-    0, 100, 25, 0u, 1, NULL, NULL, NULL, 1u, 2u, 3u, 300u, DIAL_STYLE_FULL_SWEEP
+    0,
+    100,
+    25,
+    0u,
+    1,
+    NULL,
+    NULL,
+    NULL,
+    1u,
+    2u,
+    3u,
+    300u,
+    DIAL_STYLE_FULL_SWEEP,
+    0,
+    0u
 };
 
 static void reset( void )
@@ -245,7 +259,9 @@ static void test_needle_draws_over_label_and_uncovers_it( void )
         0x2222u,
         0x3333u,
         150u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     const uint16_t label_y0 = 74u;
     const uint16_t label_y1 = 82u;
@@ -305,7 +321,9 @@ static void test_a_fine_scale_keeps_its_precision( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     dial_widget_t d;
     int16_t at_3000;
@@ -336,7 +354,9 @@ static void test_upper_arc_settles_on_both_ends( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_UPPER_ARC
+        DIAL_STYLE_UPPER_ARC,
+        0,
+        0u
     };
     dial_widget_t d;
     uint32_t now = 0u;
@@ -369,23 +389,28 @@ static void test_two_sided_scale_and_rest( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     dial_widget_t d;
 
     dial_init( &d, &cfg, 0u );
     CHECK_EQ( d.displayed_deg, 270 );
 
+    /* Below zero 30 units take the quarter turn from 9 o'clock down to 6
+     * (3 degrees each). Above zero 20 take the half turn up to 3 o'clock
+     * (9 degrees each). */
     dial_poll( &d, 0u, true, -30 );
-    CHECK_EQ( d.target_deg, 135 );
+    CHECK_EQ( d.target_deg, 180 );
     dial_poll( &d, 0u, true, 0 );
     CHECK_EQ( d.target_deg, 270 );
     dial_poll( &d, 0u, true, 20 );
-    CHECK_EQ( d.target_deg, 360 ); /* 45 degrees per 10, as below zero */
+    CHECK_EQ( d.target_deg, 450 );
     dial_poll( &d, 0u, true, -10 );
-    CHECK_EQ( d.target_deg, 225 );
+    CHECK_EQ( d.target_deg, 240 );
     dial_poll( &d, 0u, true, 10 );
-    CHECK_EQ( d.target_deg, 315 );
+    CHECK_EQ( d.target_deg, 360 );
     dial_poll( &d, 0u, false, 0 );
     CHECK_EQ( d.target_deg, 270 );
 }
@@ -405,7 +430,9 @@ static void test_rpm_face_scale( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     dial_widget_t d;
 
@@ -474,7 +501,7 @@ static void test_a_reading_past_the_scale_stops_at_its_end( void )
     /* One sided, over the full sweep. */
     check_beyond_the_ends( &test_cfg, 135, 435 );
     {
-        /* Two sided, positive end inside the sweep: 45 degrees per 10. */
+        /* Two sided: lowest at 6 o'clock, highest at 3 o'clock. */
         static const dial_cfg_t two = {
             -30,
             20,
@@ -488,13 +515,15 @@ static void test_a_reading_past_the_scale_stops_at_its_end( void )
             2u,
             3u,
             900u,
-            DIAL_STYLE_FULL_SWEEP
+            DIAL_STYLE_FULL_SWEEP,
+            0,
+            0u
         };
 
-        check_beyond_the_ends( &two, 135, 360 );
+        check_beyond_the_ends( &two, 180, 450 );
     }
     {
-        /* Two sided, positive end beyond the sweep: it ends at the sweep. */
+        /* Two sided with a longer positive side: the same two end angles. */
         static const dial_cfg_t wide = {
             -10,
             50,
@@ -508,10 +537,12 @@ static void test_a_reading_past_the_scale_stops_at_its_end( void )
             2u,
             3u,
             900u,
-            DIAL_STYLE_FULL_SWEEP
+            DIAL_STYLE_FULL_SWEEP,
+            0,
+            0u
         };
 
-        check_beyond_the_ends( &wide, 135, 435 );
+        check_beyond_the_ends( &wide, 180, 450 );
     }
     {
         static const dial_cfg_t arc = {
@@ -527,7 +558,9 @@ static void test_a_reading_past_the_scale_stops_at_its_end( void )
             2u,
             3u,
             900u,
-            DIAL_STYLE_UPPER_ARC
+            DIAL_STYLE_UPPER_ARC,
+            0,
+            0u
         };
 
         check_beyond_the_ends( &arc, -75, 75 );
@@ -550,7 +583,9 @@ static void test_an_empty_scale_rests_at_its_start( void )
         2u,
         3u,
         900u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     const int32_t values[] = { INT32_MIN, 0, 49, 50, 51, INT32_MAX };
     dial_widget_t d;

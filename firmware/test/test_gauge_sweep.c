@@ -20,7 +20,9 @@ static const dial_cfg_t cfg = {
     0u,
     0u,
     900u,
-    DIAL_STYLE_FULL_SWEEP
+    DIAL_STYLE_FULL_SWEEP,
+    0,
+    0u
 };
 
 /* Each leg ends one poll after its time is up, since the dial is given the
@@ -132,7 +134,9 @@ static void test_a_dial_change_ends_the_sweep( void )
         0u,
         0u,
         1200u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
     static const dial_cfg_t arc = {
         1000,
@@ -147,7 +151,9 @@ static void test_a_dial_change_ends_the_sweep( void )
         0u,
         0u,
         900u,
-        DIAL_STYLE_UPPER_ARC
+        DIAL_STYLE_UPPER_ARC,
+        0,
+        0u
     };
 
     active = gauge_sweep_target( &tach, true, clock_ms, &aim );
@@ -192,7 +198,9 @@ static void test_a_scale_from_zero_goes_up_and_down( void )
         0u,
         0u,
         1200u,
-        DIAL_STYLE_FULL_SWEEP
+        DIAL_STYLE_FULL_SWEEP,
+        0,
+        0u
     };
 
     active = gauge_sweep_target( &tach, true, clock_ms, &aim );
@@ -226,7 +234,9 @@ static void test_a_raised_scale_rests_at_its_bottom( void )
         0u,
         0u,
         900u,
-        DIAL_STYLE_UPPER_ARC
+        DIAL_STYLE_UPPER_ARC,
+        0,
+        0u
     };
 
     active = gauge_sweep_target( &arc, true, clock_ms, &aim );
