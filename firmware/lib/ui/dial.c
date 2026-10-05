@@ -359,6 +359,9 @@ static void fill_rect(
     }
 }
 
+/* The pixels of the box or the band being drawn, before they are sent. */
+static uint16_t region_buf[DIAL_REGION_PIXELS];
+
 /* One blit for the box around the needle's old and new place. */
 static void draw_region(
     const dial_widget_t * d,
@@ -368,7 +371,6 @@ static void draw_region(
     int16_t y1
 )
 {
-    static uint16_t region_buf[DIAL_REGION_PIXELS];
     int32_t width  = ( int32_t )x1 - ( int32_t )x0;
     int32_t height = ( int32_t )y1 - ( int32_t )y0;
 
@@ -382,17 +384,38 @@ static void draw_region(
     );
 }
 
-/* The whole face, one row at a time. */
+/* The whole face, in bands of rows. As many rows as the scratch buffer
+ * holds go out in one blit, so the panel's window is set a few times for the
+ * whole face and not once for every row. */
 static void draw_frame( const dial_widget_t * d )
 {
-    static uint16_t row_buf[DIAL_PANEL_W];
+    uint32_t buffer_px = DIAL_REGION_PIXELS;
+    uint32_t panel_w   = ( uint32_t )DIAL_PANEL_W;
+    uint32_t band_rows = buffer_px / panel_w;
+    int32_t band       = ( int32_t )band_rows;
+    int32_t row        = 0;
 
-    for ( int16_t row = 0; row < ( int16_t )DIAL_PANEL_H; row++ )
+    while ( row < ( int32_t )DIAL_PANEL_H )
     {
-        fill_rect( d, 0, row, ( int16_t )DIAL_PANEL_W, row + 1, row_buf );
-        ( void )display_blit(
-            0u, ( uint16_t )row, ( uint16_t )DIAL_PANEL_W, 1u, row_buf
+        int32_t end   = ui_min( row + band, ( int32_t )DIAL_PANEL_H );
+        int32_t count = end - row;
+
+        fill_rect(
+            d,
+            0,
+            ( int16_t )row,
+            ( int16_t )DIAL_PANEL_W,
+            ( int16_t )end,
+            region_buf
         );
+        ( void )display_blit(
+            0u,
+            ( uint16_t )row,
+            ( uint16_t )DIAL_PANEL_W,
+            ( uint16_t )count,
+            region_buf
+        );
+        row = end;
     }
 }
 
