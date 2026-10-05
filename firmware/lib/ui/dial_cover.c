@@ -142,6 +142,18 @@ static int32_t isqrt_u64( uint64_t v )
     return ( int32_t )res;
 }
 
+/* The length of the vector (x_m, y_m), both in thousandths of a pixel. */
+static int32_t hypot_m(
+    int64_t x_m,
+    int64_t y_m
+)
+{
+    int64_t sum_sq   = ( x_m * x_m ) + ( y_m * y_m );
+    uint64_t root_of = ( uint64_t )sum_sq;
+
+    return isqrt_u64( root_of );
+}
+
 /* How far inside the cover's raised body a point is, in thousandths of a
  * pixel, negative outside. The body is a trapezoid: its top edge is at the
  * middle of the panel, its sides spread toward the bottom, and its top
@@ -174,12 +186,10 @@ static int32_t body_dist(
     *up_m = ( top_m < side_m ) ? 1000 : 0;
     if ( ( across_m > corner_x ) && ( ( dy * 1000 ) < corner_y ) )
     {
-        int64_t ex       = ( int64_t )across_m - ( int64_t )corner_x;
-        int32_t dy_m     = dy * 1000;
-        int64_t ey       = ( int64_t )dy_m - ( int64_t )corner_y;
-        int64_t sum_sq   = ( ex * ex ) + ( ey * ey );
-        uint64_t root_of = ( uint64_t )sum_sq;
-        int32_t root     = isqrt_u64( root_of );
+        int64_t ex   = ( int64_t )across_m - ( int64_t )corner_x;
+        int32_t dy_m = dy * 1000;
+        int64_t ey   = ( int64_t )dy_m - ( int64_t )corner_y;
+        int32_t root = hypot_m( ex, ey );
 
         dist = round_m - root;
         /* The edge's normal points from the corner's center to the pixel. */
@@ -261,12 +271,8 @@ static int32_t foot_dist(
     /* Use panel coordinates for the lower arc, despite the ear's offset.
      * Its radius is tangent to the small corner circle, giving a constant
      * rim gap and a smooth join to the rounded tip. */
-    int64_t center_sq       = ( cx_m * cx_m ) + ( panel_cy_m * panel_cy_m );
-    int64_t pixel_sq        = ( x_m * x_m ) + ( panel_y_m * panel_y_m );
-    uint64_t center_root_of = ( uint64_t )center_sq;
-    uint64_t pixel_root_of  = ( uint64_t )pixel_sq;
-    int32_t gauge_r_m       = isqrt_u64( center_root_of ) + round_m;
-    int32_t curve           = gauge_r_m - isqrt_u64( pixel_root_of );
+    int32_t gauge_r_m = hypot_m( cx_m, panel_cy_m ) + round_m;
+    int32_t curve     = gauge_r_m - hypot_m( x_m, panel_y_m );
     /* A 0.12 slope is about seven degrees. 1007 and 993 normalize the
      * sloped top's offset and distance, respectively. */
     int32_t top = ( int32_t )( ey_m - ( ( ex_m * 120 ) / 1000 ) )
@@ -280,10 +286,7 @@ static int32_t foot_dist(
     if ( ( ( ( ex_m * 1000 ) + ( ey_m * 120 ) ) > 0 )
          && ( ( ey_m * cx_m ) < ( ex_m * panel_cy_m ) ) )
     {
-        int64_t sum_sq   = ( ex_m * ex_m ) + ( ey_m * ey_m );
-        uint64_t root_of = ( uint64_t )sum_sq;
-
-        dist = round_m - isqrt_u64( root_of );
+        dist = round_m - hypot_m( ex_m, ey_m );
     }
     return dist;
 }

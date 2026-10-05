@@ -128,6 +128,30 @@ static uint16_t needle_color(
     return font_blend( light, base, ( uint8_t )amount );
 }
 
+/* A part of the pointer blended over color: ink is how much of the pixel it
+ * covers and base its color before shading. Nothing is shaded for a pixel it
+ * does not touch. dx and dy are from the pivot. */
+static uint16_t needle_layer(
+    uint16_t color,
+    uint8_t ink,
+    uint16_t base,
+    int32_t dx,
+    int32_t dy,
+    int32_t needle_sin,
+    int32_t needle_cos
+)
+{
+    uint16_t out = color;
+
+    if ( ink != 0u )
+    {
+        out = font_blend(
+            needle_color( base, dx, dy, needle_sin, needle_cos ), color, ink
+        );
+    }
+    return out;
+}
+
 /* A round dial. Draw order, bottom up: face, ticks, numbers, screws, pointer,
  * pale collar and squared counterweight, then the stationary cap. */
 static uint16_t round_pixel(
@@ -151,13 +175,9 @@ static uint16_t round_pixel(
     ink   = dial_needle_alpha(
         dx, dy, needle_sin, needle_cos, dial_needle_length( cfg )
     );
-    if ( ink != 0u )
-    {
-        uint16_t blade =
-            needle_color( cfg->needle_fg, dx, dy, needle_sin, needle_cos );
-
-        color = font_blend( blade, color, ink );
-    }
+    color = needle_layer(
+        color, ink, cfg->needle_fg, dx, dy, needle_sin, needle_cos
+    );
     ink = dial_radial_line_alpha(
         dx,
         dy,
@@ -167,23 +187,12 @@ static uint16_t round_pixel(
         DIAL_NEEDLE_COLLAR_R,
         DIAL_NEEDLE_HALF_W
     );
-    if ( ink != 0u )
-    {
-        uint16_t collar =
-            needle_color( 0xDEFBu, dx, dy, needle_sin, needle_cos );
-
-        color = font_blend( collar, color, ink );
-    }
-    ink = dial_radial_line_alpha(
+    color = needle_layer( color, ink, 0xDEFBu, dx, dy, needle_sin, needle_cos );
+    ink   = dial_radial_line_alpha(
         dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
     );
-    if ( ink != 0u )
-    {
-        uint16_t tail = needle_color( 0xDEFBu, dx, dy, needle_sin, needle_cos );
-
-        color = font_blend( tail, color, ink );
-    }
-    ink = dial_disc_alpha( dist_sq, DIAL_HUB_R );
+    color = needle_layer( color, ink, 0xDEFBu, dx, dy, needle_sin, needle_cos );
+    ink   = dial_disc_alpha( dist_sq, DIAL_HUB_R );
     if ( ink != 0u )
     {
         color = font_blend( hub_color( dy, dist_sq ), color, ink );
@@ -214,14 +223,9 @@ static uint16_t arc_pixel(
     ink   = dial_needle_alpha(
         dx, from_pivot, needle_sin, needle_cos, dial_needle_length( cfg )
     );
-    if ( ink != 0u )
-    {
-        uint16_t blade = needle_color(
-            cfg->needle_fg, dx, from_pivot, needle_sin, needle_cos
-        );
-
-        color = font_blend( blade, color, ink );
-    }
+    color = needle_layer(
+        color, ink, cfg->needle_fg, dx, from_pivot, needle_sin, needle_cos
+    );
     color = dial_cover_feet( cfg, color, dx, dy );
     color = dial_screws( color, dx, dy, true );
     if ( dy >= -( int32_t )DIAL_COVER_SHADOW_SPREAD )

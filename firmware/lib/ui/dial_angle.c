@@ -87,14 +87,39 @@ void dial_angle_vec(
     *cos_milli = invert ? -( int32_t )COS_MILLI[idx] : COS_MILLI[idx];
 }
 
+/* Maps v from lo..hi onto deg_lo..deg_hi in a straight line. An empty range
+ * has nowhere to sweep, so it gives deg_lo. */
+static int32_t lerp_deg(
+    int32_t v,
+    int32_t lo,
+    int32_t hi,
+    int32_t deg_lo,
+    int32_t deg_hi
+)
+{
+    int32_t span = hi - lo;
+    int32_t deg  = deg_lo;
+
+    if ( span != 0 )
+    {
+        int32_t run_units = v - lo;
+        int32_t turn_deg  = deg_hi - deg_lo;
+        int64_t run       = ( int64_t )run_units;
+        int64_t turn      = ( int64_t )turn_deg;
+        int64_t moved     = ( run * turn ) / span;
+
+        deg = deg_lo + ( int32_t )moved;
+    }
+    return deg;
+}
+
 int16_t dial_value_to_deg(
     const dial_cfg_t * cfg,
     int32_t value
 )
 {
     int32_t clamped = value;
-    int32_t offset;
-    int16_t deg;
+    int32_t deg;
 
     if ( clamped < cfg->min_value )
     {
@@ -110,49 +135,43 @@ int16_t dial_value_to_deg(
     }
     if ( cfg->style == DIAL_STYLE_UPPER_ARC )
     {
-        int32_t span = cfg->max_value - cfg->min_value;
-
-        offset =
-            ( span != 0 )
-                ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                 * ( DIAL_UPPER_MAX_DEG - DIAL_UPPER_MIN_DEG ) )
-                               / span )
-                : 0;
-        deg = ( int16_t )( DIAL_UPPER_MIN_DEG + offset );
+        deg = lerp_deg(
+            clamped,
+            cfg->min_value,
+            cfg->max_value,
+            DIAL_UPPER_MIN_DEG,
+            DIAL_UPPER_MAX_DEG
+        );
     }
     else if ( ( cfg->min_value < 0 ) && ( cfg->max_value > 0 ) )
     {
-        if ( clamped <= 0 )
-        {
-            offset = ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                    * ( DIAL_FULL_ZERO_DEG
-                                        - DIAL_TWO_SIDED_MIN_DEG ) )
-                                  / -cfg->min_value );
-            deg    = ( int16_t )( DIAL_TWO_SIDED_MIN_DEG + offset );
-        }
-        else
-        {
-            offset = ( int32_t )( ( ( int64_t )clamped
-                                    * ( DIAL_TWO_SIDED_MAX_DEG
-                                        - DIAL_FULL_ZERO_DEG ) )
-                                  / cfg->max_value );
-            deg    = ( int16_t )( DIAL_FULL_ZERO_DEG + offset );
-        }
+        /* Zero is at 9 o'clock, with its own degrees per unit each side. */
+        deg = ( clamped <= 0 ) ? lerp_deg(
+                                     clamped,
+                                     cfg->min_value,
+                                     0,
+                                     DIAL_TWO_SIDED_MIN_DEG,
+                                     DIAL_FULL_ZERO_DEG
+                                 )
+                               : lerp_deg(
+                                     clamped,
+                                     0,
+                                     cfg->max_value,
+                                     DIAL_FULL_ZERO_DEG,
+                                     DIAL_TWO_SIDED_MAX_DEG
+                                 );
     }
     else
     {
-        int32_t span = cfg->max_value - cfg->min_value;
-
-        /* An empty scale has nowhere to sweep: rest at the low end. */
-        offset =
-            ( span != 0 )
-                ? ( int32_t )( ( ( int64_t )( clamped - cfg->min_value )
-                                 * ( DIAL_FULL_MAX_DEG - DIAL_FULL_MIN_DEG ) )
-                               / span )
-                : 0;
-        deg = ( int16_t )( DIAL_FULL_MIN_DEG + offset );
+        deg = lerp_deg(
+            clamped,
+            cfg->min_value,
+            cfg->max_value,
+            DIAL_FULL_MIN_DEG,
+            DIAL_FULL_MAX_DEG
+        );
     }
-    return deg;
+    return ( int16_t )deg;
 }
 
 /* Where the needle rests: zero when the scale crosses it, else the low end. */
