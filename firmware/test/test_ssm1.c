@@ -925,6 +925,22 @@ static void test_an_ecu_that_dies_before_the_first_write( void )
     CHECK_EQ( sim.writes, 0 );
 }
 
+/* An ECU whose ROM ID is unknown leaves the session with no profile. It must
+ * stay idle however long it runs: a read is built from a profile, so one
+ * sent from none would be a NULL dereference. */
+static void test_an_unknown_ecu_stays_idle_for_good( void )
+{
+    unsigned sent;
+
+    start_id( 0, 0x9999 );
+    run( 2500 );
+    CHECK_EQ( ecu_param_count(), 0 );
+    sent = tx_bytes;
+    run( 30000 );
+    CHECK_EQ( tx_bytes, sent );
+    CHECK( !ecu_clear_start() );
+}
+
 int main( void )
 {
     test_initial_state();
@@ -965,5 +981,6 @@ int main( void )
     test_an_ecu_silent_past_the_limit_fails_the_clear();
     test_a_clear_across_the_timer_wrap();
     test_an_ecu_that_dies_before_the_first_write();
+    test_an_unknown_ecu_stays_idle_for_good();
     return MT_RESULT();
 }
