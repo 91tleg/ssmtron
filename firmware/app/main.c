@@ -31,7 +31,8 @@ int main( void )
         .dc            = BSP_GPIO_DISPLAY_DC,
         .reset         = BSP_GPIO_DISPLAY_RESET,
         .backlight     = ( hal_gpio_id_t )0u,
-        .has_backlight = false
+        .has_backlight = false,
+        .spi_hz        = BSP_DISPLAY_SPI_HZ
     };
 
     hal_status_t ecu_status;
