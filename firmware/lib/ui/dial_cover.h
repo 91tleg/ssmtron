@@ -18,7 +18,7 @@ uint16_t dial_screws(
     bool arc
 );
 
-/* The cover's two feet, flat on the face. */
+/* The cover's two rounded, tapered mounting ears, flat on the face. */
 uint16_t dial_cover_feet(
     const dial_cfg_t * cfg,
     uint16_t color,

@@ -23,7 +23,7 @@ uint8_t dial_radial_line_alpha(
     int32_t half_w
 );
 
-/* The needle of this length: a bar that ends in a triangle. */
+/* A broad, tapered pointer of this length. A nonpositive length is empty. */
 uint8_t dial_needle_alpha(
     int32_t dx,
     int32_t dy,

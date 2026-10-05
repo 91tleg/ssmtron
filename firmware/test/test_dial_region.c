@@ -587,8 +587,48 @@ static void test_a_dial_face_is_made_when_the_dial_opens( void )
     CHECK_EQ( differences(), 0u );
 }
 
+/* Check every moving frame through the motion module. The opaque cap must
+ * remain identical to the first frame, regardless of the needle's angle, and
+ * a needle of no length draws nothing. */
+static void test_round_hub_stays_fixed_above_the_moving_needle( void )
+{
+    static const int32_t values[] = { 135, 300, 0, 150 };
+    dial_widget_t d;
+    int32_t fixed_r = DIAL_HUB_R - 1;
+
+    CHECK_EQ( dial_needle_alpha( 0, 0, 0, 1000, 0 ), 0u );
+    dial_init( &d, &cfg, now );
+    ( void )memcpy( partial, shadow, sizeof( shadow ) );
+    for ( size_t i = 0u; i < ( sizeof( values ) / sizeof( values[0] ) ); i++ )
+    {
+        unsigned polls = 0u;
+
+        do
+        {
+            now += DIAL_MOTION_FRAME_MS;
+            dial_poll( &d, now, true, values[i] );
+            for ( int32_t y = -fixed_r; y <= fixed_r; y++ )
+            {
+                for ( int32_t x = -fixed_r; x <= fixed_r; x++ )
+                {
+                    if ( ( ( x * x ) + ( y * y ) ) <= ( fixed_r * fixed_r ) )
+                    {
+                        CHECK_EQ(
+                            shadow[DIAL_CY + y][DIAL_CX + x],
+                            partial[DIAL_CY + y][DIAL_CX + x]
+                        );
+                    }
+                }
+            }
+            polls++;
+        } while ( !dial_settled( &d ) && ( polls < 200u ) );
+        CHECK( dial_settled( &d ) );
+    }
+}
+
 int main( void )
 {
+    test_round_hub_stays_fixed_above_the_moving_needle();
     test_partial_redraw_matches_a_fresh_frame();
     test_tick_numbers_use_label_div();
     test_needle_ends_line_up_with_the_scale_ends();

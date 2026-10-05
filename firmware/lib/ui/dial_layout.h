@@ -43,52 +43,58 @@
  * dials. Its needle pivots below the middle of the panel, under a cover
  * plate whose top edge is at the middle: the needle comes out from behind it.
  * The ticks are on a circle around the pivot that is wider than the panel's
- * own, so only the top of it shows. The cover is a trapezoid, wider toward
- * the bottom, with a foot on each side where a screw holds it. */
+ * own, so only the top of it shows. The cover has rolled shoulders and
+ * widens toward the bottom, with a tapered mounting ear on each side. */
 #define DIAL_ARC_PIVOT_DOWN      UI_LEN( 446 )
 #define DIAL_ARC_TICK_R          UI_LEN( 1165 )
 #define DIAL_ARC_LABEL_GAP       UI_LEN( 25 )
 #define DIAL_COVER_TOP_HALF_W    UI_LEN( 458 )
 #define DIAL_COVER_BOTTOM_HALF_W UI_LEN( 583 )
-#define DIAL_COVER_FOOT_X        UI_LEN( 860 )
-#define DIAL_COVER_FOOT_TOP      UI_LEN( 330 )
-#define DIAL_COVER_FOOT_BOTTOM   UI_LEN( 550 )
-#define DIAL_ARC_SCREW_X         UI_LEN( 710 )
-#define DIAL_ARC_SCREW_Y         UI_LEN( 437 )
+#define DIAL_COVER_FOOT_CX       UI_LEN( 679 )
+#define DIAL_COVER_FOOT_CY       UI_LEN( 429 )
+#define DIAL_COVER_FOOT_R        UI_LEN( 100 )
+#define DIAL_COVER_FOOT_TOP      UI_LEN( 300 )
+#define DIAL_COVER_FOOT_BOTTOM   UI_LEN( 750 )
+#define DIAL_COVER_FOOT_SHADOW   UI_LEN( 9 )
+/* Lower the ear and its screw together, keeping a small gap at the rim. */
+#define DIAL_COVER_FOOT_DOWN UI_LEN( 100 )
+/* Centered in the exposed part of each mounting ear. */
+#define DIAL_ARC_SCREW_X UI_LEN( 684 )
+#define DIAL_ARC_SCREW_Y ( UI_LEN( 425 ) + DIAL_COVER_FOOT_DOWN )
 /* Below this, under the cover, the needle can no longer be seen. */
 #define DIAL_ARC_NEEDLE_SHOWS_TO UI_LEN( 100 )
 /* The cover's body stands out from the face: its top corners are rounded, it
- * casts a soft shadow down and to the right, its top edge catches the light
- * and its sides fall into shade. The feet are flat on the face. */
-#define DIAL_COVER_CORNER_R      UI_LEN( 100 )
-#define DIAL_COVER_SHADOW_OFFSET UI_LEN( 25 )
-#define DIAL_COVER_SHADOW_SPREAD UI_LEN( 50 )
-#define DIAL_COVER_BEVEL         UI_LEN( 25 )
-#define DIAL_COVER_SIDE_SHADE    UI_LEN( 67 )
+ * casts a soft shadow straight down, its top edge catches the light and
+ * both sides have the same rolled edge. The feet are flat on the face. */
+#define DIAL_COVER_CORNER_R      UI_LEN( 250 )
+#define DIAL_COVER_SHADOW_OFFSET UI_LEN( 17 )
+#define DIAL_COVER_SHADOW_SPREAD UI_LEN( 33 )
+#define DIAL_COVER_BEVEL         UI_LEN( 42 )
+#define DIAL_COVER_SIDE_SHADE    UI_LEN( 84 )
 
 /* Line thicknesses are half-widths, so 1 is a line 3 px wide. They follow
  * the panel size, rounded down. */
 #define DIAL_TICK_HALF_W       UI_LEN( 9 )
 #define DIAL_TICK_MAJOR_HALF_W UI_LEN( 26 )
-#define DIAL_NEEDLE_HALF_W     UI_LEN( 34 )
-#define DIAL_TAIL_HALF_W       UI_LEN( 42 )
+#define DIAL_NEEDLE_HALF_W     UI_LEN( 50 )
+#define DIAL_TAIL_HALF_W       UI_LEN( 50 )
+#define DIAL_NEEDLE_COLLAR_R   UI_LEN( 200 )
 
-/* The hub: a ring with a lighter disc inside it. */
-#define DIAL_HUB_R       UI_LEN( 100 )
-#define DIAL_HUB_INNER_R UI_LEN( 75 )
+/* A stationary raised cap over the pointer's collar and counterweight. */
+#define DIAL_HUB_R       UI_LEN( 125 )
+#define DIAL_HUB_INNER_R UI_LEN( 109 )
 
 /* How much of the needle's end is the triangle. */
-#define DIAL_NEEDLE_TIP_LEN UI_LEN( 100 )
+#define DIAL_NEEDLE_TIP_LEN UI_LEN( 134 )
 
-/* Two slotted screws on the face, as on a gauge's bezel plate. Centers are
- * in thousandths of the radius from the dial's center, clear of the label,
- * the units and the tick numbers. The needle passes over them. */
-#define DIAL_SCREW_R            UI_LEN( 66 )
-#define DIAL_SCREW_SLOT_HALF_W  ( 650 )
-#define DIAL_SCREW_COUNT        ( 2u )
-#define DIAL_SCREW_FACE_COLOR   ( 0xA514u )
-#define DIAL_SCREW_SLOT_COLOR   ( 0x4208u )
-#define DIAL_SLOT_SIN_COS_MILLI ( 707 )
+/* Two slotted screws: on a round dial, on the face as on a gauge's bezel
+ * plate, clear of the label, the units and the tick numbers, with the needle
+ * passing over them; on the arc style, one on each mounting ear. Positions
+ * are in thousandths of the radius from the middle of the panel. */
+#define DIAL_SCREW_R          UI_LEN( 66 )
+#define DIAL_SCREW_COUNT      ( 2u )
+#define DIAL_SCREW_FACE_COLOR ( 0xA514u )
+#define DIAL_SCREW_SLOT_COLOR ( 0x4208u )
 
 /* The title of a full sweep face (TURBO) sits higher than the units, from
  * the center to its top edge. */
@@ -120,11 +126,10 @@
 /* Per-frame redraw covers only the needle's old and new position, not the
  * whole face (ticks/labels/face don't change between frames): one blit
  * instead of one per row, and only the pixels near the needle. This bounds
- * the biggest side that box can be; a jump that would exceed it (should
- * never happen at any sane top speed) falls back to a full draw_frame.
+ * the scratch buffer's pixel capacity; a box that would exceed it falls
+ * back to a full draw_frame. Long, thin boxes can still fit this buffer.
  * DIAL_TAIL_R is the counterweight's reach behind center. */
 #define DIAL_REGION_PERMILLE ( 1150 )
-#define DIAL_REGION_MAX      UI_LEN( DIAL_REGION_PERMILLE )
 #define DIAL_REGION_PIXELS                                                     \
     ( UI_LEN_U( DIAL_REGION_PERMILLE ) * UI_LEN_U( DIAL_REGION_PERMILLE ) )
 /* The box must cover the widest line the needle shape draws, plus one
@@ -134,7 +139,7 @@
     ( ( DIAL_NEEDLE_HALF_W > DIAL_TAIL_HALF_W ) ? DIAL_NEEDLE_HALF_W           \
                                                 : DIAL_TAIL_HALF_W )
 #define DIAL_REGION_MARGIN ( DIAL_HALF_W_MAX + 1 )
-#define DIAL_TAIL_R        UI_LEN( 259 )
+#define DIAL_TAIL_R        UI_LEN( 284 )
 
 static inline bool dial_is_arc( const dial_cfg_t * cfg )
 {

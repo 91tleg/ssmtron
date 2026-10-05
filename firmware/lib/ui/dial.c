@@ -79,8 +79,57 @@ static uint16_t labels_layer(
     return out;
 }
 
-/* A round dial. Draw order, bottom up: face, ticks, numbers, screws, needle,
- * hub, counterweight. */
+/* The cap's colors depend only on panel coordinates. Its thin bevel and
+ * bright top face make it sit above the rotating collar and counterweight. */
+static uint16_t hub_color(
+    int32_t dy,
+    int32_t dist_sq
+)
+{
+    int32_t light = 7 - ( ( dy * 5 ) / DIAL_HUB_R );
+    int32_t lift  = 3 - ( ( dy * 2 ) / DIAL_HUB_R );
+    uint16_t rim;
+    uint16_t face;
+
+    light = ( light < 0 ) ? 0 : light;
+    light = ( light > ( int32_t )FONT_ALPHA_MAX ) ? ( int32_t )FONT_ALPHA_MAX
+                                                  : light;
+    rim   = font_blend( 0xFFFEu, 0x9492u, ( uint8_t )light );
+    face  = font_blend( 0xFFFFu, 0xF7BEu, ( uint8_t )lift );
+    return font_blend(
+        face, rim, dial_disc_alpha( dist_sq, DIAL_HUB_INNER_R )
+    );
+}
+
+/* Light across the blade gives it a shallow ridge. Coverage remains the
+ * shape helper's responsibility, so shading cannot enlarge a dirty region. */
+static uint16_t needle_color(
+    uint16_t base,
+    int32_t dx,
+    int32_t dy,
+    int32_t sin_m,
+    int32_t cos_m
+)
+{
+    int32_t across       = ( dx * cos_m ) + ( dy * sin_m );
+    int32_t magnitude    = ( across < 0 ) ? -across : across;
+    int32_t amount       = ( magnitude * 4 ) / ( DIAL_NEEDLE_HALF_W * 1000 );
+    int32_t normal_light = sin_m + cos_m;
+    bool bright          = ( ( across < 0 ) && ( normal_light >= 0 ) )
+                  || ( ( across > 0 ) && ( normal_light < 0 ) );
+    uint16_t light       = bright ? 0xFFFFu : 0x0000u;
+    int32_t illumination = ( normal_light < 0 ) ? -normal_light : normal_light;
+
+    amount = ( amount > 4 ) ? 4 : amount;
+    /* Fade through zero as the blade turns across the light direction,
+     * rather than swapping its highlight abruptly between the two edges. */
+    amount = ( amount * illumination ) / 1414;
+    amount = bright ? amount : ( amount / 2 );
+    return font_blend( light, base, ( uint8_t )amount );
+}
+
+/* A round dial. Draw order, bottom up: face, ticks, numbers, screws, pointer,
+ * pale collar and squared counterweight, then the stationary cap. */
 static uint16_t round_pixel(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
@@ -104,24 +153,40 @@ static uint16_t round_pixel(
     );
     if ( ink != 0u )
     {
-        color = font_blend( cfg->needle_fg, color, ink );
+        uint16_t blade =
+            needle_color( cfg->needle_fg, dx, dy, needle_sin, needle_cos );
+
+        color = font_blend( blade, color, ink );
     }
-    ink = dial_disc_alpha( dist_sq, DIAL_HUB_R );
+    ink = dial_radial_line_alpha(
+        dx,
+        dy,
+        needle_sin,
+        needle_cos,
+        0,
+        DIAL_NEEDLE_COLLAR_R,
+        DIAL_NEEDLE_HALF_W
+    );
     if ( ink != 0u )
     {
-        color = font_blend( 0xA514u, color, ink );
-        ink   = dial_disc_alpha( dist_sq, DIAL_HUB_INNER_R );
-        if ( ink != 0u )
-        {
-            color = font_blend( 0xE73Cu, color, ink );
-        }
+        uint16_t collar =
+            needle_color( 0xDEFBu, dx, dy, needle_sin, needle_cos );
+
+        color = font_blend( collar, color, ink );
     }
     ink = dial_radial_line_alpha(
         dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
     );
     if ( ink != 0u )
     {
-        color = font_blend( 0xCE79u, color, ink );
+        uint16_t tail = needle_color( 0xDEFBu, dx, dy, needle_sin, needle_cos );
+
+        color = font_blend( tail, color, ink );
+    }
+    ink = dial_disc_alpha( dist_sq, DIAL_HUB_R );
+    if ( ink != 0u )
+    {
+        color = font_blend( hub_color( dy, dist_sq ), color, ink );
     }
     return color;
 }
@@ -151,7 +216,11 @@ static uint16_t arc_pixel(
     );
     if ( ink != 0u )
     {
-        color = font_blend( cfg->needle_fg, color, ink );
+        uint16_t blade = needle_color(
+            cfg->needle_fg, dx, from_pivot, needle_sin, needle_cos
+        );
+
+        color = font_blend( blade, color, ink );
     }
     color = dial_cover_feet( cfg, color, dx, dy );
     color = dial_screws( color, dx, dy, true );
@@ -344,7 +413,7 @@ void dial_init(
 
 /* Only the needle moved: redraw the union of where it was and where it is
  * now, not the whole face (see draw_region). A box bigger than the scratch
- * buffer can hold (never expected at any sane speed) falls back to a full
+ * buffer can hold falls back to a full
  * redraw instead of clipping it. */
 static void redraw_needle(
     const dial_widget_t * d,
@@ -363,6 +432,9 @@ static void redraw_needle(
     int16_t y0;
     int16_t x1;
     int16_t y1;
+    int32_t width;
+    int32_t height;
+    uint32_t pixels;
 
     needle_extent( d->cfg, old_deg, &ox0, &oy0, &ox1, &oy1 );
     needle_extent( d->cfg, d->displayed_deg, &nx0, &ny0, &nx1, &ny1 );
@@ -371,10 +443,11 @@ static void redraw_needle(
     x1 = ( ox1 > nx1 ) ? ox1 : nx1;
     y1 = ( oy1 > ny1 ) ? oy1 : ny1;
     clamp_box( &x0, &y0, &x1, &y1 );
+    width  = ( int32_t )x1 - ( int32_t )x0;
+    height = ( int32_t )y1 - ( int32_t )y0;
+    pixels = ( uint32_t )width * ( uint32_t )height;
 
-    if ( ( x0 < x1 ) && ( y0 < y1 )
-         && ( ( x1 - x0 ) <= ( int16_t )DIAL_REGION_MAX )
-         && ( ( y1 - y0 ) <= ( int16_t )DIAL_REGION_MAX ) )
+    if ( ( x0 < x1 ) && ( y0 < y1 ) && ( pixels <= DIAL_REGION_PIXELS ) )
     {
         draw_region( d, x0, y0, x1, y1 );
     }

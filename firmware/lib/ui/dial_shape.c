@@ -55,9 +55,8 @@ uint8_t dial_radial_line_alpha(
     return dial_edge_alpha( dist );
 }
 
-/* The needle: a straight bar of constant width from the hub, ending in a
- * triangle that narrows to a point. The point keeps half a pixel of width on
- * each side, so it never thins out to nothing. */
+/* A broad pointer that tapers gently along its blade, then ends in a short
+ * point. The tip keeps half a pixel of width so it remains visible. */
 uint8_t dial_needle_alpha(
     int32_t dx,
     int32_t dy,
@@ -70,18 +69,20 @@ uint8_t dial_needle_alpha(
     uint8_t alpha  = 0u;
     int32_t beyond = ( len * 1000 ) - proj;
 
-    if ( ( proj >= -500 ) && ( beyond >= -500 ) )
+    if ( ( len > 0 ) && ( proj >= -500 ) && ( beyond >= -500 ) )
     {
         int32_t perp    = ( dx * cos_milli ) + ( dy * sin_milli );
         int32_t across  = ( perp < 0 ) ? -perp : perp;
         int32_t tip_run = ( beyond > 0 ) ? beyond : 0;
         int32_t room =
             ( ( DIAL_NEEDLE_HALF_W * tip_run ) / DIAL_NEEDLE_TIP_LEN ) + 500;
+        int32_t blade_room = ( DIAL_NEEDLE_HALF_W * 1000 )
+                             - ( ( proj * ( DIAL_NEEDLE_HALF_W / 3 ) ) / len );
         int32_t dist;
 
-        if ( room > ( DIAL_NEEDLE_HALF_W * 1000 ) )
+        if ( room > blade_room )
         {
-            room = DIAL_NEEDLE_HALF_W * 1000; /* the straight part */
+            room = blade_room;
         }
         dist  = room - across;
         dist  = ( beyond < dist ) ? beyond : dist;
