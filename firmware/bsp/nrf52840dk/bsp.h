@@ -26,4 +26,9 @@
 /* hal-spis = < ... > */
 #define BSP_SPI_DISPLAY ( ( hal_spi_id_t )0u )
 
+/* The display's bus clock. SPIM2, the instance used, runs up to 8 MHz. A
+ * faster panel link needs SPIM3 (up to 32 MHz) in board.overlay, with short
+ * wires: raise this together with that change. */
+#define BSP_DISPLAY_SPI_HZ ( 8000000u )
+
 #endif /* BSP_H */

@@ -4,6 +4,7 @@
 #include "test/minitest.h"
 
 static unsigned blit_calls;
+static unsigned blit_rows;
 static unsigned clear_calls;
 static uint16_t last_blit_w;
 static uint16_t last_blit_h;
@@ -32,6 +33,7 @@ hal_status_t display_blit(
     last_blit_w = w;
     last_blit_h = h;
     blit_calls++;
+    blit_rows += h;
     return HAL_OK;
 }
 
@@ -91,6 +93,7 @@ static const dial_cfg_t test_cfg = {
 static void reset( void )
 {
     blit_calls  = 0;
+    blit_rows   = 0;
     clear_calls = 0;
 }
 
@@ -101,7 +104,10 @@ static void test_init_draws_one_frame_at_rest( void )
     reset();
     dial_init( &d, &test_cfg, 0u );
     CHECK_EQ( clear_calls, 1u );
-    CHECK_EQ( blit_calls, PANEL_H );
+    /* Every row of the face is sent once, in a few big blits and not one per
+     * row, so the panel's window is set a few times. */
+    CHECK_EQ( blit_rows, PANEL_H );
+    CHECK( ( blit_calls >= 1u ) && ( blit_calls <= 5u ) );
 }
 
 static void test_idle_poll_blits_nothing( void )

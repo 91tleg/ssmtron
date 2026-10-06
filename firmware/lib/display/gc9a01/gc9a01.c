@@ -20,8 +20,14 @@
 #define PANEL_MAX_X ( PANEL_W - 1u )
 #define PANEL_MAX_Y ( PANEL_H - 1u )
 
-/* Conservative speed until verified with the panel and wiring. */
-#define SPI_FREQ_HZ ( 8000000u )
+/* Conservative speed until verified with the panel and wiring. The board can
+ * ask for another in display_pins_t. */
+#define SPI_FREQ_DEFAULT_HZ ( 8000000u )
+
+/* Pixels go out in transfers of up to this many, from one buffer where they
+ * are put in the order the panel wants (high byte first). Fewer, longer
+ * transfers cost less than a transfer per row. */
+#define CHUNK_PIXELS ( 512u )
 
 #define CMD_SWRESET ( 0x01u )
 #define CMD_SLPOUT  ( 0x11u )
@@ -50,15 +56,25 @@ static void cs_select( bool selected )
     hal_gpio_write( pins.cs, !selected );
 }
 
-static void raw_write(
+/* One transfer with chip select left as it is: the caller holds it low. */
+static void held_write(
     bool is_data,
     const uint8_t * buf,
     size_t len
 )
 {
     hal_gpio_write( pins.dc, is_data );
-    cs_select( true );
     ( void )hal_spi_transfer( pins.spi, buf, NULL, len );
+}
+
+static void raw_write(
+    bool is_data,
+    const uint8_t * buf,
+    size_t len
+)
+{
+    cs_select( true );
+    held_write( is_data, buf, len );
     cs_select( false );
 }
 
@@ -204,7 +220,10 @@ static void hw_reset( void )
     hal_delay_ms( 120u );
 }
 
-static void set_window(
+/* Chip select goes low and stays low for the whole window: its address
+ * commands, then the pixels that follow with the panel's data line high.
+ * end_window lets it go. */
+static void begin_window(
     uint16_t x0,
     uint16_t y0,
     uint16_t x1,
@@ -223,12 +242,22 @@ static void set_window(
         ( uint8_t )( y1 >> 8u ),
         ( uint8_t )y1
     };
+    const uint8_t caset = CMD_CASET;
+    const uint8_t raset = CMD_RASET;
+    const uint8_t ramwr = CMD_RAMWR;
 
-    write_cmd( CMD_CASET );
-    write_data( col, sizeof( col ) );
-    write_cmd( CMD_RASET );
-    write_data( row, sizeof( row ) );
-    write_cmd( CMD_RAMWR );
+    cs_select( true );
+    held_write( false, &caset, 1u );
+    held_write( true, col, sizeof( col ) );
+    held_write( false, &raset, 1u );
+    held_write( true, row, sizeof( row ) );
+    held_write( false, &ramwr, 1u );
+    hal_gpio_write( pins.dc, true );
+}
+
+static void end_window( void )
+{
+    cs_select( false );
 }
 
 hal_status_t display_init( const display_pins_t * p )
@@ -237,7 +266,9 @@ hal_status_t display_init( const display_pins_t * p )
 
     if ( p != NULL )
     {
-        const hal_spi_cfg_t spi_cfg = { SPI_FREQ_HZ, HAL_SPI_MODE0 };
+        const hal_spi_cfg_t spi_cfg = {
+            ( p->spi_hz != 0u ) ? p->spi_hz : SPI_FREQ_DEFAULT_HZ, HAL_SPI_MODE0
+        };
 
         pins = *p;
         if ( hal_gpio_open( pins.cs, HAL_GPIO_OUTPUT ) != HAL_OK )
@@ -282,25 +313,57 @@ hal_status_t display_init( const display_pins_t * p )
     return status;
 }
 
-/* Convert RGB565 to wire byte order one row at a time. */
-#define ROW_BUF_PIXELS PANEL_W
-
-static void write_pixel_row(
-    const uint16_t * src,
-    uint16_t count
+static size_t min_pixels(
+    size_t a,
+    size_t b
 )
 {
-    /* Guard against sending an unwritten row. */
-    if ( count > 0u )
-    {
-        uint8_t row[ROW_BUF_PIXELS * 2u];
+    return ( a < b ) ? a : b;
+}
 
-        for ( uint16_t i = 0; i < count; i++ )
+static uint8_t chunk[CHUNK_PIXELS * 2u];
+
+/* Sends count pixels of an open window, in the panel's byte order. */
+static void send_pixels(
+    const uint16_t * src,
+    size_t count
+)
+{
+    size_t done = 0u;
+
+    while ( done < count )
+    {
+        size_t n = min_pixels( count - done, CHUNK_PIXELS );
+
+        for ( size_t i = 0u; i < n; i++ )
         {
-            row[( 2u * i )]      = ( uint8_t )( src[i] >> 8 );
-            row[( 2u * i ) + 1u] = ( uint8_t )src[i];
+            chunk[2u * i]          = ( uint8_t )( src[done + i] >> 8 );
+            chunk[( 2u * i ) + 1u] = ( uint8_t )src[done + i];
         }
-        ( void )hal_spi_transfer( pins.spi, row, NULL, ( size_t )count * 2u );
+        ( void )hal_spi_transfer( pins.spi, chunk, NULL, n * 2u );
+        done += n;
+    }
+}
+
+/* Sends count pixels of one color to an open window. */
+static void send_color(
+    uint16_t color,
+    size_t count
+)
+{
+    size_t done = 0u;
+
+    for ( size_t i = 0u; i < min_pixels( count, CHUNK_PIXELS ); i++ )
+    {
+        chunk[2u * i]          = ( uint8_t )( color >> 8 );
+        chunk[( 2u * i ) + 1u] = ( uint8_t )color;
+    }
+    while ( done < count )
+    {
+        size_t n = min_pixels( count - done, CHUNK_PIXELS );
+
+        ( void )hal_spi_transfer( pins.spi, chunk, NULL, n * 2u );
+        done += n;
     }
 }
 
@@ -320,16 +383,11 @@ hal_status_t display_blit(
 
     if ( fits )
     {
-        set_window(
+        begin_window(
             x, y, ( uint16_t )( x + w - 1u ), ( uint16_t )( y + h - 1u )
         );
-        hal_gpio_write( pins.dc, true );
-        cs_select( true );
-        for ( uint16_t row = 0; row < h; row++ )
-        {
-            write_pixel_row( &pixels[( size_t )row * w], w );
-        }
-        cs_select( false );
+        send_pixels( pixels, ( size_t )w * ( size_t )h );
+        end_window();
         status = HAL_OK;
     }
     return status;
@@ -358,20 +416,9 @@ hal_status_t display_clear( uint16_t color_rgb565 )
 
     if ( ready )
     {
-        uint16_t fill[ROW_BUF_PIXELS];
-
-        for ( uint16_t i = 0; i < PANEL_W; i++ )
-        {
-            fill[i] = color_rgb565;
-        }
-        set_window( 0u, 0u, PANEL_MAX_X, PANEL_MAX_Y );
-        hal_gpio_write( pins.dc, true );
-        cs_select( true );
-        for ( uint16_t row = 0; row < PANEL_H; row++ )
-        {
-            write_pixel_row( fill, PANEL_W );
-        }
-        cs_select( false );
+        begin_window( 0u, 0u, PANEL_MAX_X, PANEL_MAX_Y );
+        send_color( color_rgb565, ( size_t )PANEL_W * ( size_t )PANEL_H );
+        end_window();
         status = HAL_OK;
     }
     return status;

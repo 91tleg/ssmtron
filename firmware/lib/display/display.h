@@ -20,9 +20,9 @@
 #define DISPLAY_HEIGHT ( 240u )
 #endif
 
-/* Which bus and control lines the panel is wired to. The board (BSP) knows
- * these ids; the driver does not. backlight is only touched when
- * has_backlight is true (some modules tie it permanently on). */
+/* Which bus and control lines the panel is wired to, and how fast the bus
+ * may run. The board (BSP) knows these; the driver does not. backlight is only
+ * touched when has_backlight is true (some modules tie it permanently on). */
 typedef struct
 {
     hal_spi_id_t spi;
@@ -31,6 +31,7 @@ typedef struct
     hal_gpio_id_t reset;
     hal_gpio_id_t backlight;
     bool has_backlight;
+    uint32_t spi_hz; /* the bus clock; 0 for the driver's own default */
 } display_pins_t;
 
 /* Starts the panel but leaves it off. Its memory is undefined at power-up,
