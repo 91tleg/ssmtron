@@ -45,7 +45,11 @@
 	status = "disabled";
 };
 
+/* The DK's own dts makes spi2 the older SPI peripheral, which has no DMA and
+ * interrupts for every byte: a full face took over two seconds to send.
+ * SPIM moves the bytes by DMA. */
 &spi2 {
+	compatible = "nordic,nrf-spim";
 	status = "okay";
 	pinctrl-0 = <&spi2_default>;
 	pinctrl-1 = <&spi2_sleep>;
