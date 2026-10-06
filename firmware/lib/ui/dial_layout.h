@@ -65,6 +65,9 @@
 #define DIAL_COVER_FOOT_SLOPE_MILLI ( 120 )
 #define DIAL_COVER_FOOT_LEN_MILLI   ( 1007 )
 #define DIAL_COVER_FOOT_NORM_MILLI  ( 993 )
+/* Beyond this distance from the ear's lower arc, in thousandths of a pixel,
+ * the arc cannot touch a pixel's coverage or its outline. */
+#define DIAL_COVER_FOOT_EDGE_FAR_M ( 2000 )
 /* Centered in the exposed part of each mounting ear. */
 #define DIAL_ARC_SCREW_X UI_LEN( 684 )
 #define DIAL_ARC_SCREW_Y ( UI_LEN( 425 ) + DIAL_COVER_FOOT_DOWN )
@@ -78,6 +81,9 @@
 #define DIAL_COVER_SHADOW_SPREAD UI_LEN( 33 )
 #define DIAL_COVER_BEVEL         UI_LEN( 42 )
 #define DIAL_COVER_SIDE_SHADE    UI_LEN( 84 )
+/* A pixel this far inside the body's edges is its plain color, whatever is
+ * under the opaque body. */
+#define DIAL_COVER_INTERIOR_MARGIN ( DIAL_COVER_SIDE_SHADE + 1 )
 
 /* Line thicknesses are half-widths, so 1 is a line 3 px wide. They follow
  * the panel size, rounded down. */
@@ -136,6 +142,8 @@
  * the scratch buffer's pixel capacity; a box that would exceed it falls
  * back to a full draw_frame. Long, thin boxes can still fit this buffer.
  * DIAL_TAIL_R is the counterweight's reach behind center. */
+/* Squared reach of the round glass from center, with one pixel of slack. */
+#define DIAL_VISIBLE_SQ      ( ( ( UI_RADIUS ) + 1 ) * ( ( UI_RADIUS ) + 1 ) )
 #define DIAL_REGION_PERMILLE ( 1150 )
 #define DIAL_REGION_PIXELS                                                     \
     ( UI_LEN_U( DIAL_REGION_PERMILLE ) * UI_LEN_U( DIAL_REGION_PERMILLE ) )

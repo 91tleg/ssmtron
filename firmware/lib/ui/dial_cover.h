@@ -34,4 +34,14 @@ uint16_t dial_cover_body(
     int32_t dy
 );
 
+/* Whether a pixel is deep inside the cover's body, where only its plain color
+ * shows and nothing under it matters. dx and dy are from the panel's middle. */
+bool dial_cover_interior(
+    int32_t dx,
+    int32_t dy
+);
+
+/* The body's plain color, as it is away from every edge. */
+uint16_t dial_cover_base_color( const dial_cfg_t * cfg );
+
 #endif /* DIAL_COVER_H */

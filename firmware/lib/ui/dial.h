@@ -70,6 +70,12 @@ typedef struct
     int16_t sin_m;
     int16_t cos_m;
     bool major;
+    /* The box around the tick, in pixels from the pivot (both corners in):
+     * a pixel outside it is not on the tick, and skips its test. */
+    int16_t box_x0;
+    int16_t box_y0;
+    int16_t box_x1;
+    int16_t box_y1;
 } dial_tick_t;
 
 /* One piece of text on the face: its top left corner, text size and text. */
@@ -78,6 +84,8 @@ typedef struct
     int16_t x;
     int16_t y;
     uint8_t scale;
+    uint16_t w; /* its size in pixels, worked out once with the text */
+    uint16_t h;
     char text[DIAL_LABEL_BUF];
 } dial_label_t;
 
@@ -90,6 +98,8 @@ typedef struct
     dial_label_t labels[DIAL_MAX_LABELS];
     size_t tick_count;
     size_t label_count;
+    int16_t label_top;    /* the rows the labels span: top row, and one past */
+    int16_t label_bottom; /* the last row; a pixel outside them has no label */
 } dial_face_t;
 
 typedef struct

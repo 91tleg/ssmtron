@@ -36,21 +36,27 @@ static uint16_t ticks_layer(
         for ( size_t i = 0; i < face->tick_count; i++ )
         {
             const dial_tick_t * tick = &face->ticks[i];
-            uint8_t ink              = dial_radial_line_alpha(
-                dx,
-                dy,
-                tick->sin_m,
-                tick->cos_m,
-                dial_tick_radius( cfg )
-                    - ( tick->major ? DIAL_TICK_MAJOR_LEN
-                                                 : DIAL_TICK_MINOR_LEN ),
-                dial_tick_radius( cfg ),
-                tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
-            );
 
-            if ( ink != 0u )
+            /* Only the tick whose box holds the pixel can touch it. */
+            if ( ( dx >= tick->box_x0 ) && ( dx <= tick->box_x1 )
+                 && ( dy >= tick->box_y0 ) && ( dy <= tick->box_y1 ) )
             {
-                out = font_blend( cfg->tick_fg, out, ink );
+                uint8_t ink = dial_radial_line_alpha(
+                    dx,
+                    dy,
+                    tick->sin_m,
+                    tick->cos_m,
+                    dial_tick_radius( cfg )
+                        - ( tick->major ? DIAL_TICK_MAJOR_LEN
+                                        : DIAL_TICK_MINOR_LEN ),
+                    dial_tick_radius( cfg ),
+                    tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
+                );
+
+                if ( ink != 0u )
+                {
+                    out = font_blend( cfg->tick_fg, out, ink );
+                }
             }
         }
     }
@@ -68,13 +74,17 @@ static uint16_t labels_layer(
 {
     uint16_t out = color;
 
-    for ( size_t i = 0; i < face->label_count; i++ )
+    /* Most rows have no label at all. */
+    if ( ( row >= face->label_top ) && ( row < face->label_bottom ) )
     {
-        uint8_t ink = 0u;
-
-        if ( dial_label_pixel( &face->labels[i], row, col, &ink ) )
+        for ( size_t i = 0; i < face->label_count; i++ )
         {
-            out = font_blend( cfg->tick_fg, out, ink );
+            uint8_t ink = 0u;
+
+            if ( dial_label_pixel( &face->labels[i], row, col, &ink ) )
+            {
+                out = font_blend( cfg->tick_fg, out, ink );
+            }
         }
     }
     return out;
@@ -129,6 +139,29 @@ static uint16_t needle_color(
     return font_blend( light, base, ( uint8_t )amount );
 }
 
+/* The needle as one frame draws it: its direction, and the box around it
+ * (left and top edge in, right and bottom edge out). Only pixels in the box
+ * can be the needle, so the others skip its layers. */
+typedef struct
+{
+    int32_t sin_m;
+    int32_t cos_m;
+    int16_t x0;
+    int16_t y0;
+    int16_t x1;
+    int16_t y1;
+} needle_t;
+
+static bool in_box(
+    const needle_t * nd,
+    int16_t row,
+    int16_t col
+)
+{
+    return ( col >= nd->x0 ) && ( col < nd->x1 ) && ( row >= nd->y0 )
+           && ( row < nd->y1 );
+}
+
 /* A part of the pointer blended over color: ink is how much of the pixel it
  * covers and base its color before shading. Nothing is shaded for a pixel it
  * does not touch. dx and dy are from the pivot. */
@@ -158,45 +191,44 @@ static uint16_t needle_layer(
 static uint16_t round_pixel(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
-    int32_t needle_sin,
-    int32_t needle_cos,
+    const needle_t * nd,
     int16_t row,
     int16_t col
 )
 {
-    int32_t dx      = ( int32_t )col - DIAL_CX;
-    int32_t dy      = ( int32_t )row - DIAL_CY;
-    int32_t dist_sq = ( dx * dx ) + ( dy * dy );
-    uint16_t color  = cfg->face_bg;
+    int32_t dx     = ( int32_t )col - DIAL_CX;
+    int32_t dy     = ( int32_t )row - DIAL_CY;
+    uint16_t color = cfg->face_bg;
     uint8_t ink;
 
     color = ticks_layer( cfg, face, dx, dy, color );
     color = labels_layer( cfg, face, row, col, color );
     color = dial_screws( color, dx, dy, false );
-    ink   = dial_needle_alpha(
-        dx, dy, needle_sin, needle_cos, dial_needle_length( cfg )
-    );
-    color = needle_layer(
-        color, ink, cfg->needle_fg, dx, dy, needle_sin, needle_cos
-    );
-    ink = dial_radial_line_alpha(
-        dx,
-        dy,
-        needle_sin,
-        needle_cos,
-        0,
-        DIAL_NEEDLE_COLLAR_R,
-        DIAL_NEEDLE_HALF_W
-    );
-    color = needle_layer( color, ink, 0xDEFBu, dx, dy, needle_sin, needle_cos );
-    ink   = dial_radial_line_alpha(
-        dx, dy, -needle_sin, -needle_cos, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
-    );
-    color = needle_layer( color, ink, 0xDEFBu, dx, dy, needle_sin, needle_cos );
-    ink   = dial_disc_alpha( dist_sq, DIAL_HUB_R );
-    if ( ink != 0u )
+    if ( in_box( nd, row, col ) )
     {
-        color = font_blend( hub_color( dy, dist_sq ), color, ink );
+        int32_t s = nd->sin_m;
+        int32_t c = nd->cos_m;
+
+        ink   = dial_needle_alpha( dx, dy, s, c, dial_needle_length( cfg ) );
+        color = needle_layer( color, ink, cfg->needle_fg, dx, dy, s, c );
+        ink   = dial_radial_line_alpha(
+            dx, dy, s, c, 0, DIAL_NEEDLE_COLLAR_R, DIAL_NEEDLE_HALF_W
+        );
+        color = needle_layer( color, ink, 0xDEFBu, dx, dy, s, c );
+        ink   = dial_radial_line_alpha(
+            dx, dy, -s, -c, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
+        );
+        color = needle_layer( color, ink, 0xDEFBu, dx, dy, s, c );
+    }
+    if ( ( ui_abs( dx ) <= DIAL_HUB_R ) && ( ui_abs( dy ) <= DIAL_HUB_R ) )
+    {
+        int32_t dist_sq = ( dx * dx ) + ( dy * dy );
+
+        ink = dial_disc_alpha( dist_sq, DIAL_HUB_R );
+        if ( ink != 0u )
+        {
+            color = font_blend( hub_color( dy, dist_sq ), color, ink );
+        }
     }
     return color;
 }
@@ -207,8 +239,7 @@ static uint16_t round_pixel(
 static uint16_t arc_pixel(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
-    int32_t needle_sin,
-    int32_t needle_cos,
+    const needle_t * nd,
     int16_t row,
     int16_t col
 )
@@ -217,21 +248,32 @@ static uint16_t arc_pixel(
     int32_t dy         = ( int32_t )row - DIAL_CY;
     int32_t from_pivot = dy - dial_pivot_down( cfg );
     uint16_t color     = cfg->face_bg;
-    uint8_t ink;
 
-    color = ticks_layer( cfg, face, dx, from_pivot, color );
-    color = labels_layer( cfg, face, row, col, color );
-    ink   = dial_needle_alpha(
-        dx, from_pivot, needle_sin, needle_cos, dial_needle_length( cfg )
-    );
-    color = needle_layer(
-        color, ink, cfg->needle_fg, dx, from_pivot, needle_sin, needle_cos
-    );
-    color = dial_cover_feet( cfg, color, dx, dy );
-    color = dial_screws( color, dx, dy, true );
-    if ( dy >= -( int32_t )DIAL_COVER_SHADOW_SPREAD )
+    /* Deep inside the cover, only its plain color shows. */
+    if ( dial_cover_interior( dx, dy ) )
     {
-        color = dial_cover_body( cfg, color, dx, dy );
+        color = dial_cover_base_color( cfg );
+    }
+    else
+    {
+        color = ticks_layer( cfg, face, dx, from_pivot, color );
+        color = labels_layer( cfg, face, row, col, color );
+        if ( in_box( nd, row, col ) )
+        {
+            uint8_t ink = dial_needle_alpha(
+                dx, from_pivot, nd->sin_m, nd->cos_m, dial_needle_length( cfg )
+            );
+
+            color = needle_layer(
+                color, ink, cfg->needle_fg, dx, from_pivot, nd->sin_m, nd->cos_m
+            );
+        }
+        color = dial_cover_feet( cfg, color, dx, dy );
+        color = dial_screws( color, dx, dy, true );
+        if ( dy >= -( int32_t )DIAL_COVER_SHADOW_SPREAD )
+        {
+            color = dial_cover_body( cfg, color, dx, dy );
+        }
     }
     return color;
 }
@@ -239,15 +281,13 @@ static uint16_t arc_pixel(
 static uint16_t pixel_color(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
-    int32_t needle_sin,
-    int32_t needle_cos,
+    const needle_t * nd,
     int16_t row,
     int16_t col
 )
 {
-    return dial_is_arc( cfg )
-               ? arc_pixel( cfg, face, needle_sin, needle_cos, row, col )
-               : round_pixel( cfg, face, needle_sin, needle_cos, row, col );
+    return dial_is_arc( cfg ) ? arc_pixel( cfg, face, nd, row, col )
+                              : round_pixel( cfg, face, nd, row, col );
 }
 
 /* Bounding box (x0 <= x < x1) of the needle shape at deg: the forward tip
@@ -342,18 +382,29 @@ static void fill_rect(
     uint16_t * dst
 )
 {
-    int32_t needle_sin;
-    int32_t needle_cos;
+    needle_t nd;
     size_t n = 0u;
 
-    dial_angle_vec( d->displayed_deg, &needle_sin, &needle_cos );
+    dial_angle_vec( d->displayed_deg, &nd.sin_m, &nd.cos_m );
+    needle_extent( d->cfg, d->displayed_deg, &nd.x0, &nd.y0, &nd.x1, &nd.y1 );
     for ( int16_t row = y0; row < y1; row++ )
     {
+        int32_t dy = ( int32_t )row - DIAL_CY;
+
         for ( int16_t col = x0; col < x1; col++ )
         {
-            dst[n] = pixel_color(
-                d->cfg, &d->face, needle_sin, needle_cos, row, col
-            );
+            int32_t dx = ( int32_t )col - DIAL_CX;
+
+            /* The glass is round, so the square's corners are never seen.
+             * One pixel of slack keeps the edge ring whole. */
+            if ( ( ( dx * dx ) + ( dy * dy ) ) <= DIAL_VISIBLE_SQ )
+            {
+                dst[n] = pixel_color( d->cfg, &d->face, &nd, row, col );
+            }
+            else
+            {
+                dst[n] = d->cfg->face_bg;
+            }
             n++;
         }
     }

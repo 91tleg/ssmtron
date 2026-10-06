@@ -25,10 +25,17 @@ static void add_label(
     {
         dial_label_t * lb = &face->labels[face->label_count];
 
+        size_t len;
+
         lb->x     = ( int16_t )x;
         lb->y     = ( int16_t )y;
         lb->scale = scale;
-        ( void )textfit_copy( lb->text, DIAL_LABEL_BUF, text );
+        len       = textfit_copy( lb->text, DIAL_LABEL_BUF, text );
+        lb->w     = ( uint16_t )font_text_width( len, scale );
+        lb->h     = ( uint16_t )( ( uint32_t )FONT_CELL_H * ( uint32_t )scale );
+        face->label_top = ( int16_t )ui_min( face->label_top, lb->y );
+        face->label_bottom =
+            ( int16_t )ui_max( face->label_bottom, lb->y + ( int16_t )lb->h );
         face->label_count++;
     }
 }
@@ -80,6 +87,31 @@ static void add_number(
     );
 }
 
+/* The box around a tick: both ends of its line, and its half width and two
+ * pixels more on every side for the soft edge and the rounding. */
+static void set_tick_box(
+    const dial_cfg_t * cfg,
+    dial_tick_t * tick,
+    int32_t sin_m,
+    int32_t cos_m
+)
+{
+    int32_t r_out = dial_tick_radius( cfg );
+    int32_t r_in =
+        r_out - ( tick->major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN );
+    int32_t half =
+        ( tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W ) + 2;
+    int32_t xa = ( r_in * sin_m ) / 1000;
+    int32_t ya = -( r_in * cos_m ) / 1000;
+    int32_t xb = ( r_out * sin_m ) / 1000;
+    int32_t yb = -( r_out * cos_m ) / 1000;
+
+    tick->box_x0 = ( int16_t )( ui_min( xa, xb ) - half );
+    tick->box_y0 = ( int16_t )( ui_min( ya, yb ) - half );
+    tick->box_x1 = ( int16_t )( ui_max( xa, xb ) + half );
+    tick->box_y1 = ( int16_t )( ui_max( ya, yb ) + half );
+}
+
 /* One run of ticks, from one value to another in equal steps. A tick is long
  * (and numbered) when it is a whole number of major steps from anchor. */
 static void add_run(
@@ -105,6 +137,7 @@ static void add_run(
         dial_angle_vec( tick->deg, &sin_m, &cos_m );
         tick->sin_m = ( int16_t )sin_m;
         tick->cos_m = ( int16_t )cos_m;
+        set_tick_box( cfg, tick, sin_m, cos_m );
         face->tick_count++;
 
         if ( tick->major )
@@ -228,8 +261,10 @@ void dial_make_face(
     dial_face_t * face
 )
 {
-    face->tick_count  = 0u;
-    face->label_count = 0u;
+    face->tick_count   = 0u;
+    face->label_count  = 0u;
+    face->label_top    = INT16_MAX;
+    face->label_bottom = INT16_MIN;
     add_ticks( cfg, face );
     add_fixed_labels( cfg, face );
 }
@@ -242,17 +277,13 @@ bool dial_label_pixel(
     uint8_t * out_alpha
 )
 {
-    size_t len         = strlen( lb->text );
-    uint16_t cell_w    = ( uint16_t )( FONT_CELL_W * lb->scale );
-    uint16_t font_rows = ( uint16_t )( FONT_CELL_H * lb->scale );
-    uint16_t width     = ( uint16_t )( cell_w * ( uint16_t )len );
-    bool hit           = false;
+    bool hit = false;
 
-    if ( ( row >= lb->y )
-         && ( row < ( int16_t )( lb->y + ( int16_t )font_rows ) )
+    if ( ( row >= lb->y ) && ( row < ( int16_t )( lb->y + ( int16_t )lb->h ) )
          && ( col >= lb->x )
-         && ( col < ( int16_t )( lb->x + ( int16_t )width ) ) )
+         && ( col < ( int16_t )( lb->x + ( int16_t )lb->w ) ) )
     {
+        uint16_t cell_w      = ( uint16_t )( FONT_CELL_W * lb->scale );
         int16_t row_offset   = ( int16_t )( row - lb->y );
         int16_t col_offset   = ( int16_t )( col - lb->x );
         uint16_t rel_row     = ( uint16_t )row_offset;
