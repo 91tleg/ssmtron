@@ -36,21 +36,27 @@ static uint16_t ticks_layer(
         for ( size_t i = 0; i < face->tick_count; i++ )
         {
             const dial_tick_t * tick = &face->ticks[i];
-            uint8_t ink              = dial_radial_line_alpha(
-                dx,
-                dy,
-                tick->sin_m,
-                tick->cos_m,
-                dial_tick_radius( cfg )
-                    - ( tick->major ? DIAL_TICK_MAJOR_LEN
-                                                 : DIAL_TICK_MINOR_LEN ),
-                dial_tick_radius( cfg ),
-                tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
-            );
 
-            if ( ink != 0u )
+            /* Only the tick whose box holds the pixel can touch it. */
+            if ( ( dx >= tick->box_x0 ) && ( dx <= tick->box_x1 )
+                 && ( dy >= tick->box_y0 ) && ( dy <= tick->box_y1 ) )
             {
-                out = font_blend( cfg->tick_fg, out, ink );
+                uint8_t ink = dial_radial_line_alpha(
+                    dx,
+                    dy,
+                    tick->sin_m,
+                    tick->cos_m,
+                    dial_tick_radius( cfg )
+                        - ( tick->major ? DIAL_TICK_MAJOR_LEN
+                                        : DIAL_TICK_MINOR_LEN ),
+                    dial_tick_radius( cfg ),
+                    tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W
+                );
+
+                if ( ink != 0u )
+                {
+                    out = font_blend( cfg->tick_fg, out, ink );
+                }
             }
         }
     }
@@ -243,23 +249,31 @@ static uint16_t arc_pixel(
     int32_t from_pivot = dy - dial_pivot_down( cfg );
     uint16_t color     = cfg->face_bg;
 
-    color = ticks_layer( cfg, face, dx, from_pivot, color );
-    color = labels_layer( cfg, face, row, col, color );
-    if ( in_box( nd, row, col ) )
+    /* Deep inside the cover, only its plain color shows. */
+    if ( dial_cover_interior( dx, dy ) )
     {
-        uint8_t ink = dial_needle_alpha(
-            dx, from_pivot, nd->sin_m, nd->cos_m, dial_needle_length( cfg )
-        );
-
-        color = needle_layer(
-            color, ink, cfg->needle_fg, dx, from_pivot, nd->sin_m, nd->cos_m
-        );
+        color = dial_cover_base_color( cfg );
     }
-    color = dial_cover_feet( cfg, color, dx, dy );
-    color = dial_screws( color, dx, dy, true );
-    if ( dy >= -( int32_t )DIAL_COVER_SHADOW_SPREAD )
+    else
     {
-        color = dial_cover_body( cfg, color, dx, dy );
+        color = ticks_layer( cfg, face, dx, from_pivot, color );
+        color = labels_layer( cfg, face, row, col, color );
+        if ( in_box( nd, row, col ) )
+        {
+            uint8_t ink = dial_needle_alpha(
+                dx, from_pivot, nd->sin_m, nd->cos_m, dial_needle_length( cfg )
+            );
+
+            color = needle_layer(
+                color, ink, cfg->needle_fg, dx, from_pivot, nd->sin_m, nd->cos_m
+            );
+        }
+        color = dial_cover_feet( cfg, color, dx, dy );
+        color = dial_screws( color, dx, dy, true );
+        if ( dy >= -( int32_t )DIAL_COVER_SHADOW_SPREAD )
+        {
+            color = dial_cover_body( cfg, color, dx, dy );
+        }
     }
     return color;
 }
@@ -375,9 +389,22 @@ static void fill_rect(
     needle_extent( d->cfg, d->displayed_deg, &nd.x0, &nd.y0, &nd.x1, &nd.y1 );
     for ( int16_t row = y0; row < y1; row++ )
     {
+        int32_t dy = ( int32_t )row - DIAL_CY;
+
         for ( int16_t col = x0; col < x1; col++ )
         {
-            dst[n] = pixel_color( d->cfg, &d->face, &nd, row, col );
+            int32_t dx = ( int32_t )col - DIAL_CX;
+
+            /* The glass is round, so the square's corners are never seen.
+             * One pixel of slack keeps the edge ring whole. */
+            if ( ( ( dx * dx ) + ( dy * dy ) ) <= DIAL_VISIBLE_SQ )
+            {
+                dst[n] = pixel_color( d->cfg, &d->face, &nd, row, col );
+            }
+            else
+            {
+                dst[n] = d->cfg->face_bg;
+            }
             n++;
         }
     }

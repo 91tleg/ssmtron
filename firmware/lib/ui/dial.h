@@ -70,6 +70,12 @@ typedef struct
     int16_t sin_m;
     int16_t cos_m;
     bool major;
+    /* The box around the tick, in pixels from the pivot (both corners in):
+     * a pixel outside it is not on the tick, and skips its test. */
+    int16_t box_x0;
+    int16_t box_y0;
+    int16_t box_x1;
+    int16_t box_y1;
 } dial_tick_t;
 
 /* One piece of text on the face: its top left corner, text size and text. */

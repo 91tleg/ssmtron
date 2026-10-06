@@ -87,6 +87,31 @@ static void add_number(
     );
 }
 
+/* The box around a tick: both ends of its line, and its half width and two
+ * pixels more on every side for the soft edge and the rounding. */
+static void set_tick_box(
+    const dial_cfg_t * cfg,
+    dial_tick_t * tick,
+    int32_t sin_m,
+    int32_t cos_m
+)
+{
+    int32_t r_out = dial_tick_radius( cfg );
+    int32_t r_in =
+        r_out - ( tick->major ? DIAL_TICK_MAJOR_LEN : DIAL_TICK_MINOR_LEN );
+    int32_t half =
+        ( tick->major ? DIAL_TICK_MAJOR_HALF_W : DIAL_TICK_HALF_W ) + 2;
+    int32_t xa = ( r_in * sin_m ) / 1000;
+    int32_t ya = -( r_in * cos_m ) / 1000;
+    int32_t xb = ( r_out * sin_m ) / 1000;
+    int32_t yb = -( r_out * cos_m ) / 1000;
+
+    tick->box_x0 = ( int16_t )( ui_min( xa, xb ) - half );
+    tick->box_y0 = ( int16_t )( ui_min( ya, yb ) - half );
+    tick->box_x1 = ( int16_t )( ui_max( xa, xb ) + half );
+    tick->box_y1 = ( int16_t )( ui_max( ya, yb ) + half );
+}
+
 /* One run of ticks, from one value to another in equal steps. A tick is long
  * (and numbered) when it is a whole number of major steps from anchor. */
 static void add_run(
@@ -112,6 +137,7 @@ static void add_run(
         dial_angle_vec( tick->deg, &sin_m, &cos_m );
         tick->sin_m = ( int16_t )sin_m;
         tick->cos_m = ( int16_t )cos_m;
+        set_tick_box( cfg, tick, sin_m, cos_m );
         face->tick_count++;
 
         if ( tick->major )

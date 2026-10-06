@@ -120,14 +120,27 @@ uint16_t dial_screws(
 /* The integer square root. */
 static int32_t isqrt_u64( uint64_t v )
 {
-    uint64_t bit  = ( uint64_t )1 << 62;
-    uint64_t res  = 0u;
-    uint64_t rest = v;
+    uint64_t bit     = 0u;
+    uint64_t res     = 0u;
+    uint64_t rest    = v;
+    uint64_t bit_pos = 0u;
+    uint64_t even_pos;
 
-    while ( bit > rest )
+    /* Start at the highest power of four that fits. Halving the shift
+     * each step finds it in six tests instead of up to 31 loop passes. */
+    uint64_t shift = 32u;
+
+    while ( shift != 0u )
     {
-        bit >>= 2;
+        if ( ( v >> ( bit_pos + shift ) ) != 0u )
+        {
+            bit_pos += shift;
+        }
+        shift >>= 1;
     }
+    even_pos = bit_pos - ( bit_pos % 2u );
+    bit      = ( uint64_t )1 << even_pos;
+
     while ( bit != 0u )
     {
         if ( rest >= ( res + bit ) )
@@ -435,4 +448,28 @@ uint16_t dial_cover_body(
 )
 {
     return body_layer( cfg, shadow_layer( color, dx, dy ), dx, dy );
+}
+
+bool dial_cover_interior(
+    int32_t dx,
+    int32_t dy
+)
+{
+    int32_t half_w = ( int32_t )DIAL_COVER_TOP_HALF_W
+                     + ( ( dy
+                           * ( ( int32_t )DIAL_COVER_BOTTOM_HALF_W
+                               - ( int32_t )DIAL_COVER_TOP_HALF_W ) )
+                         / ( int32_t )UI_RADIUS );
+    int32_t margin = DIAL_COVER_INTERIOR_MARGIN;
+    /* Its rounded top corners cut in as far as the corner radius. */
+    int32_t side_margin = ( dy < ( ( int32_t )DIAL_COVER_CORNER_R + margin ) )
+                              ? ( ( int32_t )DIAL_COVER_CORNER_R + margin )
+                              : margin;
+
+    return ( dy >= margin ) && ( ui_abs( dx ) <= ( half_w - side_margin ) );
+}
+
+uint16_t dial_cover_base_color( const dial_cfg_t * cfg )
+{
+    return body_color( cfg, ( int32_t )DIAL_COVER_SIDE_SHADE * 2000, 0 );
 }
