@@ -13,12 +13,19 @@
 
 const fw_info_t fw_info = { "9.9.9-test" };
 
-static uint32_t rom_id;
+static const char * id_text  = "--.--.--";
 static ecu_link_t link_state = ECU_LINK_DOWN;
 
-uint32_t ecu_rom_id( void )
+void ecu_id_text(
+    char * buf,
+    size_t size
+)
 {
-    return rom_id;
+    if ( size > 0u )
+    {
+        ( void )strncpy( buf, id_text, size - 1u );
+        buf[size - 1u] = '\0';
+    }
 }
 
 ecu_link_t ecu_link( void )
@@ -80,23 +87,21 @@ static void test_firmware_version_row( void )
     CHECK( strcmp( row( 1 ), "FW      9.9.9-test" ) == 0 );
 }
 
-/* Until the ECU has identified itself there is no ROM ID: dashes. */
-static void test_rom_id_is_dashes_before_identification( void )
+/* The row shows whatever identity text the protocol gives. */
+static void test_ecu_id_row_shows_the_protocols_text( void )
 {
-    CHECK( strcmp( row( 2 ), "ROM ID  --.--.--" ) == 0 );
+    CHECK( strcmp( row( 2 ), "ECU ID  --.--.--" ) == 0 );
     CHECK( strcmp( row( 3 ), "ECU     NO LINK" ) == 0 );
-}
 
-/* The bytes come out in the order the ECU sent them: r0.r1.r2. */
-static void test_rom_id_shows_the_three_bytes_in_order( void )
-{
-    rom_id     = 0x013672u; /* r0 = 0x72, r1 = 0x36, r2 = 0x01 */
+    id_text    = "72.36.01";
     link_state = ECU_LINK_UP;
-    CHECK( strcmp( row( 2 ), "ROM ID  72.36.01" ) == 0 );
+    CHECK( strcmp( row( 2 ), "ECU ID  72.36.01" ) == 0 );
     CHECK( strcmp( row( 3 ), "ECU     LINKED" ) == 0 );
 
-    rom_id = 0x0AB3CDEFu & 0xFFFFFFu; /* upper-case hex, two digits each */
-    CHECK( strcmp( row( 2 ), "ROM ID  EF.CD.B3" ) == 0 );
+    /* A protocol's text that is longer than the row is cut, not overrun. */
+    id_text = "123456789012345678901234567890";
+    CHECK( strlen( row( 2 ) ) <= 20u );
+    id_text = "--.--.--";
 }
 
 static void test_notice_line_follows_what_the_caller_says( void )
@@ -135,8 +140,7 @@ int main( void )
 {
     test_the_page_has_a_title_three_rows_and_a_notice();
     test_firmware_version_row();
-    test_rom_id_is_dashes_before_identification();
-    test_rom_id_shows_the_three_bytes_in_order();
+    test_ecu_id_row_shows_the_protocols_text();
     test_notice_line_follows_what_the_caller_says();
     test_the_first_frame_shows_the_notice_it_was_given();
     test_widgets_fit_the_panel();

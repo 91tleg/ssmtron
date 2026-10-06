@@ -4,7 +4,7 @@ SSMTron is an nRF52840-based gauge for Subaru ECUs that use the SSM1 protocol. I
 
 ## Controls
 
-- **NEXT (Button 1):** Tap to cycle through the available ECU parameters, then an Info page that shows the firmware version, the ECU's ROM ID (dashes until the ECU answers) and whether the ECU is connected. Hold for 1.5 seconds to save the shown parameter and the theme as the power-on defaults; the display shows SAVED, or SAVE FAILED if the write fails. Tapping only browses and does not write flash.
+- **NEXT (Button 1):** Tap to cycle through the available ECU parameters, then an Info page that shows the firmware version, the ECU's ID (dashes until the ECU answers) and whether the ECU is connected. Hold for 1.5 seconds to save the shown parameter and the theme as the power-on defaults; the display shows SAVED, or SAVE FAILED if the write fails. Tapping only browses and does not write flash.
 - **ACTION (Button 2):** Tap to switch between the light and dark theme. The theme is kept until the next restart unless you save it with a NEXT hold. On an Active Codes or Stored Codes page, hold for two seconds to clear trouble codes; the clear prompt appears after half a second. On the Info page, hold for two seconds to start update mode (see below). Holding on any other page does nothing. After a clear result appears, release and press again to return to the gauge.
 
 At power-on, the needle of the first dial sweeps to full scale, down to the bottom of the scale and back to rest, and then settles on the reading. The display shows the parameter name, decoded value and unit; dashes stand in for a value the ECU has not sent. Switch and trouble-code bytes get a page of their own that lists every flag name with a 1 (asserted) or 0, or - while the byte is stale. Available parameters depend on the detected ECU profile. The current profiles target 1990-94 Legacy ECUs; their addresses and conversions still need verification on a real car.
@@ -33,7 +33,7 @@ firmware/
     gauge_input.c               debounces the two buttons and recognizes taps and holds
     gauge_number.c              the plain number page
     gauge_flags.c               the page for a switch or trouble-code byte: every flag name with 1 or 0
-    gauge_info.c                the Info page: version, ROM ID and whether the ECU is connected
+    gauge_info.c                the Info page: version, ECU ID and whether the ECU is connected
     gauge_update.c              the update-mode page: passkey, status and time left
     gauge_sweep.c               the needle sweep at power-on
     gauge_settings.c            what is saved: page, theme and ECU profile

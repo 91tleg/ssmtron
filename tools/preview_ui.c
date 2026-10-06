@@ -52,7 +52,7 @@ static uint32_t next_edge_at;
 static unsigned next_taps;
 /* Hold ACTION after the NEXT taps: on the info page that starts update mode. */
 static bool hold_action_after_taps;
-/* What the ECU reports as its ROM ID: 0 until it has identified itself. */
+/* What the ECU reports as its ID: 0 until it has identified itself. */
 static uint32_t rom_id_value;
 
 /* Same shapes and polarities as ssm1_params.c: stored codes 2/3 and the
@@ -77,6 +77,7 @@ const ecu_param_info_t *ecu_param_info(size_t idx) {
       {.name = "Boost/Vacuum",
        .unit = "psi",
        .unit_neg = "inHg",
+       .role = ECU_ROLE_BOOST,
        .decode = ECU_DEC_BOOST,
        .scale_num = 1,
        .scale_den = 1,
@@ -136,12 +137,14 @@ const ecu_param_info_t *ecu_param_info(size_t idx) {
        .trouble_codes = false},
       {.name = "Coolant Temp",
        .unit = "F",
+       .role = ECU_ROLE_COOLANT,
        .decode = ECU_DEC_LINEAR,
        .scale_num = 1,
        .scale_den = 1,
        .decimals = 1},
       {.name = "System Voltage",
        .unit = "V",
+       .role = ECU_ROLE_VOLTAGE,
        .decode = ECU_DEC_LINEAR,
        .scale_num = 1,
        .scale_den = 1,
@@ -188,7 +191,28 @@ void hal_dfu_reboot(void) {}
 
 uint16_t ecu_assume_profile(uint16_t profile_key) { return profile_key; }
 
-uint32_t ecu_rom_id(void) { return rom_id_value; }
+uint32_t ecu_id(void) { return rom_id_value; }
+
+void ecu_id_text(char *buf, size_t size) {
+  /* The same text the SSM1 layer gives: r0.r1.r2, or dashes. */
+  static const char hex[] = "0123456789ABCDEF";
+  char text[9] = "--.--.--";
+
+  if (rom_id_value != 0u) {
+    uint32_t bits = rom_id_value;
+    for (size_t byte = 0; byte < 3u; byte++) {
+      uint32_t id_byte = bits & 0xFFu;
+      bits >>= 8u;
+      text[byte * 3u] = hex[id_byte >> 4];
+      text[(byte * 3u) + 1u] = hex[id_byte & 0x0Fu];
+    }
+  }
+  if (size > 0u) {
+    size_t n = (size - 1u < 8u) ? (size - 1u) : 8u;
+    memcpy(buf, text, n);
+    buf[n] = '\0';
+  }
+}
 
 bool ecu_clear_start(void) {
   clear_result = ECU_CLEAR_BUSY;

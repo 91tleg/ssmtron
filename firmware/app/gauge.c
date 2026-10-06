@@ -108,7 +108,7 @@ static void assume_remembered_profile( void )
 static void check_identification( void )
 {
     static bool identification_checked;
-    uint32_t id = ecu_rom_id();
+    uint32_t id = ecu_id();
 
     if ( ( id != 0u ) && !identification_checked )
     {
@@ -435,31 +435,32 @@ static flags_status_t flags_status( void )
     return status;
 }
 
-/* Boost is unique by decode. Tried in order; first match wins. */
+/* A dial is picked by what the parameter measures (its role), never by its
+ * name. Each dial also needs the unit and decimals its scale was made for, so
+ * a reading in other units keeps the plain number page. Coolant profiles
+ * report either whole or tenths F. */
 static bool is_boost( const ecu_param_info_t * info )
 {
-    return info->decode == ECU_DEC_BOOST;
+    return info->role == ECU_ROLE_BOOST;
 }
 
-/* Match the parameter identity, so other temperature and voltage readings
- * keep their own pages. Coolant profiles report either whole or tenths F. */
 static bool is_coolant( const ecu_param_info_t * info )
 {
-    return ( strcmp( info->name, "Coolant Temp" ) == 0 )
+    return ( info->role == ECU_ROLE_COOLANT )
            && ( strcmp( info->unit, "F" ) == 0 ) && ( info->decimals <= 1u );
 }
 
 static bool is_voltage( const ecu_param_info_t * info )
 {
-    return ( strcmp( info->name, "System Voltage" ) == 0 )
+    return ( info->role == ECU_ROLE_VOLTAGE )
            && ( strcmp( info->unit, "V" ) == 0 ) && ( info->decimals == 2u );
 }
 
 /* The oxygen sensor's voltage, in hundredths of a volt. */
 static bool is_o2( const ecu_param_info_t * info )
 {
-    return ( strcmp( info->name, "Oxygen Sensor" ) == 0 )
-           && ( strcmp( info->unit, "V" ) == 0 ) && ( info->decimals == 2u );
+    return ( info->role == ECU_ROLE_O2 ) && ( strcmp( info->unit, "V" ) == 0 )
+           && ( info->decimals == 2u );
 }
 
 typedef struct

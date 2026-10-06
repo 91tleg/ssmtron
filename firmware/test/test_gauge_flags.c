@@ -186,9 +186,24 @@ uint16_t ecu_assume_profile( uint16_t profile_key )
     return profile_key;
 }
 
-uint32_t ecu_rom_id( void )
+uint32_t ecu_id( void )
 {
     return fake_rom_id;
+}
+
+/* Dashes until identified, as the real ECU layer shows. */
+void ecu_id_text(
+    char * buf,
+    size_t size
+)
+{
+    if ( size > 0u )
+    {
+        ( void )strncpy(
+            buf, ( fake_rom_id == 0u ) ? "--.--.--" : "AB.CD.EF", size - 1u
+        );
+        buf[size - 1u] = '\0';
+    }
 }
 
 static const char * last_log = "";
@@ -628,12 +643,12 @@ static void test_hold_on_a_switch_page_does_nothing( void )
     }
 
     /* The info page follows the last parameter. It shows the firmware
-     * version, the ROM ID as dashes and no link. */
+     * version, the ECU ID as dashes and no link. */
     tap_next();
     CHECK_EQ( page_count, 5u );
     CHECK( strcmp( row( 0 ), "INFO" ) == 0 );
     CHECK( strcmp( row( 1 ), "FW      9.9.9-test" ) == 0 );
-    CHECK( strcmp( row( 2 ), "ROM ID  --.--.--" ) == 0 );
+    CHECK( strcmp( row( 2 ), "ECU ID  --.--.--" ) == 0 );
     CHECK( strcmp( row( 3 ), "ECU     NO LINK" ) == 0 );
     CHECK_EQ( ble_opens, 0u ); /* Bluetooth stays off until asked */
 

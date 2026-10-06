@@ -33,7 +33,7 @@ static bool other_also_fresh;
 static bool extra_params;
 size_t ecu_param_count( void )
 {
-    return extra_params ? 8u : 3u;
+    return extra_params ? 10u : 3u;
 }
 
 const ecu_param_info_t * ecu_param_info( size_t idx )
@@ -42,6 +42,7 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
         .name          = "Boost/Vacuum",
         .unit          = "psi",
         .unit_neg      = "inHg",
+        .role          = ECU_ROLE_BOOST,
         .decode        = ECU_DEC_BOOST,
         .scale_num     = 1,
         .scale_den     = 1,
@@ -67,19 +68,39 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
         .trouble_codes = false
     };
     static const ecu_param_info_t coolant_whole = {
-        .name = "Coolant Temp", .unit = "F", .decimals = 0
+        .name     = "Coolant Temp",
+        .unit     = "F",
+        .decimals = 0,
+        .role     = ECU_ROLE_COOLANT
     };
     static const ecu_param_info_t coolant_tenths = {
-        .name = "Coolant Temp", .unit = "F", .decimals = 1
+        .name     = "Coolant Temp",
+        .unit     = "F",
+        .decimals = 1,
+        .role     = ECU_ROLE_COOLANT
     };
     static const ecu_param_info_t voltage = {
-        .name = "System Voltage", .unit = "V", .decimals = 2
+        .name     = "System Voltage",
+        .unit     = "V",
+        .decimals = 2,
+        .role     = ECU_ROLE_VOLTAGE
     };
     static const ecu_param_info_t o2 = {
-        .name = "Oxygen Sensor", .unit = "V", .decimals = 2
+        .name = "Oxygen Sensor", .unit = "V", .decimals = 2, .role = ECU_ROLE_O2
     };
     static const ecu_param_info_t o2_lookalike = {
-        .name = "Oxygen Sensor", .unit = "V", .decimals = 3
+        .name = "Oxygen Sensor", .unit = "V", .decimals = 3, .role = ECU_ROLE_O2
+    };
+    /* A protocol may word its names its own way: the role is what counts. */
+    static const ecu_param_info_t coolant_renamed = {
+        .name = "ECT", .unit = "F", .decimals = 0, .role = ECU_ROLE_COOLANT
+    };
+    /* The name alone, with no role, is not a coolant dial. */
+    static const ecu_param_info_t coolant_name_only = {
+        .name     = "Coolant Temp",
+        .unit     = "F",
+        .decimals = 0,
+        .role     = ECU_ROLE_NONE
     };
     const ecu_param_info_t * info = NULL;
 
@@ -114,6 +135,14 @@ const ecu_param_info_t * ecu_param_info( size_t idx )
     else if ( extra_params && ( idx == 7u ) )
     {
         info = &o2_lookalike;
+    }
+    else if ( extra_params && ( idx == 8u ) )
+    {
+        info = &coolant_renamed;
+    }
+    else if ( extra_params && ( idx == 9u ) )
+    {
+        info = &coolant_name_only;
     }
     else
     {
@@ -154,6 +183,10 @@ bool ecu_get_value(
         else if ( idx == 6u )
         {
             *out = 45; /* hundredths of a volt */
+        }
+        else if ( ( idx == 8u ) || ( idx == 9u ) )
+        {
+            *out = 180;
         }
         else
         { /* Existing fake readings. */
@@ -236,9 +269,24 @@ uint16_t ecu_assume_profile( uint16_t profile_key )
     return profile_key;
 }
 
-uint32_t ecu_rom_id( void )
+uint32_t ecu_id( void )
 {
     return fake_rom_id;
+}
+
+/* Dashes until identified, as the real ECU layer shows. */
+void ecu_id_text(
+    char * buf,
+    size_t size
+)
+{
+    if ( size > 0u )
+    {
+        ( void )strncpy(
+            buf, ( fake_rom_id == 0u ) ? "--.--.--" : "AB.CD.EF", size - 1u
+        );
+        buf[size - 1u] = '\0';
+    }
 }
 
 void hal_log_write( const char * text )
@@ -554,6 +602,16 @@ int main( void )
         unsigned texts_before = text_init_count;
 
         tap_next(); /* the same name with other decimals is not that dial */
+        CHECK_EQ( text_init_count, texts_before + 1u );
+    }
+
+    /* The dial follows the role, not the name. */
+    tap_next(); /* "ECT": another name, but the coolant role */
+    CHECK( last_dial_cfg == coolant_cfg );
+    {
+        unsigned texts_before = text_init_count;
+
+        tap_next(); /* "Coolant Temp" with no role gets the number page */
         CHECK_EQ( text_init_count, texts_before + 1u );
     }
 

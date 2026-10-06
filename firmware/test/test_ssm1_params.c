@@ -21,6 +21,40 @@ static void test_six_profiles_found_by_rom_id( void )
     CHECK( ssm1_profile( 6 ) == NULL );
 }
 
+/* The four readings the gauge gives a dial carry their role in every profile,
+ * and no other reading claims one. */
+static void test_dial_roles_are_set_on_the_right_readings( void )
+{
+    for ( size_t i = 0; i < ssm1_profile_count(); i++ )
+    {
+        const ssm1_profile_t * p = ssm1_profile( i );
+
+        for ( size_t a = 0; a < p->count; a++ )
+        {
+            const ecu_param_info_t * info = p->params[a].info;
+            ecu_role_t want               = ECU_ROLE_NONE;
+
+            if ( strcmp( info->name, "Coolant Temp" ) == 0 )
+            {
+                want = ECU_ROLE_COOLANT;
+            }
+            else if ( strcmp( info->name, "System Voltage" ) == 0 )
+            {
+                want = ECU_ROLE_VOLTAGE;
+            }
+            else if ( strcmp( info->name, "Oxygen Sensor" ) == 0 )
+            {
+                want = ECU_ROLE_O2;
+            }
+            else if ( info->decode == ECU_DEC_BOOST )
+            {
+                want = ECU_ROLE_BOOST;
+            }
+            CHECK_EQ( info->role, want );
+        }
+    }
+}
+
 static void test_tables_are_well_formed( void )
 {
     for ( size_t i = 0; i < ssm1_profile_count(); i++ )
@@ -85,6 +119,7 @@ static void test_only_the_code_pages_carry_the_marker( void )
 int main( void )
 {
     test_six_profiles_found_by_rom_id();
+    test_dial_roles_are_set_on_the_right_readings();
     test_tables_are_well_formed();
     test_only_the_code_pages_carry_the_marker();
 
