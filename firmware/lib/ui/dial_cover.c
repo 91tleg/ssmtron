@@ -84,28 +84,34 @@ uint16_t dial_screws(
                            : UI_LEN( SCREW_PERMILLE[i][0] );
         int32_t at_y =
             arc ? ( int32_t )DIAL_ARC_SCREW_Y : UI_LEN( SCREW_PERMILLE[i][1] );
-        int32_t sdx       = dx - at_x;
-        int32_t sdy       = dy - at_y;
-        int32_t dist_sq   = ( sdx * sdx ) + ( sdy * sdy );
-        uint8_t ink       = dial_disc_alpha( dist_sq, DIAL_SCREW_R );
-        int32_t shadow_y  = sdy - UI_LEN( 9 );
-        int32_t shadow_sq = ( sdx * sdx ) + ( shadow_y * shadow_y );
-        uint8_t shadow_ink =
-            dial_disc_alpha( shadow_sq, DIAL_SCREW_R + UI_LEN( 9 ) );
+        int32_t sdx   = dx - at_x;
+        int32_t sdy   = dy - at_y;
+        int32_t reach = DIAL_SCREW_R + ( 2 * UI_LEN( 9 ) ) + 1;
 
-        /* A small contact shadow below the head gives it height without
-         * changing the mounting ear's outline. */
-        shadow_ink = ( uint8_t )( ( ( uint32_t )shadow_ink * 2u )
-                                  / ( uint32_t )FONT_ALPHA_MAX );
-        out        = font_blend( 0x0000u, out, shadow_ink );
-
-        if ( ink != 0u )
+        /* Only pixels close to a screw, its head and its shadow, are shaded. */
+        if ( ( ui_abs( sdx ) <= reach ) && ( ui_abs( sdy ) <= reach ) )
         {
-            uint16_t head = screw_head(
-                sdx, sdy, dist_sq, SLOT_AXES[i][0], SLOT_AXES[i][1]
-            );
+            int32_t dist_sq   = ( sdx * sdx ) + ( sdy * sdy );
+            uint8_t ink       = dial_disc_alpha( dist_sq, DIAL_SCREW_R );
+            int32_t shadow_y  = sdy - UI_LEN( 9 );
+            int32_t shadow_sq = ( sdx * sdx ) + ( shadow_y * shadow_y );
+            uint8_t shadow_ink =
+                dial_disc_alpha( shadow_sq, DIAL_SCREW_R + UI_LEN( 9 ) );
 
-            out = font_blend( head, out, ink );
+            /* A small contact shadow below the head gives it height without
+             * changing the mounting ear's outline. */
+            shadow_ink = ( uint8_t )( ( ( uint32_t )shadow_ink * 2u )
+                                      / ( uint32_t )FONT_ALPHA_MAX );
+            out        = font_blend( 0x0000u, out, shadow_ink );
+
+            if ( ink != 0u )
+            {
+                uint16_t head = screw_head(
+                    sdx, sdy, dist_sq, SLOT_AXES[i][0], SLOT_AXES[i][1]
+                );
+
+                out = font_blend( head, out, ink );
+            }
         }
     }
     return out;
@@ -247,6 +253,52 @@ static uint16_t body_color(
  * outer corner joins that curve tangentially to the gently sloping top.
  * Distances and the corner center use thousandths of a pixel, so the two
  * curves meet smoothly at either panel size. */
+/* The radius of the ear's lower arc, from the middle of the panel's lower
+ * half. It is the same for every pixel, so it is worked out once. */
+static int32_t foot_gauge_r_m(
+    int64_t cx_m,
+    int64_t panel_cy_m,
+    int32_t round_m
+)
+{
+    static int32_t gauge_r_m;
+
+    if ( gauge_r_m == 0 )
+    {
+        gauge_r_m = hypot_m( cx_m, panel_cy_m ) + round_m;
+    }
+    return gauge_r_m;
+}
+
+/* How far inside the lower arc a pixel is, in thousandths of a pixel. The
+ * edge only shows within two pixels of the arc, so a pixel further than that
+ * is given a distance just past it without taking a square root. */
+static int32_t foot_curve(
+    int32_t gauge_r_m,
+    int64_t x_m,
+    int64_t panel_y_m
+)
+{
+    int64_t pixel_sq = ( x_m * x_m ) + ( panel_y_m * panel_y_m );
+    int64_t inner_m  = ( int64_t )gauge_r_m - DIAL_COVER_FOOT_EDGE_FAR_M;
+    int64_t outer_m  = ( int64_t )gauge_r_m + DIAL_COVER_FOOT_EDGE_FAR_M;
+    int32_t curve;
+
+    if ( pixel_sq < ( inner_m * inner_m ) )
+    {
+        curve = DIAL_COVER_FOOT_EDGE_FAR_M;
+    }
+    else if ( pixel_sq > ( outer_m * outer_m ) )
+    {
+        curve = -DIAL_COVER_FOOT_EDGE_FAR_M;
+    }
+    else
+    {
+        curve = gauge_r_m - hypot_m( x_m, panel_y_m );
+    }
+    return curve;
+}
+
 static int32_t foot_dist(
     int32_t across,
     int32_t dy
@@ -267,8 +319,8 @@ static int32_t foot_dist(
     /* Use panel coordinates for the lower arc, despite the ear's offset.
      * Its radius is tangent to the small corner circle, giving a constant
      * rim gap and a smooth join to the rounded tip. */
-    int32_t gauge_r_m = hypot_m( cx_m, panel_cy_m ) + round_m;
-    int32_t curve     = gauge_r_m - hypot_m( x_m, panel_y_m );
+    int32_t gauge_r_m = foot_gauge_r_m( cx_m, panel_cy_m, round_m );
+    int32_t curve     = foot_curve( gauge_r_m, x_m, panel_y_m );
     int32_t top =
         ( int32_t )( ey_m - ( ( ex_m * DIAL_COVER_FOOT_SLOPE_MILLI ) / 1000 ) )
         + ( DIAL_COVER_FOOT_R * DIAL_COVER_FOOT_LEN_MILLI );

@@ -25,10 +25,17 @@ static void add_label(
     {
         dial_label_t * lb = &face->labels[face->label_count];
 
+        size_t len;
+
         lb->x     = ( int16_t )x;
         lb->y     = ( int16_t )y;
         lb->scale = scale;
-        ( void )textfit_copy( lb->text, DIAL_LABEL_BUF, text );
+        len       = textfit_copy( lb->text, DIAL_LABEL_BUF, text );
+        lb->w     = ( uint16_t )font_text_width( len, scale );
+        lb->h     = ( uint16_t )( ( uint32_t )FONT_CELL_H * ( uint32_t )scale );
+        face->label_top = ( int16_t )ui_min( face->label_top, lb->y );
+        face->label_bottom =
+            ( int16_t )ui_max( face->label_bottom, lb->y + ( int16_t )lb->h );
         face->label_count++;
     }
 }
@@ -228,8 +235,10 @@ void dial_make_face(
     dial_face_t * face
 )
 {
-    face->tick_count  = 0u;
-    face->label_count = 0u;
+    face->tick_count   = 0u;
+    face->label_count  = 0u;
+    face->label_top    = INT16_MAX;
+    face->label_bottom = INT16_MIN;
     add_ticks( cfg, face );
     add_fixed_labels( cfg, face );
 }
@@ -242,17 +251,13 @@ bool dial_label_pixel(
     uint8_t * out_alpha
 )
 {
-    size_t len         = strlen( lb->text );
-    uint16_t cell_w    = ( uint16_t )( FONT_CELL_W * lb->scale );
-    uint16_t font_rows = ( uint16_t )( FONT_CELL_H * lb->scale );
-    uint16_t width     = ( uint16_t )( cell_w * ( uint16_t )len );
-    bool hit           = false;
+    bool hit = false;
 
-    if ( ( row >= lb->y )
-         && ( row < ( int16_t )( lb->y + ( int16_t )font_rows ) )
+    if ( ( row >= lb->y ) && ( row < ( int16_t )( lb->y + ( int16_t )lb->h ) )
          && ( col >= lb->x )
-         && ( col < ( int16_t )( lb->x + ( int16_t )width ) ) )
+         && ( col < ( int16_t )( lb->x + ( int16_t )lb->w ) ) )
     {
+        uint16_t cell_w      = ( uint16_t )( FONT_CELL_W * lb->scale );
         int16_t row_offset   = ( int16_t )( row - lb->y );
         int16_t col_offset   = ( int16_t )( col - lb->x );
         uint16_t rel_row     = ( uint16_t )row_offset;

@@ -65,6 +65,9 @@
 #define DIAL_COVER_FOOT_SLOPE_MILLI ( 120 )
 #define DIAL_COVER_FOOT_LEN_MILLI   ( 1007 )
 #define DIAL_COVER_FOOT_NORM_MILLI  ( 993 )
+/* Beyond this distance from the ear's lower arc, in thousandths of a pixel,
+ * the arc cannot touch a pixel's coverage or its outline. */
+#define DIAL_COVER_FOOT_EDGE_FAR_M ( 2000 )
 /* Centered in the exposed part of each mounting ear. */
 #define DIAL_ARC_SCREW_X UI_LEN( 684 )
 #define DIAL_ARC_SCREW_Y ( UI_LEN( 425 ) + DIAL_COVER_FOOT_DOWN )

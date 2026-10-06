@@ -78,6 +78,8 @@ typedef struct
     int16_t x;
     int16_t y;
     uint8_t scale;
+    uint16_t w; /* its size in pixels, worked out once with the text */
+    uint16_t h;
     char text[DIAL_LABEL_BUF];
 } dial_label_t;
 
@@ -90,6 +92,8 @@ typedef struct
     dial_label_t labels[DIAL_MAX_LABELS];
     size_t tick_count;
     size_t label_count;
+    int16_t label_top;    /* the rows the labels span: top row, and one past */
+    int16_t label_bottom; /* the last row; a pixel outside them has no label */
 } dial_face_t;
 
 typedef struct

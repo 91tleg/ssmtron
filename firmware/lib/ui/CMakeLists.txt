@@ -3,6 +3,9 @@ set(UI_SOURCES text.c font.c font_b612.c dial.c dial_angle.c dial_shape.c dial_c
 if(COMMAND zephyr_library_named)
   zephyr_library_named(ui)
   zephyr_library_sources(${UI_SOURCES})
+  # The face is drawn a pixel at a time, so it is built for speed and not for
+  # size, which is what the rest of the firmware uses.
+  zephyr_library_compile_options(-O2)
   # Ensure Zephyr headers exist before compiling this library.
   if(TARGET zephyr_generated_headers)
     add_dependencies(ui zephyr_generated_headers)
