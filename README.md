@@ -123,7 +123,7 @@ stop -> wait for silence -> read -> first confirmed sample -> streaming
 Bluetooth is off at power-on. To update a unit:
 
 1. Tap NEXT until the Info page shows, then hold ACTION for two seconds. The gauge shows UPDATE MODE with a six-digit passkey.
-2. On a phone, open Nordic's nRF Connect Device Manager, connect to "SSM1 Gauge", and enter the passkey when it asks.
+2. On a phone, open Nordic's nRF Connect Device Manager, connect to "Maxtek Datum", and enter the passkey when it asks.
 3. Choose the signed update image from the build (usually `app_update.bin` in the build output) and upload it. The gauge restarts into the new firmware, and the Info page shows the new version.
 
 The wait for a phone lasts five minutes and is paused while a phone is connected. Tap NEXT, or let it run out, to leave update mode; either restarts the gauge and switches Bluetooth off again.

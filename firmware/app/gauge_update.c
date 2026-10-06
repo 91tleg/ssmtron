@@ -10,7 +10,7 @@
 #include "lib/ui/text.h"
 #include "lib/ui/ui_geom.h"
 
-#define UPDATE_BLE_NAME "SSM1 Gauge"
+#define UPDATE_BLE_NAME "Maxtek Datum"
 
 /* How long to wait for a phone before giving up. */
 #define UPDATE_WAIT_MS ( 300000u )

@@ -6,7 +6,7 @@ Env vars:
                        see firmware/bsp/*/board.overlay). Required by any
                        test using the `dut` fixture.
   HIL_BLE_CONNSTRING   mcumgr connstring for the DUT, e.g.
-                       "peer_name=SSM1 Gauge" (the default; matches
+                       "peer_name=Maxtek Datum" (the default; matches
                        BLE_NAME in firmware/app/main.c). Override if you
                        are running more than one unit on the bench.
   HIL_ACTUATOR_PORT    Serial device for the button-actuator fixture
@@ -102,7 +102,7 @@ def dut():
 
 @pytest.fixture
 def ble_connstring():
-    return os.environ.get("HIL_BLE_CONNSTRING", "peer_name=SSM1 Gauge")
+    return os.environ.get("HIL_BLE_CONNSTRING", "peer_name=Maxtek Datum")
 
 
 class ButtonActuator:
