@@ -3,7 +3,7 @@
 /* Addresses and scalings are for the 1990-94 Legacy ECUs. Verify against a
  * real car before shipping. */
 
-#define LIN( n, u, num, den, off, dec )                                        \
+#define LIN_AS( r, n, u, num, den, off, dec )                                  \
     { .name          = ( n ),                                                  \
       .unit          = ( u ),                                                  \
       .unit_neg      = NULL,                                                   \
@@ -15,7 +15,12 @@
       .lookup        = NULL,                                                   \
       .flags         = NULL,                                                   \
       .flag_count    = 0,                                                      \
-      .trouble_codes = false }
+      .trouble_codes = false,                                                  \
+      .role          = ( r ) }
+
+/* A reading with no role of its own. */
+#define LIN( n, u, num, den, off, dec )                                        \
+    LIN_AS( ECU_ROLE_NONE, n, u, num, den, off, dec )
 
 #define FLAGS( n, arr )                                                        \
     { .name          = ( n ),                                                  \
@@ -29,7 +34,8 @@
       .lookup        = NULL,                                                   \
       .flags         = ( arr ),                                                \
       .flag_count    = ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),    \
-      .trouble_codes = false }
+      .trouble_codes = false,                                                  \
+      .role          = ECU_ROLE_NONE }
 
 /* The same, for the bytes whose bits are trouble codes. */
 #define CODES( n, arr )                                                        \
@@ -44,7 +50,8 @@
       .lookup        = NULL,                                                   \
       .flags         = ( arr ),                                                \
       .flag_count    = ( uint8_t )( sizeof( arr ) / sizeof( ( arr )[0] ) ),    \
-      .trouble_codes = true }
+      .trouble_codes = true,                                                   \
+      .role          = ECU_ROLE_NONE }
 
 /* ---- flag bits --------------------------------------------------------
  */
@@ -177,7 +184,8 @@ static const int16_t coolant_hitachi[256] = {
 /* ---- decoders ---------------------------------------------------------
  */
 
-static const ecu_param_info_t VB = LIN( "System Voltage", "V", 8, 1, 0, 2 );
+static const ecu_param_info_t VB =
+    LIN_AS( ECU_ROLE_VOLTAGE, "System Voltage", "V", 8, 1, 0, 2 );
 /* km/h over 1.6, in whole mph. */
 static const ecu_param_info_t VSP_H =
     LIN( "Vehicle Speed", "mph", 10, 16, 0, 0 );
@@ -196,9 +204,11 @@ static const ecu_param_info_t TW_H = {
     .lookup        = coolant_hitachi,
     .flags         = NULL,
     .flag_count    = 0,
-    .trouble_codes = false
+    .trouble_codes = false,
+    .role          = ECU_ROLE_COOLANT
 };
-static const ecu_param_info_t TW_J = LIN( "Coolant Temp", "F", 18, 1, -580, 1 );
+static const ecu_param_info_t TW_J =
+    LIN_AS( ECU_ROLE_COOLANT, "Coolant Temp", "F", 18, 1, -580, 1 );
 static const ecu_param_info_t ADVS =
     LIN( "Ignition Timing", "BTDC", 1, 1, 0, 0 );
 static const ecu_param_info_t QA   = LIN( "Airflow Signal", "V", 2, 1, 0, 2 );
@@ -213,8 +223,10 @@ static const ecu_param_info_t TIM_J =
     LIN( "Inj Pulse Width", "ms", 256, 1, 0, 3 );
 static const ecu_param_info_t ISC_H = LIN( "IAC Duty", "%", 5, 1, 0, 1 );
 static const ecu_param_info_t ISC_J = LIN( "IAC Duty", "%", 1000, 255, 0, 1 );
-static const ecu_param_info_t O2_H  = LIN( "Oxygen Sensor", "V", 1, 1, 0, 2 );
-static const ecu_param_info_t O2_J2 = LIN( "Oxygen Sensor", "V", 2, 1, 0, 2 );
+static const ecu_param_info_t O2_H =
+    LIN_AS( ECU_ROLE_O2, "Oxygen Sensor", "V", 1, 1, 0, 2 );
+static const ecu_param_info_t O2_J2 =
+    LIN_AS( ECU_ROLE_O2, "Oxygen Sensor", "V", 2, 1, 0, 2 );
 static const ecu_param_info_t TRIM =
     LIN( "Fuel Trim", "%", 10000, 128, -10000, 2 );
 static const ecu_param_info_t RTRD_H = {
@@ -229,7 +241,8 @@ static const ecu_param_info_t RTRD_H = {
     .lookup        = NULL,
     .flags         = NULL,
     .flag_count    = 0,
-    .trouble_codes = false
+    .trouble_codes = false,
+    .role          = ECU_ROLE_NONE
 };
 static const ecu_param_info_t RTRD_J =
     LIN( "Timing Correction", "deg", 25, 1, -3200, 2 );
@@ -253,7 +266,8 @@ static const ecu_param_info_t MANIP = {
     .lookup        = NULL,
     .flags         = NULL,
     .flag_count    = 0,
-    .trouble_codes = false
+    .trouble_codes = false,
+    .role          = ECU_ROLE_BOOST
 };
 static const ecu_param_info_t FA0_HN = FLAGS( "Input Switches", sw0_hitachi_n );
 static const ecu_param_info_t FA0_HT = FLAGS( "Input Switches", sw0_hitachi_t );

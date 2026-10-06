@@ -14,6 +14,8 @@
  * A row holds at most 20 glyphs, so a long value is cut. */
 #define INFO_LABEL_W ( 8u )
 #define INFO_ROW_W   ( 20u )
+/* The widest identity text a protocol may give, with its NUL. */
+#define INFO_ID_MAX ( INFO_ROW_W + 1u )
 
 /* The text the notice line shows. The callbacks take no context, so
  * gauge_info_poll sets this before every redraw. */
@@ -50,34 +52,14 @@ static void info_version_text( char * buf )
     put_row( buf, "FW", fw_info.version );
 }
 
-/* The three ROM ID bytes in the order the ECU sent them, as xx.xx.xx, or
- * dashes until the ECU has identified itself. Only the first two bytes pick
- * the profile; the third is shown for reference. */
-static void info_rom_id_text( char * buf )
+/* The ECU's identity as the protocol words it, or dashes until the ECU has
+ * identified itself. */
+static void info_ecu_id_text( char * buf )
 {
-    static const char hex[] = "0123456789ABCDEF";
-    char id_text[9];
-    uint32_t id = ecu_rom_id();
+    char id_text[INFO_ID_MAX];
 
-    if ( id == 0u )
-    {
-        ( void )memcpy( id_text, "--.--.--", sizeof( id_text ) );
-    }
-    else
-    {
-        uint32_t bits = id;
-
-        for ( size_t byte = 0; byte < 3u; byte++ )
-        {
-            uint32_t value = bits & 0xFFu;
-
-            bits >>= 8u;
-            id_text[byte * 3u]          = hex[value >> 4];
-            id_text[( byte * 3u ) + 1u] = hex[value & 0x0Fu];
-            id_text[( byte * 3u ) + 2u] = ( byte < 2u ) ? '.' : '\0';
-        }
-    }
-    put_row( buf, "ROM ID", id_text );
+    ecu_id_text( id_text, sizeof( id_text ) );
+    put_row( buf, "ECU ID", id_text );
 }
 
 static void info_link_text( char * buf )
@@ -109,7 +91,7 @@ static text_widget_t info_page[] = {
         20, INFO_SCALE, INFO_ROW_Y( 0 ), info_version_text, TEXT_ALIGN_LEFT
     ),
     UI_CENTERED_WIDGET(
-        20, INFO_SCALE, INFO_ROW_Y( 1 ), info_rom_id_text, TEXT_ALIGN_LEFT
+        20, INFO_SCALE, INFO_ROW_Y( 1 ), info_ecu_id_text, TEXT_ALIGN_LEFT
     ),
     UI_CENTERED_WIDGET(
         20, INFO_SCALE, INFO_ROW_Y( 2 ), info_link_text, TEXT_ALIGN_LEFT

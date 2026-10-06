@@ -6,6 +6,8 @@
  * Identification reads 0xFFFE to select a profile. Failures restart the
  * cycle; repeated failures pause before retrying. Time arithmetic handles
  * counter wraparound. */
+#include <string.h>
+
 #include "lib/ecu/ecu.h"
 #include "lib/ssm1/ssm1_cmd.h"
 #include "lib/ssm1/ssm1_decode.h"
@@ -488,9 +490,44 @@ const char * ecu_name( void )
     return name;
 }
 
-uint32_t ecu_rom_id( void )
+uint32_t ecu_id( void )
 {
     return s.identified ? s.rom_id : 0u;
+}
+
+/* The three ROM ID bytes in the order the ECU sent them, as xx.xx.xx. Only
+ * the first two pick the profile; the third is shown for reference. */
+void ecu_id_text(
+    char * buf,
+    size_t size
+)
+{
+    static const char hex[]    = "0123456789ABCDEF";
+    static const char dashes[] = "--.--.--";
+    char text[9];
+
+    ( void )memcpy( text, dashes, sizeof( text ) );
+
+    if ( s.identified )
+    {
+        uint32_t bits = s.rom_id;
+
+        for ( size_t byte = 0; byte < 3u; byte++ )
+        {
+            uint32_t value = bits & 0xFFu;
+
+            bits >>= 8u;
+            text[byte * 3u]          = hex[value >> 4];
+            text[( byte * 3u ) + 1u] = hex[value & 0x0Fu];
+        }
+    }
+    if ( size > 0u )
+    {
+        size_t n = ( ( size - 1u ) < 8u ) ? ( size - 1u ) : 8u;
+
+        ( void )memcpy( buf, text, n );
+        buf[n] = '\0';
+    }
 }
 
 uint16_t ecu_assume_profile( uint16_t profile_key )

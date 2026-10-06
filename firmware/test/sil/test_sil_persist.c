@@ -32,7 +32,7 @@ static void scenario_save( void )
     nvm_file_enabled = true;
     boot( SAVED_KEY );
     run( 3000u );
-    CHECK_EQ( ecu_rom_id(), 0x013170u );
+    CHECK_EQ( ecu_id(), 0x013170u );
     for ( size_t i = 0u; i < SAVED_PAGE; i++ )
     {
         tap_next();
@@ -84,10 +84,10 @@ static void scenario_restore( void )
     CHECK_EQ( on_frames, 1u );
     CHECK( !on_was_dial );
     CHECK( strcmp( on_row0, saved_name ) == 0 );
-    CHECK_EQ( ecu_rom_id(), 0u ); /* nobody answered yet */
+    CHECK_EQ( ecu_id(), 0u ); /* nobody answered yet */
     CHECK_EQ( tx_count, 0u );
     run( 4000u );
-    CHECK_EQ( ecu_rom_id(), 0x013170u );
+    CHECK_EQ( ecu_id(), 0x013170u );
     CHECK( strcmp( row( 0 ), saved_name ) == 0 ); /* still there */
 }
 

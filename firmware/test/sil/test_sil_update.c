@@ -42,7 +42,7 @@ static void test_a_session_from_start_to_timeout( void )
      * was drawn already showing both, not filled in a moment later. */
     CHECK_EQ( ble_opens, 1u );
     CHECK_EQ( ble_passkey, 123456u );
-    CHECK( strcmp( ble_name, "SSM1 Gauge" ) == 0 );
+    CHECK( strcmp( ble_name, "Maxtek Datum" ) == 0 );
     CHECK( strstr( first_frame[0], "UPDATE MODE" ) != NULL );
     CHECK( strstr( first_frame[1], "123456" ) != NULL );
     CHECK( strstr( first_frame[3], "5:00" ) != NULL );

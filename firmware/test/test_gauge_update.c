@@ -135,7 +135,7 @@ static void test_a_session( void )
      * digits, under the gauge's name. */
     CHECK( gauge_update_active() );
     CHECK_EQ( ble_opens, 1u );
-    CHECK( strcmp( opened_name, "SSM1 Gauge" ) == 0 );
+    CHECK( strcmp( opened_name, "Maxtek Datum" ) == 0 );
     CHECK_EQ( opened_passkey, 234567u );
     CHECK_EQ( page[1].bg, 0x1111u );
     CHECK_EQ( page[1].fg, 0x2222u );

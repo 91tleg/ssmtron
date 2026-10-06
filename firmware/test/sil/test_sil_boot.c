@@ -7,7 +7,7 @@ static void test_the_first_frame_comes_before_the_ecu_answers( void )
 {
     /* Nothing was saved: the first profile is assumed and its first page is
      * drawn, though no ECU has said a word. */
-    CHECK_EQ( ecu_rom_id(), 0u );
+    CHECK_EQ( ecu_id(), 0u );
     CHECK_EQ( tx_count, 0u );
     /* Exactly one frame existed when the panel turned on, and it was the
      * voltage dial. */
@@ -21,7 +21,7 @@ static void test_the_first_frame_comes_before_the_ecu_answers( void )
 static void test_the_ecu_identifies_and_the_dial_gets_its_reading( void )
 {
     run( 3000u );
-    CHECK_EQ( ecu_rom_id(), 0x013671u );
+    CHECK_EQ( ecu_id(), 0x013671u );
     CHECK_EQ( ecu_link(), ECU_LINK_UP );
     CHECK( dial_has_value );
     CHECK_EQ( dial_value, expected( 0 ) ); /* system voltage, hundredths */

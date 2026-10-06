@@ -115,9 +115,24 @@ uint16_t ecu_assume_profile( uint16_t profile_key )
     return profile_key;
 }
 
-uint32_t ecu_rom_id( void )
+uint32_t ecu_id( void )
 {
     return fake_rom_id;
+}
+
+/* Dashes until identified, as the real ECU layer shows. */
+void ecu_id_text(
+    char * buf,
+    size_t size
+)
+{
+    if ( size > 0u )
+    {
+        ( void )strncpy(
+            buf, ( fake_rom_id == 0u ) ? "--.--.--" : "AB.CD.EF", size - 1u
+        );
+        buf[size - 1u] = '\0';
+    }
 }
 
 static bool logged_next_failed;

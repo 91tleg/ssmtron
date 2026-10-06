@@ -39,6 +39,18 @@ typedef enum
     ECU_DEC_FLAGS   /* the raw byte itself; see flags[] */
 } ecu_decode_t;
 
+/* What a parameter measures, for the readings the gauge draws on a dial of
+ * their own. The protocol sets it, so the gauge never matches on names. Every
+ * other reading has no role and gets the plain number page. */
+typedef enum
+{
+    ECU_ROLE_NONE,
+    ECU_ROLE_BOOST,
+    ECU_ROLE_COOLANT,
+    ECU_ROLE_VOLTAGE,
+    ECU_ROLE_O2
+} ecu_role_t;
+
 /* One labelled bit of a flags byte. Set when the masked bits are non-zero
  * (active_high) or zero (!active_high). */
 typedef struct
@@ -65,6 +77,7 @@ typedef struct
     /* A flags byte whose bits are trouble codes: the only pages the clear
      * command applies to. Switch bytes and values are false. */
     bool trouble_codes;
+    ecu_role_t role;
 } ecu_param_info_t;
 
 static inline const char * ecu_unit(
@@ -116,15 +129,22 @@ ecu_link_t ecu_link( void );
  * NULL and there are no parameters. An ECU that answers with an ID we do
  * not know is named "Unknown" and has no parameters. */
 const char * ecu_name( void );
-/* ROM ID bytes as r0 | r1 << 8 | r2 << 16; 0 until identified. */
-uint32_t ecu_rom_id( void );
+/* A number that identifies the ECU; 0 until identified. Its low 16 bits are
+ * the profile key that ecu_assume_profile takes and returns. */
+uint32_t ecu_id( void );
+/* The ECU's identity as the text the info page shows, cut to fit size bytes
+ * and always ended with a NUL. Dashes until the ECU is identified. */
+void ecu_id_text(
+    char * buf,
+    size_t size
+);
 
 /* Shows a remembered ECU's parameters before it has identified itself, so
  * a gauge can draw its pages at power-on. profile_key is the low 16 bits of
  * a ROM ID from an earlier run; an unknown key uses the first profile.
  * Returns the key of the profile actually used. Call it after ecu_init and
  * before the ECU answers.
- * The ECU is still not identified: ecu_name and ecu_rom_id report nothing,
+ * The ECU is still not identified: ecu_name and ecu_id report nothing,
  * and ecu_clear_start refuses, because nothing may be written to an address
  * taken from a guess. When the ECU identifies itself, the same profile keeps
  * the selection made meanwhile; a different one replaces it and the

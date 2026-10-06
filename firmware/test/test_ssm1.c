@@ -245,7 +245,13 @@ static void test_initial_state( void )
     start( 0 );
     CHECK( ecu_link() == ECU_LINK_DOWN );
     CHECK( ecu_name() == NULL );
-    CHECK_EQ( ecu_rom_id(), 0 );
+    CHECK_EQ( ecu_id(), 0 );
+    {
+        char text[16];
+
+        ecu_id_text( text, sizeof( text ) );
+        CHECK( strcmp( text, "--.--.--" ) == 0 );
+    }
     CHECK_EQ( ecu_param_count(), 0 );
     CHECK( ecu_param_info( 0 ) == NULL );
     CHECK( !ecu_select_param( 0 ) );
@@ -302,7 +308,7 @@ static void test_identifies_all_six( void )
         run( 2500 );
         CHECK( ecu_name() != NULL );
         CHECK( strcmp( ecu_name(), prof->name ) == 0 );
-        CHECK_EQ( ecu_rom_id(), 0x010000u | ids[k] );
+        CHECK_EQ( ecu_id(), 0x010000u | ids[k] );
         CHECK_EQ( ecu_param_count(), prof->count );
         CHECK( ecu_param_info( 0 ) == prof->params[0].info );
         CHECK( ecu_param_info( prof->count ) == NULL );
@@ -343,7 +349,7 @@ static void test_assumed_profile_shows_pages_but_is_not_identified( void )
     CHECK( ecu_param_info( 0 ) == prof->params[0].info );
     CHECK( ecu_select_param( 3 ) );
     CHECK( ecu_name() == NULL );
-    CHECK_EQ( ecu_rom_id(), 0 );
+    CHECK_EQ( ecu_id(), 0 );
     CHECK( !ecu_clear_start() );
 }
 
@@ -357,7 +363,24 @@ static void test_assumed_profile_confirmed_keeps_the_selection( void )
     CHECK( ecu_select_param( 3 ) );
     run( 2500 );
     CHECK( ecu_name() != NULL );
-    CHECK_EQ( ecu_rom_id(), 0x013672u );
+    CHECK_EQ( ecu_id(), 0x013672u );
+    {
+        char text[16];
+        char tiny[1] = { 'x' };
+        char small[5];
+
+        /* r0.r1.r2: the bytes in the order the ECU sent them. */
+        ecu_id_text( text, sizeof( text ) );
+        CHECK( strcmp( text, "72.36.01" ) == 0 );
+        /* A short buffer is cut and still ended; size 0 is left alone. */
+        ecu_id_text( small, sizeof( small ) );
+        CHECK( strcmp( small, "72.3" ) == 0 );
+        ecu_id_text( tiny, sizeof( tiny ) );
+        CHECK_EQ( tiny[0], '\0' );
+        tiny[0] = 'x';
+        ecu_id_text( tiny, 0u );
+        CHECK_EQ( tiny[0], 'x' );
+    }
     CHECK( value_ok( 3 ) ); /* parameter 3 is being read, not parameter 0 */
     CHECK_EQ( wrong_values, 0 );
     CHECK( ecu_clear_start() );
@@ -409,11 +432,24 @@ static void test_unknown_rom_id( void )
     run( 2500 );
     CHECK( ecu_name() != NULL );
     CHECK( strcmp( ecu_name(), "Unknown" ) == 0 );
-    CHECK_EQ( ecu_rom_id(), 0x019999u );
+    CHECK_EQ( ecu_id(), 0x019999u );
     CHECK_EQ( ecu_param_count(), 0 );
     CHECK( !ecu_select_param( 0 ) );
     CHECK( !ecu_get_value( 0, &v ) );
     CHECK( !ecu_clear_start() );
+}
+
+/* The identity text spells every hex digit in capitals, even for an ECU the
+ * tables do not know. */
+static void test_id_text_uses_upper_case_hex( void )
+{
+    char text[16];
+
+    start_id( 0, 0xABCD );
+    run( 2500 );
+    CHECK_EQ( ecu_id(), 0x01ABCDu );
+    ecu_id_text( text, sizeof( text ) );
+    CHECK( strcmp( text, "CD.AB.01" ) == 0 );
 }
 
 static void test_id_streamed_continuously( void )
@@ -953,6 +989,7 @@ int main( void )
     test_assuming_an_unknown_key_uses_the_first_profile();
     test_assumed_profile_stays_when_the_ecu_is_silent();
     test_unknown_rom_id();
+    test_id_text_uses_upper_case_hex();
     test_id_streamed_continuously();
     test_id_survives_lost_bytes_and_noise();
     test_id_with_echo();

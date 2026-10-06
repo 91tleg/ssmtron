@@ -134,7 +134,7 @@ static void test_a_normal_start( void )
     CHECK( passes >= ( RUN_MS - 100u ) );
     CHECK( wdt_feeds >= passes );
     CHECK( tx_count > 0u );
-    CHECK_EQ( ecu_rom_id(), 0x013671u );
+    CHECK_EQ( ecu_id(), 0x013671u );
     CHECK_EQ( confirm_calls, 1u );
     CHECK( confirm_first_ms >= 10000u );
     CHECK( confirm_first_ms <= 10010u );
@@ -150,7 +150,7 @@ static void test_no_display_means_no_confirm( void )
     /* The unit still runs and talks to the ECU, but a unit that cannot show
      * anything is not a good image: it is left for the bootloader to
      * revert. */
-    CHECK_EQ( ecu_rom_id(), 0x013671u );
+    CHECK_EQ( ecu_id(), 0x013671u );
     CHECK( wdt_feeds >= passes );
     CHECK_EQ( confirm_calls, 0u );
 }
@@ -178,7 +178,7 @@ static void test_an_ecu_uart_that_will_not_open_leaves_the_gauge_running( void )
     frames_before = frames_drawn;
 
     CHECK_EQ( tx_count, 0u ); /* nothing was ever sent */
-    CHECK_EQ( ecu_rom_id(), 0u );
+    CHECK_EQ( ecu_id(), 0u );
     CHECK( on_frames >= 1u );     /* the first frame was drawn */
     CHECK( frames_before >= 2u ); /* and the tap changed the page */
     CHECK( wdt_feeds >= passes );
