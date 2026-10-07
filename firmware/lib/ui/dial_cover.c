@@ -117,30 +117,18 @@ uint16_t dial_screws(
     return out;
 }
 
-/* The integer square root. */
-static int32_t isqrt_u64( uint64_t v )
+/* The integer square root of a value that fits 32 bits. Most distances here
+ * do, and 32-bit steps are much cheaper than 64-bit ones on this chip. */
+static uint32_t isqrt_u32( uint32_t v )
 {
-    uint64_t bit     = 0u;
-    uint64_t res     = 0u;
-    uint64_t rest    = v;
-    uint64_t bit_pos = 0u;
-    uint64_t even_pos;
+    uint32_t bit  = ( uint32_t )1 << 30;
+    uint32_t res  = 0u;
+    uint32_t rest = v;
 
-    /* Start at the highest power of four that fits. Halving the shift
-     * each step finds it in six tests instead of up to 31 loop passes. */
-    uint64_t shift = 32u;
-
-    while ( shift != 0u )
+    while ( bit > rest )
     {
-        if ( ( v >> ( bit_pos + shift ) ) != 0u )
-        {
-            bit_pos += shift;
-        }
-        shift >>= 1;
+        bit >>= 2;
     }
-    even_pos = bit_pos - ( bit_pos % 2u );
-    bit      = ( uint64_t )1 << even_pos;
-
     while ( bit != 0u )
     {
         if ( rest >= ( res + bit ) )
@@ -154,7 +142,57 @@ static int32_t isqrt_u64( uint64_t v )
         }
         bit >>= 2;
     }
-    return ( int32_t )res;
+    return res;
+}
+
+/* The integer square root. */
+static int32_t isqrt_u64( uint64_t v )
+{
+    int32_t root = 0;
+
+    if ( v <= ( uint64_t )UINT32_MAX )
+    {
+        root = ( int32_t )isqrt_u32( ( uint32_t )v );
+    }
+    else
+    {
+        uint64_t bit     = 0u;
+        uint64_t res     = 0u;
+        uint64_t rest    = v;
+        uint64_t bit_pos = 0u;
+        uint64_t even_pos;
+
+        /* Start at the highest power of four that fits. Halving the shift
+         * each step finds it in six tests instead of up to 31 loop passes. */
+        uint64_t shift = 32u;
+
+        while ( shift != 0u )
+        {
+            if ( ( v >> ( bit_pos + shift ) ) != 0u )
+            {
+                bit_pos += shift;
+            }
+            shift >>= 1;
+        }
+        even_pos = bit_pos - ( bit_pos % 2u );
+        bit      = ( uint64_t )1 << even_pos;
+
+        while ( bit != 0u )
+        {
+            if ( rest >= ( res + bit ) )
+            {
+                rest -= res + bit;
+                res = ( res >> 1 ) + bit;
+            }
+            else
+            {
+                res >>= 1;
+            }
+            bit >>= 2;
+        }
+        root = ( int32_t )res;
+    }
+    return root;
 }
 
 /* The length of the vector (x_m, y_m), both in thousandths of a pixel. */
@@ -334,9 +372,12 @@ static int32_t foot_dist(
      * rim gap and a smooth join to the rounded tip. */
     int32_t gauge_r_m = foot_gauge_r_m( cx_m, panel_cy_m, round_m );
     int32_t curve     = foot_curve( gauge_r_m, x_m, panel_y_m );
-    int32_t top =
-        ( int32_t )( ey_m - ( ( ex_m * DIAL_COVER_FOOT_SLOPE_MILLI ) / 1000 ) )
-        + ( DIAL_COVER_FOOT_R * DIAL_COVER_FOOT_LEN_MILLI );
+    /* Both fit 32 bits (a few hundred thousand at most), so the division
+     * does not need the slow 64-bit routine. */
+    int32_t ex32 = ( int32_t )ex_m;
+    int32_t ey32 = ( int32_t )ey_m;
+    int32_t top  = ( ey32 - ( ( ex32 * DIAL_COVER_FOOT_SLOPE_MILLI ) / 1000 ) )
+                  + ( DIAL_COVER_FOOT_R * DIAL_COVER_FOOT_LEN_MILLI );
     int32_t dist;
 
     top  = ( top * DIAL_COVER_FOOT_NORM_MILLI ) / 1000;
