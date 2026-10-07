@@ -8,3 +8,16 @@ config APP_HIL_TEST
 	  resets and recovers the unit -- something no host test can fake.
 	  Only ever selected by firmware/hil/prj_hil.conf; must never be
 	  enabled in a production build.
+
+config APP_DEV_ECU_ON_USB
+	bool "Dev: ECU link on the DK's USB serial port"
+	help
+	  Runs the ECU link without parity at the baud below, so a script on
+	  a computer can play the ECU through the DK's USB serial bridge. Only
+	  ever selected by firmware/dev/ecu_on_usb.conf; a gauge built this
+	  way cannot talk to a car and must never ship.
+
+config APP_DEV_ECU_BAUD
+	int "Dev: ECU link baud"
+	default 1953
+	depends on APP_DEV_ECU_ON_USB
