@@ -28,16 +28,29 @@ static hal_uart_parity_t to_hal_parity( ecu_parity_t p )
     return hp;
 }
 
-hal_status_t ecu_io_init( hal_uart_id_t uart )
+/* The settings the protocol asks for. */
+static hal_uart_cfg_t uart_config( void )
 {
     const ecu_link_cfg_t * link = ecu_link_config();
-    const hal_uart_cfg_t cfg    = {
-           .baud      = link->baud,
-           .data_bits = link->data_bits,
-           .parity    = to_hal_parity( link->parity ),
-           .stop_bits = link->stop_bits,
+    hal_uart_cfg_t cfg          = {
+                 .baud      = link->baud,
+                 .data_bits = link->data_bits,
+                 .parity    = to_hal_parity( link->parity ),
+                 .stop_bits = link->stop_bits,
     };
-    hal_status_t status = hal_uart_open( uart, &cfg );
+
+#if defined( CONFIG_APP_DEV_ECU_ON_USB )
+    /* See firmware/dev/: the USB serial bridge carries plain 8N1. */
+    cfg.baud   = CONFIG_APP_DEV_ECU_BAUD;
+    cfg.parity = HAL_UART_PARITY_NONE;
+#endif
+    return cfg;
+}
+
+hal_status_t ecu_io_init( hal_uart_id_t uart )
+{
+    const hal_uart_cfg_t cfg = uart_config();
+    hal_status_t status      = hal_uart_open( uart, &cfg );
 
     if ( status == HAL_OK )
     {

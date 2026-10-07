@@ -1,10 +1,33 @@
 /* nRF52840 DK pin map. Keep device id order aligned with bsp.h.
  * ECU UART1 uses P1.02/P1.01 through a car-side level shifter.
  * UART0 remains the console. Buttons use P0.11/P0.12.
- * Display SPI2 uses P0.19/P0.20/P0.21; CS/DC/RESET use P0.22/P0.23/P0.24.
+ * Display SPI3 (SPIM3, up to 32 MHz) uses P0.19/P0.20/P0.21; CS/DC/RESET use
+ * P0.22/P0.23/P0.24.
  * The display driver controls CS and reset polarity. */
 
 &pinctrl {
+	/* SCK and MOSI drive hard: at 32 MHz the edges need it. */
+	spi3_display_default: spi3_display_default {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 0, 19)>,
+				<NRF_PSEL(SPIM_MOSI, 0, 20)>;
+			nordic,drive-mode = <NRF_DRIVE_H0H1>;
+		};
+
+		group2 {
+			psels = <NRF_PSEL(SPIM_MISO, 0, 21)>;
+		};
+	};
+
+	spi3_display_sleep: spi3_display_sleep {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 0, 19)>,
+				<NRF_PSEL(SPIM_MOSI, 0, 20)>,
+				<NRF_PSEL(SPIM_MISO, 0, 21)>;
+			low-power-enable;
+		};
+	};
+
 	uart1_default: uart1_default {
 		group1 {
 			psels = <NRF_PSEL(UART_TX, 1, 2)>;
@@ -45,15 +68,16 @@
 	status = "disabled";
 };
 
-/* The DK's own dts makes spi2 the older SPI peripheral, which has no DMA and
- * interrupts for every byte: a full face took over two seconds to send.
- * SPIM moves the bytes by DMA. */
-&spi2 {
-	compatible = "nordic,nrf-spim";
+/* The display uses SPIM3, the one SPI instance that reaches 32 MHz. The DK's
+ * dts gives it to the Arduino header, with a chip select the display driver
+ * does not use: the driver controls CS itself. Short wires are needed at this
+ * speed. SPIM moves the bytes by DMA. */
+&spi3 {
 	status = "okay";
-	pinctrl-0 = <&spi2_default>;
-	pinctrl-1 = <&spi2_sleep>;
+	pinctrl-0 = <&spi3_display_default>;
+	pinctrl-1 = <&spi3_display_sleep>;
 	pinctrl-names = "default", "sleep";
+	/delete-property/ cs-gpios;
 };
 
 / {
@@ -64,6 +88,6 @@
 			    <&gpio0 24 GPIO_ACTIVE_HIGH>,
 			    <&gpio0 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
 		hal-uarts = <&uart1>;
-		hal-spis = <&spi2>;
+		hal-spis = <&spi3>;
 	};
 };

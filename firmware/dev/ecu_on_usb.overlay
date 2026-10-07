@@ -1,0 +1,6 @@
+/* Dev build only, see ecu_on_usb.conf. Points the ECU link at UART0 (the
+ * DK's USB serial port, pins P0.06 and P0.08) instead of UART1, which is the
+ * pair the car side uses. */
+&{/zephyr,user} {
+	hal-uarts = <&uart0>;
+};

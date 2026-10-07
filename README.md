@@ -11,7 +11,7 @@ At power-on, the needle of the first dial sweeps to full scale, down to the bott
 
 ## Hardware and firmware
 
-The target is the nRF52840 DK. The ECU link uses UART1 through a suitable level shifter; do not connect the car-side signal directly to a 3.3 V pin. The display uses SPI2, and the two controls use the DK's onboard buttons. Pin assignments are in [`firmware/bsp/nrf52840dk/board.overlay`](firmware/bsp/nrf52840dk/board.overlay).
+The target is the nRF52840 DK. The ECU link uses UART1 through a suitable level shifter; do not connect the car-side signal directly to a 3.3 V pin. The display uses SPI3 at 32 MHz, so keep its wires short, and the two controls use the DK's onboard buttons. Pin assignments are in [`firmware/bsp/nrf52840dk/board.overlay`](firmware/bsp/nrf52840dk/board.overlay).
 
 Bluetooth is used only for authenticated firmware updates and is off until update mode starts; the gauge does not stream ECU values over Bluetooth. Update mode uses a new random passkey each time and keeps no pairing.
 
@@ -76,7 +76,7 @@ firmware/
       uarte_baud.h              baud register math, so 1953 baud can be set
 
   bsp/                          the board's pins
-    nrf52840dk/board.overlay    devicetree: UART1 for the ECU, SPI2 for the display, the two buttons
+    nrf52840dk/board.overlay    devicetree: UART1 for the ECU, SPI3 for the display, the two buttons
     nrf52840dk/bsp.h            the pin and device ids the app uses
 
   test/                         host tests, run with ctest

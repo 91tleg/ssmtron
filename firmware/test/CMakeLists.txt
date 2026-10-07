@@ -187,6 +187,10 @@ target_include_directories(test_dial PRIVATE ../lib/ui ../lib/display ../hal)
 target_link_libraries(test_dial PRIVATE textfit)
 add_test(NAME dial COMMAND test_dial)
 
+add_executable(test_dial_cover_math test_dial_cover_math.c ../lib/ui/font.c ../lib/ui/font_b612.c)
+target_include_directories(test_dial_cover_math PRIVATE ../lib/ui ../lib/display ../hal)
+add_test(NAME dial_cover_math COMMAND test_dial_cover_math)
+
 # The page modules build their rows with the shared text fitting.
 foreach(t gauge_info gauge_info_360 gauge_update gauge_update_360)
   target_link_libraries(test_${t} PRIVATE textfit)
