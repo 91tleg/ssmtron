@@ -30,7 +30,16 @@ dev build drops the parity bit the car uses. The baud is
 The script plays a 91 Turbo (ROM 3671): it answers the stop, read and ROM ID
 commands, streams values that move, and records writes. `--echo` echoes the
 bytes it receives, as a real K-line does. `--silence` sets how long it goes
-quiet after the first write, like a real memory write.
+quiet after the first write, like a real memory write. `--sweep` swings the
+voltage reading over its whole range so the needle never rests.
+
+`--chaos 1` to `--chaos 3` damage the stream: dropped, flipped and extra
+bytes, plus silent hiccups every 15 to 40 seconds. `--seed` repeats a run.
+Use it to check that the gauge recovers instead of hanging or resetting.
+
+The dev build also counts received bytes and receive errors (`dev_rx_bytes`
+and `dev_rx_errors` in `ecu_io_poll`). Read them with a debugger to see
+whether a change drops bytes.
 
 ## Things to know
 
