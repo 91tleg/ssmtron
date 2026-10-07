@@ -28,9 +28,9 @@ import serial
 
 BAUD = 1953
 ID_ADDR = 0xFFFE
-# ROM 3671 (91 Turbo): the profile key is r0 | r1 << 8. r2 is shown on the
+# The ROM ID reported is r0, r1 and r2. The profile key is r0 | r1 << 8, so
+# --rom 3671 (the 91 Turbo, the default) sends 71 36 01. r2 is shown on the
 # info page only.
-ROM_BYTES = bytes([0x71, 0x36, 0x01])
 CLEAR_ADDR = 0x15F0
 
 # Raw bytes by address for the 91 Turbo profile (lib/ssm1/ssm1_params.c).
@@ -62,7 +62,8 @@ def raw_value(addr, t):
 
 
 class FakeEcu:
-    def __init__(self, port, echo, silence_s, baud, parity, chaos=0, seed=None):
+    def __init__(self, port, echo, silence_s, baud, parity, chaos=0, seed=None,
+                 rom=0x3671, glitch=False):
         self.ser = serial.Serial(
             port,
             baudrate=baud,
@@ -88,6 +89,9 @@ class FakeEcu:
         self.next_send = 0.0
         # --chaos: damage the stream the way a poor connection could, at a
         # level from 1 (rare) to 3 (a lot). Counts are printed every minute.
+        self.rom_bytes = bytes([rom & 0xFF, rom >> 8, 0x01])
+        self.glitch = glitch
+        self.next_glitch = time.monotonic() + 20
         self.chaos = chaos
         self.rng = random.Random(seed)
         self.stats = {"dropped": 0, "flipped": 0, "junk": 0, "gaps": 0}
@@ -159,14 +163,26 @@ class FakeEcu:
             self.log("chaos so far: %s" % self.stats)
         return bytes(out)
 
+    def line_glitch(self):
+        """A burst at the wrong rate: the gauge sees framing errors."""
+        now = time.monotonic()
+        if self.glitch and now >= self.next_glitch:
+            self.next_glitch = now + self.rng.uniform(20, 60)
+            self.ser.baudrate = 9600
+            self.ser.write(bytes([0xA5]) * 6)
+            self.ser.flush()
+            self.ser.baudrate = self.baud
+            self.next_send = time.monotonic() + 0.05
+            self.log("line glitch")
+
     def send_frame(self):
         t = time.monotonic() - self.t0
         data = 0x55 if self.addr == ID_ADDR else raw_value(self.addr, t)
         frame = bytes([self.addr >> 8, self.addr & 0xFF, data])
         if self.addr == ID_ADDR and self.id_pending:
-            frame += ROM_BYTES
+            frame += self.rom_bytes
             self.id_pending = False
-            self.log("sent ROM ID %s" % ROM_BYTES.hex())
+            self.log("sent ROM ID %s" % self.rom_bytes.hex())
         frame = self.damage(frame)
         self.ser.write(frame)
         now = time.monotonic()
@@ -178,6 +194,7 @@ class FakeEcu:
             self.take_input()
             now = time.monotonic()
             if self.streaming and now >= self.muted_until and now >= self.next_send:
+                self.line_glitch()
                 self.send_frame()
 
 
@@ -196,6 +213,11 @@ def main():
                         help="damage the stream: 1 rare, 3 a lot")
     parser.add_argument("--seed", type=int, default=None,
                         help="seed for --chaos, to repeat a run")
+    parser.add_argument("--rom", type=lambda v: int(v, 16), default=0x3671,
+                        help="the ROM ID to report, as four hex digits (3671)")
+    parser.add_argument("--glitch", action="store_true",
+                        help="now and then send a burst at the wrong rate, to "
+                             "cause framing errors")
     parser.add_argument("--sweep", action="store_true",
                         help="swing the voltage reading over its whole range")
     args = parser.parse_args()
@@ -203,7 +225,7 @@ def main():
     SWEEP = args.sweep
     try:
         FakeEcu(args.port, args.echo, args.silence, args.baud, args.parity,
-                args.chaos, args.seed).run()
+                args.chaos, args.seed, args.rom, args.glitch).run()
     except KeyboardInterrupt:
         sys.exit(0)
 
