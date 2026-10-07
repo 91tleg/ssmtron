@@ -137,6 +137,95 @@ static void test_random_noise_never_reports( void )
     CHECK_EQ( got, 0 );
 }
 
+/* The stream of ff fe 55 frames the ECU sends while it answers. One frame in
+ * each of two places gets the same defect: a byte dropped, or a junk byte
+ * added, at the same spot in the frame. The same false ID then comes round
+ * twice, which is what a flaky line does and what must never be confirmed. */
+#define FRAMES ( 14u )
+
+static size_t damaged_stream(
+    uint8_t * out,
+    bool insert,
+    size_t pos,
+    uint8_t junk
+)
+{
+    const uint8_t frame[3] = { 0xFF, 0xFE, 0x55 };
+    size_t n               = 0u;
+
+    for ( size_t f = 0u; f < FRAMES; f++ )
+    {
+        bool hit = ( f == 3u ) || ( f == 9u );
+
+        for ( size_t i = 0u; i < 3u; i++ )
+        {
+            if ( hit && insert && ( i == pos ) )
+            {
+                out[n++] = junk;
+            }
+            if ( !( hit && !insert && ( i == pos ) ) )
+            {
+                out[n++] = frame[i];
+            }
+        }
+        if ( hit && insert && ( pos == 3u ) )
+        {
+            out[n++] = junk;
+        }
+    }
+    return n;
+}
+
+static void test_a_stream_with_a_byte_lost_or_added_is_not_an_id( void )
+{
+    uint8_t buf[FRAMES * 4u];
+    const uint8_t junks[] = { 0x00, 0x55, 0xFE, 0x12, 0xA7 };
+
+    for ( size_t pos = 0u; pos < 3u; pos++ )
+    {
+        ssm1_romid_t p;
+        uint32_t id = 0u;
+        size_t n    = damaged_stream( buf, false, pos, 0u );
+
+        ssm1_romid_init( &p );
+        CHECK_EQ( feed_all( &p, buf, n, &id ), 0 );
+    }
+    for ( size_t pos = 0u; pos < 4u; pos++ )
+    {
+        for ( size_t j = 0u; j < sizeof( junks ); j++ )
+        {
+            ssm1_romid_t p;
+            uint32_t id = 0u;
+            size_t n    = damaged_stream( buf, true, pos, junks[j] );
+
+            ssm1_romid_init( &p );
+            CHECK_EQ( feed_all( &p, buf, n, &id ), 0 );
+        }
+    }
+}
+
+/* The real reply is still found after such damage. */
+static void test_a_real_id_after_a_damaged_stream_is_found( void )
+{
+    uint8_t buf[FRAMES * 4u];
+    const uint8_t frame[] = { 0xFF, 0xFE, 0x55, 0x71, 0x36, 0x01 };
+
+    for ( size_t pos = 0u; pos < 3u; pos++ )
+    {
+        ssm1_romid_t p;
+        uint32_t id = 0u;
+        size_t n    = damaged_stream( buf, false, pos, 0u );
+        unsigned got;
+
+        ssm1_romid_init( &p );
+        got = feed_all( &p, buf, n, &id );
+        got += feed_all( &p, frame, sizeof( frame ), &id );
+        got += feed_all( &p, frame, sizeof( frame ), &id );
+        CHECK_EQ( got, 1 );
+        CHECK_EQ( id, 0x013671 );
+    }
+}
+
 int main( void )
 {
     test_clean_needs_two_matches();
@@ -146,5 +235,7 @@ int main( void )
     test_error_drops_state();
     test_r0_ff_rejected();
     test_random_noise_never_reports();
+    test_a_stream_with_a_byte_lost_or_added_is_not_an_id();
+    test_a_real_id_after_a_damaged_stream_is_found();
     return MT_RESULT();
 }
