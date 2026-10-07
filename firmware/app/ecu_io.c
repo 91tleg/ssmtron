@@ -66,6 +66,11 @@ void ecu_io_poll( uint32_t now_ms )
     uint8_t tx[TX_MAX];
     hal_uart_rx_t rx = HAL_UART_RX_BYTE;
     size_t n;
+#if defined( CONFIG_APP_DEV_ECU_ON_USB )
+    /* Bench counters, read with a debugger. */
+    static volatile uint32_t dev_rx_bytes;
+    static volatile uint32_t dev_rx_errors;
+#endif
 
     ecu_tick( now_ms );
     for ( unsigned i = 0; ( i < RX_BURST ) && ( rx != HAL_UART_RX_EMPTY ); i++ )
@@ -73,10 +78,16 @@ void ecu_io_poll( uint32_t now_ms )
         rx = hal_uart_read( uart_id, &byte );
         if ( rx == HAL_UART_RX_BYTE )
         {
+#if defined( CONFIG_APP_DEV_ECU_ON_USB )
+            dev_rx_bytes++;
+#endif
             ecu_feed( byte );
         }
         else if ( rx == HAL_UART_RX_ERROR )
         {
+#if defined( CONFIG_APP_DEV_ECU_ON_USB )
+            dev_rx_errors++;
+#endif
             ecu_feed_error();
         }
         else

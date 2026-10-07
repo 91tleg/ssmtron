@@ -24,8 +24,11 @@
     { .dev  = DEVICE_DT_GET( UART_NODE( idx ) ),                               \
       .regs = ( NRF_UARTE_Type * )DT_REG_ADDR( UART_NODE( idx ) ) }
 
-/* The ring holds 2-byte entries: { byte, is_error }. */
-#define RX_ENTRIES  ( 64u )
+/* The ring holds 2-byte entries: { byte, is_error }. The loop does not read
+ * it during a full redraw of the face, which takes up to about 0.8 s. At the
+ * ECU's 1953 baud that is about 140 bytes, so the ring needs well more than
+ * that or the redraw drops bytes and counts as a receive error. */
+#define RX_ENTRIES  ( 256u )
 #define RX_BUF_SIZE ( RX_ENTRIES * 2u )
 /* Holds several queued ECU requests; a write that does not fit whole is
  * refused, so a frame is never sent torn. */

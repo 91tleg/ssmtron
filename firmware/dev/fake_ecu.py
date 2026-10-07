@@ -20,6 +20,7 @@ Values change over time so a dial moves. Needs pyserial.
 
 import argparse
 import math
+import random
 import sys
 import time
 
@@ -61,7 +62,7 @@ def raw_value(addr, t):
 
 
 class FakeEcu:
-    def __init__(self, port, echo, silence_s, baud, parity):
+    def __init__(self, port, echo, silence_s, baud, parity, chaos=0, seed=None):
         self.ser = serial.Serial(
             port,
             baudrate=baud,
@@ -85,6 +86,13 @@ class FakeEcu:
         # the line has had time to carry the last one.
         self.baud = baud
         self.next_send = 0.0
+        # --chaos: damage the stream the way a poor connection could, at a
+        # level from 1 (rare) to 3 (a lot). Counts are printed every minute.
+        self.chaos = chaos
+        self.rng = random.Random(seed)
+        self.stats = {"dropped": 0, "flipped": 0, "junk": 0, "gaps": 0}
+        self.next_gap = time.monotonic() + self.rng.uniform(15, 40)
+        self.next_stats = time.monotonic() + 60
 
     def log(self, text):
         print("%7.2f  %s" % (time.monotonic() - self.t0, text), flush=True)
@@ -122,6 +130,35 @@ class FakeEcu:
                 self.handle(bytes(self.cmd))
                 self.cmd.clear()
 
+    def damage(self, frame):
+        """Drops, corrupts and adds bytes, and now and then goes silent."""
+        if not self.chaos:
+            return frame
+        rate = (0.0, 0.002, 0.01, 0.04)[self.chaos]
+        now = time.monotonic()
+        out = bytearray()
+        for b in frame:
+            if self.rng.random() < rate:
+                self.stats["dropped"] += 1
+                continue
+            if self.rng.random() < rate:
+                b ^= 1 << self.rng.randrange(8)
+                self.stats["flipped"] += 1
+            if self.rng.random() < rate:
+                out.append(self.rng.randrange(256))
+                self.stats["junk"] += 1
+            out.append(b)
+        if now >= self.next_gap:
+            gap = self.rng.uniform(0.5, 1.5 * self.chaos)
+            self.muted_until = max(self.muted_until, now + gap)
+            self.next_gap = now + self.rng.uniform(15, 40)
+            self.stats["gaps"] += 1
+            self.log("hiccup: silent for %.1f s" % gap)
+        if now >= self.next_stats:
+            self.next_stats = now + 60
+            self.log("chaos so far: %s" % self.stats)
+        return bytes(out)
+
     def send_frame(self):
         t = time.monotonic() - self.t0
         data = 0x55 if self.addr == ID_ADDR else raw_value(self.addr, t)
@@ -130,6 +167,7 @@ class FakeEcu:
             frame += ROM_BYTES
             self.id_pending = False
             self.log("sent ROM ID %s" % ROM_BYTES.hex())
+        frame = self.damage(frame)
         self.ser.write(frame)
         now = time.monotonic()
         self.next_send = max(now, self.next_send) + len(frame) * 10.0 / self.baud
@@ -154,13 +192,18 @@ def main():
                         help="line rate; the car side is 1953")
     parser.add_argument("--parity", choices=["E", "N"], default="E",
                         help="E for the car side; N for the dev build on the USB port")
+    parser.add_argument("--chaos", type=int, choices=[0, 1, 2, 3], default=0,
+                        help="damage the stream: 1 rare, 3 a lot")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="seed for --chaos, to repeat a run")
     parser.add_argument("--sweep", action="store_true",
                         help="swing the voltage reading over its whole range")
     args = parser.parse_args()
     global SWEEP
     SWEEP = args.sweep
     try:
-        FakeEcu(args.port, args.echo, args.silence, args.baud, args.parity).run()
+        FakeEcu(args.port, args.echo, args.silence, args.baud, args.parity,
+                args.chaos, args.seed).run()
     except KeyboardInterrupt:
         sys.exit(0)
 
