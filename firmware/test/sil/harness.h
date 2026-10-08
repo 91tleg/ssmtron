@@ -703,7 +703,9 @@ static inline void sim_reset( uint16_t key )
     sim.rom[2] = 0x01u;
 }
 
-static inline void boot( uint16_t key )
+/* A first run: nothing stored, so the gauge knows no ECU and opens on the
+ * info page. */
+static inline void boot_fresh( uint16_t key )
 {
     static const display_pins_t pins = { 0 };
 
@@ -711,6 +713,36 @@ static inline void boot( uint16_t key )
     ( void )hal_nvm_init();
     CHECK_EQ( ecu_io_init( 0u ), HAL_OK );
     ( void )gauge_init( &pins, NEXT_ID, ACTION_ID );
+}
+
+/* A gauge that remembers an ECU profile and a saved page, started against an
+ * ECU that may be another one. A run that loads the flash file keeps what the
+ * file holds. */
+static inline void boot_remembered(
+    uint16_t remembered_key,
+    uint32_t page_idx,
+    uint16_t ecu_key
+)
+{
+    if ( !nvm_load_file )
+    {
+        uint32_t profile_value = remembered_key;
+
+        ( void )memset( nvm_items, 0, sizeof( nvm_items ) );
+        ( void )hal_nvm_save(
+            "ecu_profile", &profile_value, sizeof( profile_value )
+        );
+        ( void )hal_nvm_save( "param_idx", &page_idx, sizeof( page_idx ) );
+        nvm_saves = 0u; /* the seed is not the firmware's doing */
+    }
+    boot_fresh( ecu_key );
+}
+
+/* A gauge that has been used with this ECU before: its profile and first page
+ * are stored, so it opens on that page. */
+static inline void boot( uint16_t key )
+{
+    boot_remembered( key, 0u, key );
 }
 
 /* The index of the parameter the gauge is reading, from the last read

@@ -99,16 +99,24 @@ bool gauge_settings_load_profile( size_t * out )
     return ok;
 }
 
-bool gauge_settings_save(
+bool gauge_settings_save_theme( size_t theme_idx )
+{
+    return save_index( THEME_KEY, theme_idx, &stored_theme );
+}
+
+bool gauge_settings_save_page(
     size_t param_idx,
-    size_t theme_idx,
     size_t profile_key
 )
 {
-    /* All are attempted, so one failure does not stop the others. */
+    /* Both are attempted, so one failure does not stop the other. */
     bool param_ok = save_index( PARAM_IDX_KEY, param_idx, &stored_param );
-    bool theme_ok = save_index( THEME_KEY, theme_idx, &stored_theme );
     bool key_ok   = save_index( PROFILE_KEY, profile_key, &stored_profile );
 
-    return param_ok && theme_ok && key_ok;
+    return param_ok && key_ok;
+}
+
+bool gauge_settings_save_profile( size_t profile_key )
+{
+    return save_index( PROFILE_KEY, profile_key, &stored_profile );
 }

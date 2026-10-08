@@ -230,6 +230,9 @@ hal_status_t hal_nvm_save(
     return HAL_OK;
 }
 
+/* A gauge that has run before: every stored value reads as 0, so the first
+ * profile and its first page are remembered and the gauge opens on that
+ * page. */
 hal_status_t hal_nvm_load(
     const char * key,
     void * data,
@@ -237,11 +240,14 @@ hal_status_t hal_nvm_load(
     size_t * len
 )
 {
+    uint32_t zero = 0u;
+
     ( void )key;
-    ( void )data;
-    ( void )max;
-    ( void )len;
-    return HAL_ERR_INVALID;
+    ( void )memcpy(
+        data, &zero, ( max < sizeof( zero ) ) ? max : sizeof( zero )
+    );
+    *len = sizeof( zero );
+    return ( max >= sizeof( zero ) ) ? HAL_OK : HAL_ERR_INVALID;
 }
 
 hal_status_t hal_gpio_open(

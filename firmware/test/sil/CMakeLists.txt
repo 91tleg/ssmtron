@@ -6,7 +6,7 @@ set(SIL_APP_SOURCES
   ../../app/gauge_info.c ../../app/gauge_input.c ../../app/gauge_number.c
   ../../app/gauge_update.c ../../app/gauge_settings.c ../../app/gauge_sweep.c)
 
-foreach(t boot pages clear update sweep persist buttons stale)
+foreach(t boot pages clear update sweep persist buttons stale firstrun)
   add_executable(test_sil_${t} test_sil_${t}.c ${SIL_APP_SOURCES})
   target_include_directories(test_sil_${t} PRIVATE ../../app ../../hal
                              ../../lib/display ../../lib/ui)
@@ -23,6 +23,15 @@ endforeach()
 add_test(NAME sil_clear_busy COMMAND test_sil_clear busy)
 add_test(NAME sil_clear_gone COMMAND test_sil_clear gone)
 set_tests_properties(sil_clear_busy sil_clear_gone PROPERTIES LABELS sil)
+
+# First run, a different ECU and the remembered ECU, each its own start.
+add_test(NAME sil_firstrun_fresh COMMAND test_sil_firstrun fresh)
+add_test(NAME sil_firstrun_different COMMAND test_sil_firstrun different)
+add_test(NAME sil_firstrun_profileonly COMMAND test_sil_firstrun profileonly)
+add_test(NAME sil_firstrun_same COMMAND test_sil_firstrun same)
+set_tests_properties(
+  sil_firstrun_fresh sil_firstrun_different sil_firstrun_profileonly
+  sil_firstrun_same PROPERTIES LABELS sil)
 
 # The sweep's state lasts for the whole run, like a power-up, so its two cases
 # are two starts.

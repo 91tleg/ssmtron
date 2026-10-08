@@ -175,7 +175,7 @@ hal_status_t hal_nvm_load(
     ( void )data;
     ( void )max;
     ( void )len;
-    return HAL_ERR_INVALID;
+    return HAL_ERR_INVALID; /* a first run: nothing stored */
 }
 
 hal_status_t hal_gpio_open(
@@ -285,11 +285,12 @@ int main( void )
     CHECK( !logged_action_failed );
     CHECK_EQ( log_count, 1u );
 
-    /* With no ECU pages yet the first frame is the number screen. It must
-     * be drawn in full, which clears the panel, before the panel turns on;
-     * otherwise its widgets land on whatever the panel last showed. */
+    /* On a first run no ECU is remembered, so the first frame is the info
+     * page. It must be drawn in full, which clears the panel, before the
+     * panel turns on; otherwise its widgets land on whatever the panel last
+     * showed. */
     CHECK_EQ( text_inits, 1u );
-    CHECK_EQ( text_init_widgets, 3u );
+    CHECK_EQ( text_init_widgets, 5u );
 
     return MT_RESULT();
 }

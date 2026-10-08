@@ -22,13 +22,22 @@ bool gauge_settings_load_theme(
  * ROM ID. A saved parameter index only means something for that profile. */
 bool gauge_settings_load_profile( size_t * out );
 
-/* Stores all three values, writing only the ones that differ from what is
- * already stored. False if any write was needed and failed; a failed value
- * is tried again on the next save. */
-bool gauge_settings_save(
+/* Each save writes only a value that differs from what is already stored,
+ * and returns false if a write was needed and failed; it is tried again on
+ * the next save. */
+
+/* The theme. */
+bool gauge_settings_save_theme( size_t theme_idx );
+
+/* The page and the profile it belongs to, together: a page index only means
+ * something for its profile. */
+bool gauge_settings_save_page(
     size_t param_idx,
-    size_t theme_idx,
     size_t profile_key
 );
+
+/* The profile alone, so the next start knows which pages to show. The saved
+ * page, if any, is left as it is. */
+bool gauge_settings_save_profile( size_t profile_key );
 
 #endif /* GAUGE_SETTINGS_H */
