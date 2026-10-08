@@ -1,6 +1,8 @@
+#include "app/ble_log.h"
 #include "app/ecu_io.h"
 #include "app/fw_info.h"
 #include "app/gauge.h"
+#include "app/gauge_update.h"
 #include "app/hil_test.h"
 #include "bsp.h"
 #include "hal/hal_dfu.h"
@@ -65,7 +67,15 @@ int main( void )
 
     /* Bluetooth stays off until the user starts update mode from the info
      * page (see gauge_update.c), so it does not slow the start or sit open
-     * while driving. */
+     * while driving. The bench log flag is the exception: it opens
+     * Bluetooth now, with the passkey update mode will reuse, to stream the
+     * ECU values. */
+#if defined( CONFIG_APP_BLE_LOG )
+    if ( !gauge_update_ble_open() )
+    {
+        hal_log_write( "ble log not started" );
+    }
+#endif
 
     hal_wdt_feed();
 
@@ -78,6 +88,10 @@ int main( void )
             ecu_io_poll( now );
         }
 
+#if defined( CONFIG_APP_BLE_LOG )
+        gauge_update_link_poll( now );
+        ble_log_poll( now );
+#endif
         gauge_poll( now );
         hil_test_poll();
 

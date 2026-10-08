@@ -8,6 +8,7 @@
 #include "app/gauge_update.h"
 #include "hal/hal_ble.h"
 #include "hal/hal_dfu.h"
+#include "hal/hal_log.h"
 #include "hal/hal_random.h"
 #include "lib/display/display.h"
 #include "lib/ui/text.h"
@@ -45,6 +46,13 @@ hal_ble_evt_t hal_ble_poll_event( void )
         event_count--;
     }
     return evt;
+}
+
+static char last_log[64];
+
+void hal_log_write( const char * text )
+{
+    ( void )strncpy( last_log, text, sizeof( last_log ) - 1u );
 }
 
 hal_status_t hal_random_u32( uint32_t * out )
@@ -137,6 +145,8 @@ static void test_a_session( void )
     CHECK_EQ( ble_opens, 1u );
     CHECK( strcmp( opened_name, "Maxtek Datum" ) == 0 );
     CHECK_EQ( opened_passkey, 234567u );
+    /* The passkey also goes to the console when update mode starts. */
+    CHECK( strcmp( last_log, "ble passkey 234567" ) == 0 );
     CHECK_EQ( page[1].bg, 0x1111u );
     CHECK_EQ( page[1].fg, 0x2222u );
 
@@ -225,6 +235,55 @@ static void test_no_random_source_means_no_bluetooth( void )
     CHECK_EQ( reboots, 1u );
 }
 
+/* A build that streams opens Bluetooth at boot. It writes the passkey to the
+ * console, and update mode later reuses that link and passkey: no second
+ * open, and a phone that is already connected pauses the wait. */
+static void test_update_mode_reuses_the_open_link( void )
+{
+    random_value = 42u;
+    CHECK( gauge_update_ble_open() );
+    CHECK_EQ( ble_opens, 1u );
+    CHECK( strcmp( last_log, "ble passkey 000042" ) == 0 );
+
+    /* Events are read while update mode is off. */
+    send( HAL_BLE_EVT_CONNECTED );
+    gauge_update_link_poll( 10u );
+    CHECK_EQ( event_count, 0u );
+
+    random_value = 7u;
+    gauge_update_set_colors( 0x1111u, 0x2222u );
+    gauge_update_open( 0x1111u, 1000u );
+    gauge_update_start( 1000u );
+    gauge_update_poll( 1000u );
+    CHECK_EQ( ble_opens, 1u );
+    CHECK_EQ( opened_passkey, 42u );
+    CHECK( strcmp( row( 1 ), "PASSKEY   000042" ) == 0 );
+    CHECK( strcmp( row( 2 ), "PHONE CONNECTED" ) == 0 );
+    gauge_update_poll( 1000u + 3600000u );
+    CHECK_EQ( reboots, 0u );
+
+    /* The phone leaves: the wait starts. */
+    send( HAL_BLE_EVT_DISCONNECTED );
+    gauge_update_poll( 4000000u );
+    CHECK( strcmp( row( 2 ), "WAITING FOR PHONE" ) == 0 );
+}
+
+/* A phone that came and left while update mode was off is not connected
+ * when update mode starts. */
+static void test_a_phone_that_left_does_not_pause_the_wait( void )
+{
+    CHECK( gauge_update_ble_open() );
+    send( HAL_BLE_EVT_CONNECTED );
+    send( HAL_BLE_EVT_DISCONNECTED );
+    gauge_update_link_poll( 10u );
+    gauge_update_open( 0x1111u, 1000u );
+    gauge_update_start( 1000u );
+    gauge_update_poll( 1000u );
+    CHECK( strcmp( row( 2 ), "WAITING FOR PHONE" ) == 0 );
+    gauge_update_poll( 1000u + 300000u );
+    CHECK_EQ( reboots, 1u );
+}
+
 /* Leaving on purpose restarts at once. */
 static void test_exit_restarts_the_device( void )
 {
@@ -273,6 +332,14 @@ int main(
     else if ( strcmp( which, "firstframe" ) == 0 )
     {
         test_the_first_frame_shows_the_full_wait();
+    }
+    else if ( strcmp( which, "shared" ) == 0 )
+    {
+        test_update_mode_reuses_the_open_link();
+    }
+    else if ( strcmp( which, "sharedleft" ) == 0 )
+    {
+        test_a_phone_that_left_does_not_pause_the_wait();
     }
     else if ( strcmp( which, "fit" ) == 0 )
     {

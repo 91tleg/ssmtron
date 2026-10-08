@@ -21,3 +21,12 @@ config APP_DEV_ECU_BAUD
 	int "Dev: ECU link baud"
 	default 1953
 	depends on APP_DEV_ECU_ON_USB
+
+config APP_BLE_LOG
+	bool "Stream ECU values over Bluetooth"
+	help
+	  Opens Bluetooth at boot and sends the ECU values as CSV lines to a
+	  connected phone or computer (see ble_log.c). The passkey is random
+	  each boot and is written to the console as "ble passkey NNNNNN".
+	  Update mode reuses the same link and passkey. Bench use only: the
+	  radio is on while driving.
