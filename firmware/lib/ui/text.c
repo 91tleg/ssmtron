@@ -65,8 +65,16 @@ static void latch(
     const char * text
 )
 {
-    ( void )strncpy( w->cache, text, TEXT_MAX );
-    w->cache[TEXT_MAX] = '\0';
+    size_t n = 0u;
+
+    /* Text longer than the cache is cut. Only strcmp reads the cache, so the
+     * rest of it needs no padding. */
+    while ( ( n < TEXT_MAX ) && ( text[n] != '\0' ) )
+    {
+        w->cache[n] = text[n];
+        n++;
+    }
+    w->cache[n] = '\0';
 }
 
 void text_init(
