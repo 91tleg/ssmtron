@@ -9,6 +9,18 @@
 
 #include "lib/ui/dial.h"
 
+/* Whether screw i can shade any pixel of the row at dy, and if so the
+ * columns, from the middle of the panel, that it can reach: *dx_lo to
+ * *dx_hi, both included. Rows and columns outside need not call
+ * dial_screws. */
+bool dial_screw_reach(
+    size_t i,
+    bool arc,
+    int32_t dy,
+    int32_t * dx_lo,
+    int32_t * dx_hi
+);
+
 /* The two slotted screws: on the face of a round dial, on the cover's feet
  * on the arc style. */
 uint16_t dial_screws(

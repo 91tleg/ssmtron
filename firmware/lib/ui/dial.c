@@ -16,10 +16,137 @@
 #include "lib/ui/dial_shape.h"
 #include "lib/ui/font.h"
 
+/* The most column ranges one row can hold: one per tick and label, and one
+ * per screw. */
+#define ROW_SPAN_MAX ( DIAL_MAX_TICKS + DIAL_MAX_LABELS + DIAL_SCREW_COUNT )
+
+/* What one row of the face can touch. A tick, label or screw whose box misses
+ * the row cannot color any pixel in it, and one that misses a column cannot
+ * color that pixel. Both are worked out once per row, so most pixels skip the
+ * face layers and the rest test only the few that can reach them. */
+typedef struct
+{
+    uint8_t ticks[DIAL_MAX_TICKS];
+    uint8_t labels[DIAL_MAX_LABELS];
+    size_t tick_n;
+    size_t label_n;
+    /* The columns, in order and apart, where a tick, label or screw can be:
+     * span_lo[i] <= col < span_hi[i]. */
+    int16_t span_lo[ROW_SPAN_MAX];
+    int16_t span_hi[ROW_SPAN_MAX];
+    size_t span_n;
+    int32_t needle_x0; /* the columns the pointer can touch in this row: */
+    int32_t needle_x1; /* needle_x0 <= col < needle_x1, empty if none */
+} row_ctx_t;
+
+static void span_add(
+    row_ctx_t * ctx,
+    int32_t lo,
+    int32_t hi
+)
+{
+    if ( ( ctx->span_n < ROW_SPAN_MAX ) && ( lo < hi ) )
+    {
+        ctx->span_lo[ctx->span_n] = ( int16_t )lo;
+        ctx->span_hi[ctx->span_n] = ( int16_t )hi;
+        ctx->span_n++;
+    }
+}
+
+/* Puts the spans in order and joins those that touch or overlap. */
+static void spans_merge( row_ctx_t * ctx )
+{
+    size_t out = 0u;
+
+    for ( size_t i = 1u; i < ctx->span_n; i++ )
+    {
+        int16_t lo = ctx->span_lo[i];
+        int16_t hi = ctx->span_hi[i];
+        size_t k   = i;
+
+        while ( ( k > 0u ) && ( ctx->span_lo[k - 1u] > lo ) )
+        {
+            ctx->span_lo[k] = ctx->span_lo[k - 1u];
+            ctx->span_hi[k] = ctx->span_hi[k - 1u];
+            k--;
+        }
+        ctx->span_lo[k] = lo;
+        ctx->span_hi[k] = hi;
+    }
+    for ( size_t i = 1u; i < ctx->span_n; i++ )
+    {
+        if ( ctx->span_lo[i] <= ctx->span_hi[out] )
+        {
+            if ( ctx->span_hi[i] > ctx->span_hi[out] )
+            {
+                ctx->span_hi[out] = ctx->span_hi[i];
+            }
+        }
+        else
+        {
+            out++;
+            ctx->span_lo[out] = ctx->span_lo[i];
+            ctx->span_hi[out] = ctx->span_hi[i];
+        }
+    }
+    ctx->span_n = ( ctx->span_n > 0u ) ? ( out + 1u ) : 0u;
+}
+
+/* dy is the row's distance from the middle of the panel, and tick_dy its
+ * distance from the pivot, as ticks_layer is given. */
+static void row_ctx_build(
+    const dial_cfg_t * cfg,
+    const dial_face_t * face,
+    int16_t row,
+    int32_t dy,
+    int32_t tick_dy,
+    row_ctx_t * ctx
+)
+{
+    ctx->tick_n  = 0u;
+    ctx->label_n = 0u;
+    ctx->span_n  = 0u;
+    for ( size_t i = 0; i < face->tick_count; i++ )
+    {
+        const dial_tick_t * tick = &face->ticks[i];
+
+        if ( ( tick_dy >= tick->box_y0 ) && ( tick_dy <= tick->box_y1 ) )
+        {
+            ctx->ticks[ctx->tick_n] = ( uint8_t )i;
+            ctx->tick_n++;
+            span_add( ctx, DIAL_CX + tick->box_x0, DIAL_CX + tick->box_x1 + 1 );
+        }
+    }
+    for ( size_t i = 0; i < face->label_count; i++ )
+    {
+        const dial_label_t * lb = &face->labels[i];
+
+        if ( ( row >= lb->y )
+             && ( row < ( int16_t )( lb->y + ( int16_t )lb->h ) ) )
+        {
+            ctx->labels[ctx->label_n] = ( uint8_t )i;
+            ctx->label_n++;
+            span_add( ctx, lb->x, lb->x + ( int32_t )lb->w );
+        }
+    }
+    for ( size_t i = 0; i < DIAL_SCREW_COUNT; i++ )
+    {
+        int32_t dx_lo;
+        int32_t dx_hi;
+
+        if ( dial_screw_reach( i, dial_is_arc( cfg ), dy, &dx_lo, &dx_hi ) )
+        {
+            span_add( ctx, DIAL_CX + dx_lo, DIAL_CX + dx_hi + 1 );
+        }
+    }
+    spans_merge( ctx );
+}
+
 /* The ticks, blended over color. dx and dy are from the pivot. */
 static uint16_t ticks_layer(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
+    const row_ctx_t * ctx,
     int32_t dx,
     int32_t dy,
     uint16_t color
@@ -33,9 +160,9 @@ static uint16_t ticks_layer(
     if ( ( dist_sq >= ( ring_in * ring_in ) )
          && ( dist_sq <= ( ring_out * ring_out ) ) )
     {
-        for ( size_t i = 0; i < face->tick_count; i++ )
+        for ( size_t k = 0; k < ctx->tick_n; k++ )
         {
-            const dial_tick_t * tick = &face->ticks[i];
+            const dial_tick_t * tick = &face->ticks[ctx->ticks[k]];
 
             /* Only the tick whose box holds the pixel can touch it. */
             if ( ( dx >= tick->box_x0 ) && ( dx <= tick->box_x1 )
@@ -67,6 +194,7 @@ static uint16_t ticks_layer(
 static uint16_t labels_layer(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
+    const row_ctx_t * ctx,
     int16_t row,
     int16_t col,
     uint16_t color
@@ -74,17 +202,17 @@ static uint16_t labels_layer(
 {
     uint16_t out = color;
 
-    /* Most rows have no label at all. */
-    if ( ( row >= face->label_top ) && ( row < face->label_bottom ) )
+    for ( size_t k = 0; k < ctx->label_n; k++ )
     {
-        for ( size_t i = 0; i < face->label_count; i++ )
-        {
-            uint8_t ink = 0u;
+        const dial_label_t * lb = &face->labels[ctx->labels[k]];
+        uint8_t ink             = 0u;
 
-            if ( dial_label_pixel( &face->labels[i], row, col, &ink ) )
-            {
-                out = font_blend( cfg->tick_fg, out, ink );
-            }
+        /* The row is known to be inside; most labels miss the column. */
+        if ( ( col >= lb->x )
+             && ( col < ( int16_t )( lb->x + ( int16_t )lb->w ) )
+             && dial_label_pixel( lb, row, col, &ink ) )
+        {
+            out = font_blend( cfg->tick_fg, out, ink );
         }
     }
     return out;
@@ -152,14 +280,50 @@ typedef struct
     int16_t y1;
 } needle_t;
 
-static bool in_box(
+/* The columns of one row that the pointer can touch, written to the row's
+ * context: the part of the needle's box within DIAL_REGION_MARGIN of the line
+ * through the pivot. The pointer is a thin line, so most of its box is
+ * empty, and a pixel outside this span needs none of the pointer layers.
+ * pivot_dy is the row's distance below the pivot. The margin is the one the
+ * box already uses, so no pixel the pointer colors is left out. */
+static void needle_row_span(
     const needle_t * nd,
     int16_t row,
-    int16_t col
+    int32_t pivot_dy,
+    row_ctx_t * ctx
 )
 {
-    return ( col >= nd->x0 ) && ( col < nd->x1 ) && ( row >= nd->y0 )
-           && ( row < nd->y1 );
+    int32_t reach = ( int32_t )( DIAL_REGION_MARGIN + 1 ) * 1000;
+    int32_t base  = pivot_dy * nd->sin_m;
+    int32_t lo    = nd->x0;
+    int32_t hi    = nd->x1;
+
+    if ( ( row < nd->y0 ) || ( row >= nd->y1 ) )
+    {
+        hi = lo;
+    }
+    else if ( nd->cos_m == 0 )
+    {
+        /* The line runs along the row: all of it or none of it. */
+        if ( ui_abs( base ) > reach )
+        {
+            hi = lo;
+        }
+    }
+    else
+    {
+        /* |dx * cos + pivot_dy * sin| <= reach, solved for dx and widened by
+         * a pixel each way for the rounding of the division. */
+        int32_t a      = ( -reach - base ) / nd->cos_m;
+        int32_t b      = ( reach - base ) / nd->cos_m;
+        int32_t from_x = DIAL_CX + ui_min( a, b ) - 1;
+        int32_t to_x   = DIAL_CX + ui_max( a, b ) + 2;
+
+        lo = ui_max( lo, from_x );
+        hi = ui_min( hi, to_x );
+    }
+    ctx->needle_x0 = lo;
+    ctx->needle_x1 = hi;
 }
 
 /* A part of the pointer blended over color: ink is how much of the pixel it
@@ -191,6 +355,8 @@ static uint16_t needle_layer(
 static uint16_t round_pixel(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
+    const row_ctx_t * ctx,
+    bool face_here,
     const needle_t * nd,
     int16_t row,
     int16_t col
@@ -201,24 +367,39 @@ static uint16_t round_pixel(
     uint16_t color = cfg->face_bg;
     uint8_t ink;
 
-    color = ticks_layer( cfg, face, dx, dy, color );
-    color = labels_layer( cfg, face, row, col, color );
-    color = dial_screws( color, dx, dy, false );
-    if ( in_box( nd, row, col ) )
+    if ( face_here )
+    {
+        color = ticks_layer( cfg, face, ctx, dx, dy, color );
+        color = labels_layer( cfg, face, ctx, row, col, color );
+        color = dial_screws( color, dx, dy, false );
+    }
+    if ( ( col >= ctx->needle_x0 ) && ( col < ctx->needle_x1 ) )
     {
         int32_t s = nd->sin_m;
         int32_t c = nd->cos_m;
+        int32_t proj;
 
         ink   = dial_needle_alpha( dx, dy, s, c, dial_needle_length( cfg ) );
         color = needle_layer( color, ink, cfg->needle_fg, dx, dy, s, c );
-        ink   = dial_radial_line_alpha(
-            dx, dy, s, c, 0, DIAL_NEEDLE_COLLAR_R, DIAL_NEEDLE_HALF_W
-        );
-        color = needle_layer( color, ink, 0xDEFBu, dx, dy, s, c );
-        ink   = dial_radial_line_alpha(
-            dx, dy, -s, -c, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
-        );
-        color = needle_layer( color, ink, 0xDEFBu, dx, dy, s, c );
+        /* The collar and the counterweight only reach a short way along the
+         * pointer, from the pivot; farther along they color nothing. proj is
+         * how far along the pointer the pixel is, in thousandths. */
+        proj = ( dx * s ) - ( dy * c );
+        if ( ( proj >= -500 )
+             && ( proj <= ( ( DIAL_NEEDLE_COLLAR_R * 1000 ) + 500 ) ) )
+        {
+            ink = dial_radial_line_alpha(
+                dx, dy, s, c, 0, DIAL_NEEDLE_COLLAR_R, DIAL_NEEDLE_HALF_W
+            );
+            color = needle_layer( color, ink, 0xDEFBu, dx, dy, s, c );
+        }
+        if ( ( proj <= 500 ) && ( proj >= -( ( DIAL_TAIL_R * 1000 ) + 500 ) ) )
+        {
+            ink = dial_radial_line_alpha(
+                dx, dy, -s, -c, 0, DIAL_TAIL_R, DIAL_TAIL_HALF_W
+            );
+            color = needle_layer( color, ink, 0xDEFBu, dx, dy, s, c );
+        }
     }
     if ( ( ui_abs( dx ) <= DIAL_HUB_R ) && ( ui_abs( dy ) <= DIAL_HUB_R ) )
     {
@@ -239,6 +420,8 @@ static uint16_t round_pixel(
 static uint16_t arc_pixel(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
+    const row_ctx_t * ctx,
+    bool face_here,
     const needle_t * nd,
     int16_t row,
     int16_t col
@@ -256,9 +439,12 @@ static uint16_t arc_pixel(
     }
     else
     {
-        color = ticks_layer( cfg, face, dx, from_pivot, color );
-        color = labels_layer( cfg, face, row, col, color );
-        if ( in_box( nd, row, col ) )
+        if ( face_here )
+        {
+            color = ticks_layer( cfg, face, ctx, dx, from_pivot, color );
+            color = labels_layer( cfg, face, ctx, row, col, color );
+        }
+        if ( ( col >= ctx->needle_x0 ) && ( col < ctx->needle_x1 ) )
         {
             uint8_t ink = dial_needle_alpha(
                 dx, from_pivot, nd->sin_m, nd->cos_m, dial_needle_length( cfg )
@@ -269,7 +455,10 @@ static uint16_t arc_pixel(
             );
         }
         color = dial_cover_feet( cfg, color, dx, dy );
-        color = dial_screws( color, dx, dy, true );
+        if ( face_here )
+        {
+            color = dial_screws( color, dx, dy, true );
+        }
         if ( dy >= -( int32_t )DIAL_COVER_SHADOW_SPREAD )
         {
             color = dial_cover_body( cfg, color, dx, dy );
@@ -281,13 +470,16 @@ static uint16_t arc_pixel(
 static uint16_t pixel_color(
     const dial_cfg_t * cfg,
     const dial_face_t * face,
+    const row_ctx_t * ctx,
+    bool face_here,
     const needle_t * nd,
     int16_t row,
     int16_t col
 )
 {
-    return dial_is_arc( cfg ) ? arc_pixel( cfg, face, nd, row, col )
-                              : round_pixel( cfg, face, nd, row, col );
+    return dial_is_arc( cfg )
+               ? arc_pixel( cfg, face, ctx, face_here, nd, row, col )
+               : round_pixel( cfg, face, ctx, face_here, nd, row, col );
 }
 
 /* Bounding box (x0 <= x < x1) of the needle shape at deg: the forward tip
@@ -390,16 +582,35 @@ static void fill_rect(
     for ( int16_t row = y0; row < y1; row++ )
     {
         int32_t dy = ( int32_t )row - DIAL_CY;
+        row_ctx_t ctx;
+
+        /* Ticks are placed from the pivot, which the arc style puts lower. */
+        int32_t pivot_dy =
+            dial_is_arc( d->cfg ) ? ( dy - dial_pivot_down( d->cfg ) ) : dy;
+
+        row_ctx_build( d->cfg, &d->face, row, dy, pivot_dy, &ctx );
+        needle_row_span( &nd, row, pivot_dy, &ctx );
+        size_t span = 0u;
 
         for ( int16_t col = x0; col < x1; col++ )
         {
             int32_t dx = ( int32_t )col - DIAL_CX;
+            bool face_here;
+
+            /* The columns only move forward, so the span does too. */
+            while ( ( span < ctx.span_n ) && ( col >= ctx.span_hi[span] ) )
+            {
+                span++;
+            }
+            face_here = ( span < ctx.span_n ) && ( col >= ctx.span_lo[span] );
 
             /* The glass is round, so the square's corners are never seen.
              * One pixel of slack keeps the edge ring whole. */
             if ( ( ( dx * dx ) + ( dy * dy ) ) <= DIAL_VISIBLE_SQ )
             {
-                dst[n] = pixel_color( d->cfg, &d->face, &nd, row, col );
+                dst[n] = pixel_color(
+                    d->cfg, &d->face, &ctx, face_here, &nd, row, col
+                );
             }
             else
             {
