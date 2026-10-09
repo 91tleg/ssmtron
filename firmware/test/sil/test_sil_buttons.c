@@ -85,7 +85,9 @@ static void test_a_hold_saves_once_and_does_not_move_the_page( void )
     button( &next_edges, true );
     run( 1600u );
     CHECK_EQ( strcmp( row( 0 ), "SAVED" ), 0 ); /* the page gives way */
-    CHECK_EQ( nvm_saves, 3u ); /* the page, the theme and the ECU profile */
+    CHECK_EQ(
+        nvm_saves, 2u
+    ); /* the page and the theme: the ECU profile is stored already */
     button( &next_edges, false );
     run( 1500u );
     CHECK( page != NULL ); /* the page is back */
@@ -97,7 +99,7 @@ static void test_a_hold_saves_once_and_does_not_move_the_page( void )
     button( &next_edges, true );
     run( 1600u );
     CHECK_EQ( strcmp( row( 0 ), "SAVED" ), 0 );
-    CHECK_EQ( nvm_saves, 3u );
+    CHECK_EQ( nvm_saves, 2u );
     button( &next_edges, false );
     run( 1500u );
 
@@ -117,7 +119,7 @@ static void test_a_hold_saves_once_and_does_not_move_the_page( void )
     button( &next_edges, false );
     run( SETTLE_MS );
     CHECK_EQ( page_now(), 3u );
-    CHECK_EQ( nvm_saves, 4u ); /* only the page changed */
+    CHECK_EQ( nvm_saves, 3u ); /* only the page changed */
     CHECK_EQ( stored( "param_idx" ), 3u );
 }
 
@@ -127,12 +129,12 @@ static void test_release_just_either_side_of_the_hold_time( void )
     press_next_for( 1450u );
     run( SETTLE_MS );
     CHECK_EQ( page_now(), 4u ); /* a tap */
-    CHECK_EQ( nvm_saves, 4u );
+    CHECK_EQ( nvm_saves, 3u );
 
     press_next_for( 1550u );
     run( SETTLE_MS );
     CHECK_EQ( page_now(), 4u ); /* a hold: no move */
-    CHECK_EQ( nvm_saves, 5u );
+    CHECK_EQ( nvm_saves, 4u );
     CHECK_EQ( stored( "param_idx" ), 4u );
 }
 
@@ -146,18 +148,18 @@ static void test_a_late_poll_does_not_change_a_tap_into_a_hold( void )
     stall( 250u );                /* ... but read at 1700 ms */
     run( SETTLE_MS );
     CHECK_EQ( page_now(), 5u ); /* still a tap */
-    CHECK_EQ( nvm_saves, 5u );
+    CHECK_EQ( nvm_saves, 4u );
 
     /* Held through a stall: the hold is found when the loop returns, once,
      * and the release after it is not a tap. */
     button( &next_edges, true );
     stall( 1700u );
     run( 100u );
-    CHECK_EQ( nvm_saves, 6u );
+    CHECK_EQ( nvm_saves, 5u );
     button( &next_edges, false );
     run( SETTLE_MS );
     CHECK_EQ( page_now(), 5u );
-    CHECK_EQ( nvm_saves, 6u );
+    CHECK_EQ( nvm_saves, 5u );
 }
 
 /* ACTION taps switch the theme and are never written without a NEXT hold. */
@@ -176,7 +178,7 @@ static void test_action_taps_switch_the_theme_in_ram_only( void )
     press_action_for( 100u );
     run( 200u );
     CHECK_EQ( page_bg(), light );
-    CHECK_EQ( nvm_saves, 6u );
+    CHECK_EQ( nvm_saves, 5u );
 }
 
 /* Holding ACTION where there is nothing to clear or start does nothing: no

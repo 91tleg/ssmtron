@@ -28,6 +28,9 @@ import serial
 
 BAUD = 1953
 ID_ADDR = 0xFFFE
+
+# Quiet time after which a partly received command is dropped.
+RESYNC_S = 0.1
 # The ROM ID reported is r0, r1 and r2. The profile key is r0 | r1 << 8, so
 # --rom 3671 (the 91 Turbo, the default) sends 71 36 01. r2 is shown on the
 # info page only.
@@ -38,12 +41,21 @@ CLEAR_ADDR = 0x15F0
 # fixed value derived from its address.
 RAW = {
     0x1404: lambda t: 175 + round(2 * math.sin(t / 5)),       # 14.0 V
-    0x154B: lambda t: 0,                                       # speed
+    0x154B: lambda t: 40 + round(30 * math.sin(t / 7)),        # speed
     0x140B: lambda t: 32 + round(30 * (1 + math.sin(t / 4))),  # 800 to 2300 rpm
-    0x1405: lambda t: 110,                                     # coolant
-    0x1489: lambda t: 20,                                      # timing
+    0x1405: lambda t: 110 + round(8 * math.sin(t / 11)),       # coolant
+    0x1489: lambda t: 20 + round(6 * math.sin(t / 2)),         # timing
     0x1403: lambda t: 50 + round(40 * math.sin(t * 2)),        # O2 0.1 to 0.9 V
-    0x1516: lambda t: 200,                                     # baro
+    0x1516: lambda t: 200 + round(2 * math.sin(t / 9)),        # baro
+    0x1400: lambda t: 60 + round(40 * math.sin(t / 3)),        # airflow
+    0x1414: lambda t: 80 + round(40 * math.sin(t / 4)),        # load
+    0x1487: lambda t: 50 + round(30 * math.sin(t / 3)),        # throttle volts
+    0x1453: lambda t: 40 + round(30 * math.sin(t / 3)),        # throttle angle
+    0x15F0: lambda t: 90 + round(40 * math.sin(t / 2)),        # pulse width
+    0x142A: lambda t: 90 + round(40 * math.sin(t / 2)),        # pulse width
+    0x158A: lambda t: 60 + round(30 * math.sin(t / 5)),        # idle air duty
+    0x1488: lambda t: 128 + round(20 * math.sin(t / 6)),       # fuel trim
+    0x144D: lambda t: 100 + round(60 * math.sin(t / 4)),       # boost duty
     0x00BE: lambda t: 136 + round(30 * math.sin(t / 3)),       # boost, vacuum
 }
 
@@ -91,6 +103,7 @@ class FakeEcu:
         # level from 1 (rare) to 3 (a lot). Counts are printed every minute.
         self.rom_bytes = bytes([rom & 0xFF, rom >> 8, 0x01])
         self.glitch = glitch
+        self.last_rx = time.monotonic()
         self.next_glitch = time.monotonic() + 20
         self.chaos = chaos
         self.rng = random.Random(seed)
@@ -124,6 +137,14 @@ class FakeEcu:
 
     def take_input(self):
         data = self.ser.read(16)
+        now = time.monotonic()
+        # A command is four bytes sent back to back. A gap means the rest of
+        # a partial one is not coming, for example after a stray byte at
+        # power-up; without this a lost byte shifts every later command.
+        if self.cmd and (now - self.last_rx) > RESYNC_S:
+            self.cmd.clear()
+        if data:
+            self.last_rx = now
         for b in data:
             if self.echo:
                 self.ser.write(bytes([b]))

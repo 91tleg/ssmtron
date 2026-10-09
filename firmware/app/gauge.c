@@ -63,12 +63,17 @@ static size_t selected_idx;
  * selected_idx keeps the last parameter, which the ECU keeps streaming. */
 static bool info_shown;
 
+/* A page was saved for the remembered ECU. Without one the gauge opens on
+ * the info page. */
+static bool page_saved;
+
 /* Restore the saved page. */
 static void restore_selected_idx( void )
 {
     size_t idx;
 
-    if ( gauge_settings_load_param( ecu_param_count(), &idx ) )
+    page_saved = gauge_settings_load_param( ecu_param_count(), &idx );
+    if ( page_saved )
     {
         selected_idx = idx;
     }
@@ -88,23 +93,39 @@ static void restore_selection_once( void )
 }
 
 /* The ECU profile whose pages are on show, as its 16-bit key. It is what a
- * save stores next to the page number. */
+ * save stores next to the page number. Only meaningful once profile_known. */
 static uint16_t profile_key;
 
-/* Shows the pages of the ECU remembered from last time, or of the first
- * profile on a first run, so the first frame already has its pages. The ECU
- * still has to identify itself before anything is written to it. */
+/* A profile is known once one was remembered from an earlier run or an ECU
+ * has identified itself. Until then the gauge has no pages and guesses
+ * nothing. */
+static bool profile_known;
+
+/* Shows the pages of the ECU remembered from last time so the first frame
+ * already has them, and opens on the saved page. With no remembered ECU, or
+ * no saved page, it opens on the info page instead: that page needs no ECU,
+ * and a first run has no profile to assume. The ECU still has to identify
+ * itself before anything is written to it. */
 static void assume_remembered_profile( void )
 {
     size_t key = 0u;
 
-    ( void )gauge_settings_load_profile( &key );
-    profile_key = ecu_assume_profile( ( uint16_t )key );
-    restore_selection_once();
+    profile_known = gauge_settings_load_profile( &key );
+    if ( profile_known )
+    {
+        profile_key = ecu_assume_profile( ( uint16_t )key );
+        restore_selection_once();
+    }
+    info_shown = !profile_known || !page_saved;
 }
 
-/* Once the ECU answers, a different ECU than the one assumed replaces its
- * pages, and the page goes back to the first. */
+/* Once the ECU answers, the first ECU ever seen becomes the remembered one,
+ * and a different ECU than the remembered one replaces its pages, with the
+ * page back at the first. Either way the new profile is stored, so the next
+ * start shows these pages at once. An ECU this firmware cannot read has no
+ * pages, so it is not remembered (an unknown key would bring back the first
+ * profile's pages at the next start), and the info page shows what it
+ * reported. */
 static void check_identification( void )
 {
     static bool identification_checked;
@@ -115,11 +136,30 @@ static void check_identification( void )
         uint16_t key = ( uint16_t )( id & 0xFFFFu );
 
         identification_checked = true;
-        if ( key != profile_key )
+        if ( ecu_param_count() == 0u )
+        {
+            profile_known = false;
+            selected_idx  = 0u;
+            info_shown    = true;
+        }
+        else if ( !profile_known )
+        {
+            profile_key   = key;
+            profile_known = true;
+            ( void )ecu_select_param( selected_idx );
+            ( void )gauge_settings_save_profile( profile_key );
+        }
+        else if ( key != profile_key )
         {
             profile_key  = key;
             selected_idx = 0u;
             ( void )ecu_select_param( 0u );
+            /* The stored page belonged to the old profile. */
+            ( void )gauge_settings_save_page( selected_idx, profile_key );
+        }
+        else
+        {
+            /* The remembered ECU answered: nothing changes. */
         }
     }
 }
@@ -194,8 +234,15 @@ static void poll_next( uint32_t now )
         case NEXT_EVENT_HOLD:
             if ( !gauge_update_active() )
             {
-                save_notice_ok =
-                    gauge_settings_save( selected_idx, theme_idx, profile_key );
+                /* All are attempted, so one failure does not stop the others.
+                 * Without a profile there is no page worth keeping. */
+                save_notice_ok = gauge_settings_save_theme( theme_idx );
+                if ( profile_known )
+                {
+                    save_notice_ok =
+                        gauge_settings_save_page( selected_idx, profile_key )
+                        && save_notice_ok;
+                }
                 save_notice_active = true;
                 save_notice_start  = now;
             }

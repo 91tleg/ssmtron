@@ -5,6 +5,7 @@
 
 #include "hal/hal_ble.h"
 #include "hal/hal_dfu.h"
+#include "hal/hal_log.h"
 #include "hal/hal_random.h"
 #include "lib/textfit/textfit.h"
 #include "lib/ui/text.h"
@@ -36,6 +37,16 @@ static update_state_t update_state = UPDATE_OFF;
 static uint32_t update_passkey;
 static uint32_t update_wait_start; /* when the countdown last started */
 
+/* Bluetooth is up, either from update mode or from gauge_update_ble_open.
+ * Once up it stays up until the restart, so both share one link and one
+ * passkey. */
+static bool ble_up;
+
+/* A phone is connected, as the connection events last said. They are read
+ * even outside update mode, so a phone that connected earlier is known
+ * when update mode starts. */
+static bool phone_linked;
+
 /* What the callbacks read. They take no context, so gauge_update_poll sets
  * the time before every redraw. */
 static uint32_t update_now_ms;
@@ -45,26 +56,81 @@ bool gauge_update_active( void )
     return update_state != UPDATE_OFF;
 }
 
+/* Starts Bluetooth with a fresh random passkey unless it is already up.
+ * Without a secure random passkey there is no pairing to offer, so
+ * Bluetooth is not started at all. */
+static bool ble_open( void )
+{
+    bool ok = ble_up;
+
+    if ( !ok )
+    {
+        uint32_t random_value = 0u;
+
+        if ( hal_random_u32( &random_value ) == HAL_OK )
+        {
+            hal_ble_cfg_t cfg;
+
+            update_passkey = random_value % UPDATE_PASSKEY_LIMIT;
+            cfg.name       = UPDATE_BLE_NAME;
+            cfg.passkey    = update_passkey;
+            ok             = ( hal_ble_open( &cfg ) == HAL_OK );
+            ble_up         = ok;
+        }
+    }
+    return ok;
+}
+
+/* The passkey with its leading zeros, and the terminator. */
+static void passkey_digits( char * digits )
+{
+    uint32_t rest = update_passkey;
+
+    for ( size_t i = UPDATE_PASSKEY_DIGITS; i > 0u; i-- )
+    {
+        digits[i - 1u] = ( char )( '0' + ( rest % 10u ) );
+        rest /= 10u;
+    }
+    digits[UPDATE_PASSKEY_DIGITS] = '\0';
+}
+
+/* The only place the passkey shows outside the update page. */
+static void log_passkey( void )
+{
+    char line[UPDATE_PASSKEY_DIGITS + 13u];
+
+    ( void )memcpy( line, "ble passkey ", 12u );
+    passkey_digits( &line[12] );
+    hal_log_write( line );
+}
+
+/* cppcheck-suppress misra-c2012-8.7 ; public API (gauge_update.h), called
+ * from main.c only when CONFIG_APP_BLE_LOG is set, and from
+ * test_gauge_update.c, which this scoped MISRA scan does not cover. */
+bool gauge_update_ble_open( void )
+{
+    bool ok = ble_open();
+
+    if ( ok )
+    {
+        log_passkey();
+    }
+    return ok;
+}
+
 void gauge_update_start( uint32_t now_ms )
 {
     if ( update_state == UPDATE_OFF )
     {
-        hal_ble_cfg_t cfg;
-        uint32_t random_value = 0u;
-
         update_wait_start = now_ms;
-        update_state      = UPDATE_FAILED;
-        /* Without a secure random passkey there is no pairing to offer, so
-         * Bluetooth is not started at all. */
-        if ( hal_random_u32( &random_value ) == HAL_OK )
+        if ( ble_open() )
         {
-            update_passkey = random_value % UPDATE_PASSKEY_LIMIT;
-            cfg.name       = UPDATE_BLE_NAME;
-            cfg.passkey    = update_passkey;
-            if ( hal_ble_open( &cfg ) == HAL_OK )
-            {
-                update_state = UPDATE_WAITING;
-            }
+            update_state = phone_linked ? UPDATE_CONNECTED : UPDATE_WAITING;
+            log_passkey();
+        }
+        else
+        {
+            update_state = UPDATE_FAILED;
         }
     }
 }
@@ -72,7 +138,10 @@ void gauge_update_start( uint32_t now_ms )
 void gauge_update_exit( void )
 {
     hal_dfu_reboot();
-    update_state = UPDATE_OFF; /* only reached where a restart is faked */
+    /* Only reached where a restart is faked: a real one resets all of it. */
+    update_state = UPDATE_OFF;
+    ble_up       = false;
+    phone_linked = false;
 }
 
 /* The page's rows, cut to UPDATE_ROW_W glyphs. */
@@ -105,7 +174,6 @@ static void update_title_text( char * buf )
 static void update_passkey_text( char * buf )
 {
     char digits[UPDATE_PASSKEY_DIGITS + 1u];
-    uint32_t rest = update_passkey;
 
     if ( update_state == UPDATE_FAILED )
     {
@@ -113,12 +181,7 @@ static void update_passkey_text( char * buf )
     }
     else
     {
-        for ( size_t i = UPDATE_PASSKEY_DIGITS; i > 0u; i-- )
-        {
-            digits[i - 1u] = ( char )( '0' + ( rest % 10u ) );
-            rest /= 10u;
-        }
-        digits[UPDATE_PASSKEY_DIGITS] = '\0';
+        passkey_digits( digits );
     }
     update_put_row( buf, "PASSKEY", digits );
 }
@@ -236,32 +299,56 @@ void gauge_update_open(
     text_init( update_page, UPDATE_PAGE_COUNT, face );
 }
 
-void gauge_update_poll( uint32_t now_ms )
+/* Follows the phone connecting and leaving. The wait restarts when a phone
+ * that was connected leaves. */
+static void follow_link( uint32_t now_ms )
 {
-    update_now_ms = now_ms;
-    if ( update_state != UPDATE_OFF )
-    {
-        hal_ble_evt_t evt = hal_ble_poll_event();
+    hal_ble_evt_t evt = hal_ble_poll_event();
 
-        for ( ; evt != HAL_BLE_EVT_NONE; evt = hal_ble_poll_event() )
+    for ( ; evt != HAL_BLE_EVT_NONE; evt = hal_ble_poll_event() )
+    {
+        if ( evt == HAL_BLE_EVT_CONNECTED )
         {
-            if ( ( evt == HAL_BLE_EVT_CONNECTED )
-                 && ( update_state != UPDATE_FAILED ) )
+            phone_linked = true;
+            if ( update_state == UPDATE_WAITING )
             {
                 update_state = UPDATE_CONNECTED;
             }
-            else if ( ( evt == HAL_BLE_EVT_DISCONNECTED )
-                      && ( update_state == UPDATE_CONNECTED ) )
+        }
+        else if ( evt == HAL_BLE_EVT_DISCONNECTED )
+        {
+            phone_linked = false;
+            if ( update_state == UPDATE_CONNECTED )
             {
                 /* The phone left: a full wait starts again. */
                 update_state      = UPDATE_WAITING;
                 update_wait_start = now_ms;
             }
-            else
-            {
-                /* Nothing to do for this event. */
-            }
         }
+        else
+        {
+            /* Nothing to do for this event. */
+        }
+    }
+}
+
+/* cppcheck-suppress misra-c2012-8.7 ; public API (gauge_update.h), called
+ * from main.c only when CONFIG_APP_BLE_LOG is set, and from
+ * test_gauge_update.c, which this scoped MISRA scan does not cover. */
+void gauge_update_link_poll( uint32_t now_ms )
+{
+    if ( ble_up )
+    {
+        follow_link( now_ms );
+    }
+}
+
+void gauge_update_poll( uint32_t now_ms )
+{
+    update_now_ms = now_ms;
+    if ( update_state != UPDATE_OFF )
+    {
+        follow_link( now_ms );
         if ( ( update_state != UPDATE_CONNECTED )
              && ( ( now_ms - update_wait_start ) >= UPDATE_WAIT_MS ) )
         {

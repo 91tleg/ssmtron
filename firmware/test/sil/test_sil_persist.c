@@ -30,10 +30,11 @@ static void scenario_save( void )
         }
     }
     nvm_file_enabled = true;
-    boot( SAVED_KEY );
+    boot_fresh( SAVED_KEY ); /* a first run opens on the info page */
     run( 3000u );
     CHECK_EQ( ecu_id(), 0x013170u );
-    for ( size_t i = 0u; i < SAVED_PAGE; i++ )
+    /* One tap leaves the info page for page 0, then the rest. */
+    for ( size_t i = 0u; i <= SAVED_PAGE; i++ )
     {
         tap_next();
     }

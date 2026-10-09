@@ -41,6 +41,20 @@ The dev build also counts received bytes and receive errors (`dev_rx_bytes`
 and `dev_rx_errors` in `ecu_io_poll`). Read them with a debugger to see
 whether a change drops bytes.
 
+## Stream the values over Bluetooth
+
+Add `-DCONFIG_APP_BLE_LOG=y` to the dev build (or any build) to open
+Bluetooth at boot as "Maxtek Datum" and send one CSV line per fresh value,
+about every 200 ms. The passkey is random each boot and is written to the
+console (RTT in the dev build) as `ble passkey NNNNNN`. Update mode reuses
+the same link and passkey, so it still works with the flag on, and the
+update page shows the same passkey.
+
+    pip install bleak
+    python3 tools/ble_log.py
+
+Never ship a build with this flag: the passkey is fixed.
+
 ## Things to know
 
 - Start the script after the board is flashed. Flashing makes the serial

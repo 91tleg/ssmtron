@@ -160,6 +160,8 @@ add_test(NAME gauge_update_norandom COMMAND test_gauge_update norandom)
 add_test(NAME gauge_update_exit COMMAND test_gauge_update exit)
 add_test(NAME gauge_update_firstframe COMMAND test_gauge_update firstframe)
 add_test(NAME gauge_update_fit COMMAND test_gauge_update fit)
+add_test(NAME gauge_update_shared COMMAND test_gauge_update shared)
+add_test(NAME gauge_update_sharedleft COMMAND test_gauge_update sharedleft)
 
 add_executable(test_gauge_update_360 test_gauge_update.c ../app/gauge_update.c)
 target_include_directories(test_gauge_update_360 PRIVATE ../app ../hal)
