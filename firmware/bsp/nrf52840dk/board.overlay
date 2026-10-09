@@ -1,29 +1,31 @@
 /* nRF52840 DK pin map. Keep device id order aligned with bsp.h.
  * ECU UART1 uses P1.02/P1.01 through a car-side level shifter.
  * UART0 remains the console. Buttons use P0.11/P0.12.
- * Display SPI3 (SPIM3, up to 32 MHz) uses P0.19/P0.20/P0.21; CS/DC/RESET use
- * P0.22/P0.23/P0.24.
+ * Display SPI3 (SPIM3, up to 32 MHz) uses the Arduino header: SCK D13
+ * (P1.15), MOSI D11 (P1.13) and the unused MISO D12 (P1.14); CS D10 (P1.12),
+ * DC D9 (P1.11) and RESET D8 (P1.10). These pins are free on the DK, unlike
+ * P0.17 to P0.24, which the QSPI flash and Button 3 share.
  * The display driver controls CS and reset polarity. */
 
 &pinctrl {
 	/* SCK and MOSI drive hard: at 32 MHz the edges need it. */
 	spi3_display_default: spi3_display_default {
 		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 0, 19)>,
-				<NRF_PSEL(SPIM_MOSI, 0, 20)>;
+			psels = <NRF_PSEL(SPIM_SCK, 1, 15)>,
+				<NRF_PSEL(SPIM_MOSI, 1, 13)>;
 			nordic,drive-mode = <NRF_DRIVE_H0H1>;
 		};
 
 		group2 {
-			psels = <NRF_PSEL(SPIM_MISO, 0, 21)>;
+			psels = <NRF_PSEL(SPIM_MISO, 1, 14)>;
 		};
 	};
 
 	spi3_display_sleep: spi3_display_sleep {
 		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 0, 19)>,
-				<NRF_PSEL(SPIM_MOSI, 0, 20)>,
-				<NRF_PSEL(SPIM_MISO, 0, 21)>;
+			psels = <NRF_PSEL(SPIM_SCK, 1, 15)>,
+				<NRF_PSEL(SPIM_MOSI, 1, 13)>,
+				<NRF_PSEL(SPIM_MISO, 1, 14)>;
 			low-power-enable;
 		};
 	};
@@ -55,9 +57,9 @@
 	pinctrl-names = "default", "sleep";
 };
 
-/* The DK's on-board QSPI flash is wired to P0.17 and P0.19 to P0.23, the pins
- * the display uses below. Nothing here uses it, and the production module (a
- * Raytac MDBT50Q) has no external flash, so the driver stays off. */
+/* The DK's on-board QSPI flash is wired to P0.17 and P0.19 to P0.23. Nothing
+ * here uses it, and the production module (a Raytac MDBT50Q) has no external
+ * flash, so the driver stays off. */
 &qspi {
 	status = "disabled";
 };
@@ -83,9 +85,9 @@
 / {
 	zephyr,user {
 		hal-gpios = <&gpio0 11 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
-			    <&gpio0 22 GPIO_ACTIVE_HIGH>,
-			    <&gpio0 23 GPIO_ACTIVE_HIGH>,
-			    <&gpio0 24 GPIO_ACTIVE_HIGH>,
+			    <&gpio1 12 GPIO_ACTIVE_HIGH>,
+			    <&gpio1 11 GPIO_ACTIVE_HIGH>,
+			    <&gpio1 10 GPIO_ACTIVE_HIGH>,
 			    <&gpio0 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
 		hal-uarts = <&uart1>;
 		hal-spis = <&spi3>;
