@@ -28,10 +28,13 @@ set_tests_properties(sil_clear_busy sil_clear_gone PROPERTIES LABELS sil)
 add_test(NAME sil_firstrun_fresh COMMAND test_sil_firstrun fresh)
 add_test(NAME sil_firstrun_different COMMAND test_sil_firstrun different)
 add_test(NAME sil_firstrun_profileonly COMMAND test_sil_firstrun profileonly)
+add_test(NAME sil_firstrun_unknown COMMAND test_sil_firstrun unknown)
+add_test(NAME sil_firstrun_unknownfirst COMMAND test_sil_firstrun unknownfirst)
 add_test(NAME sil_firstrun_same COMMAND test_sil_firstrun same)
 set_tests_properties(
   sil_firstrun_fresh sil_firstrun_different sil_firstrun_profileonly
-  sil_firstrun_same PROPERTIES LABELS sil)
+  sil_firstrun_unknown sil_firstrun_unknownfirst sil_firstrun_same
+  PROPERTIES LABELS sil)
 
 # The sweep's state lasts for the whole run, like a power-up, so its two cases
 # are two starts.

@@ -122,7 +122,10 @@ static void assume_remembered_profile( void )
 /* Once the ECU answers, the first ECU ever seen becomes the remembered one,
  * and a different ECU than the remembered one replaces its pages, with the
  * page back at the first. Either way the new profile is stored, so the next
- * start shows these pages at once. */
+ * start shows these pages at once. An ECU this firmware cannot read has no
+ * pages, so it is not remembered (an unknown key would bring back the first
+ * profile's pages at the next start), and the info page shows what it
+ * reported. */
 static void check_identification( void )
 {
     static bool identification_checked;
@@ -133,7 +136,13 @@ static void check_identification( void )
         uint16_t key = ( uint16_t )( id & 0xFFFFu );
 
         identification_checked = true;
-        if ( !profile_known )
+        if ( ecu_param_count() == 0u )
+        {
+            profile_known = false;
+            selected_idx  = 0u;
+            info_shown    = true;
+        }
+        else if ( !profile_known )
         {
             profile_key   = key;
             profile_known = true;

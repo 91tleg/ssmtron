@@ -8,6 +8,9 @@
 #define OTHER_PAGE ( 14u )
 #define NOT_STORED ( 0xFFFFFFFFu )
 
+/* A ROM ID no profile has. */
+#define UNKNOWN_KEY ( 0x9999u )
+
 /* Page 0 of the simulated ECU is the voltage dial. */
 static bool voltage_dial_shown( void )
 {
@@ -94,6 +97,40 @@ static void scenario_profile_only( void )
     CHECK_EQ( nvm_saves, 0u ); /* same ECU: nothing to store */
 }
 
+/* An ECU the firmware does not know has no pages and is not remembered: an
+ * unknown key would bring the first profile's pages back at the next start.
+ * Whatever was remembered stays, and the info page is shown. */
+static void scenario_unknown( void )
+{
+    boot_remembered( ROM_KEY, 3u, UNKNOWN_KEY );
+    run( 3000u );
+    CHECK_EQ( ecu_id(), 0x019999u );
+    CHECK_EQ( ecu_param_count(), 0u );
+    CHECK( strcmp( row( 0 ), "INFO" ) == 0 );
+    CHECK_EQ( stored( "ecu_profile" ), ROM_KEY );
+    CHECK_EQ( stored( "param_idx" ), 3u );
+    CHECK_EQ( nvm_saves, 0u );
+
+    /* A long NEXT press has no page worth keeping: the theme alone. */
+    button( &next_edges, true );
+    run( 1700u );
+    button( &next_edges, false );
+    run( 200u );
+    CHECK_EQ( stored( "ecu_profile" ), ROM_KEY );
+    CHECK_EQ( stored( "param_idx" ), 3u );
+}
+
+/* The same on a first run: nothing is stored at all. */
+static void scenario_unknown_first_run( void )
+{
+    boot_fresh( UNKNOWN_KEY );
+    run( 3000u );
+    CHECK_EQ( ecu_id(), 0x019999u );
+    CHECK( strcmp( row( 0 ), "INFO" ) == 0 );
+    CHECK_EQ( stored( "ecu_profile" ), NOT_STORED );
+    CHECK_EQ( stored( "param_idx" ), NOT_STORED );
+}
+
 /* The remembered ECU answers: nothing is rewritten. */
 static void scenario_same( void )
 {
@@ -122,6 +159,14 @@ int main(
     {
         scenario_profile_only();
     }
+    else if ( strcmp( which, "unknown" ) == 0 )
+    {
+        scenario_unknown();
+    }
+    else if ( strcmp( which, "unknownfirst" ) == 0 )
+    {
+        scenario_unknown_first_run();
+    }
     else if ( strcmp( which, "same" ) == 0 )
     {
         scenario_same();
@@ -129,7 +174,8 @@ int main(
     else
     {
         ( void )fputs(
-            "usage: test_sil_firstrun fresh|different|profileonly|same\n",
+            "usage: test_sil_firstrun "
+            "fresh|different|profileonly|unknown|unknownfirst|same\n",
             stderr
         );
         mt_failures++;
