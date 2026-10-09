@@ -98,8 +98,6 @@ typedef struct
     dial_label_t labels[DIAL_MAX_LABELS];
     size_t tick_count;
     size_t label_count;
-    int16_t label_top;    /* the rows the labels span: top row, and one past */
-    int16_t label_bottom; /* the last row; a pixel outside them has no label */
 } dial_face_t;
 
 typedef struct

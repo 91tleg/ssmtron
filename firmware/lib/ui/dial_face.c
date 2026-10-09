@@ -33,9 +33,6 @@ static void add_label(
         len       = textfit_copy( lb->text, DIAL_LABEL_BUF, text );
         lb->w     = ( uint16_t )font_text_width( len, scale );
         lb->h     = ( uint16_t )( ( uint32_t )FONT_CELL_H * ( uint32_t )scale );
-        face->label_top = ( int16_t )ui_min( face->label_top, lb->y );
-        face->label_bottom =
-            ( int16_t )ui_max( face->label_bottom, lb->y + ( int16_t )lb->h );
         face->label_count++;
     }
 }
@@ -261,10 +258,8 @@ void dial_make_face(
     dial_face_t * face
 )
 {
-    face->tick_count   = 0u;
-    face->label_count  = 0u;
-    face->label_top    = INT16_MAX;
-    face->label_bottom = INT16_MIN;
+    face->tick_count  = 0u;
+    face->label_count = 0u;
     add_ticks( cfg, face );
     add_fixed_labels( cfg, face );
 }

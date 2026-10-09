@@ -57,6 +57,50 @@ static uint16_t screw_head(
     return font_blend( DIAL_SCREW_SLOT_COLOR, out, dial_edge_alpha( slot ) );
 }
 
+/* How far from a screw's center it still shades a pixel: its head, and its
+ * shadow below it. */
+#define DIAL_SCREW_REACH ( DIAL_SCREW_R + ( 2 * UI_LEN( 9 ) ) + 1 )
+
+/* Screw i's center from the dial's center. On the arc style they sit on the
+ * cover's two feet. */
+static void screw_at(
+    size_t i,
+    bool arc,
+    int32_t * at_x,
+    int32_t * at_y
+)
+{
+    /* Where the screws sit: x then y, thousandths of the radius from
+     * center. */
+    static const int16_t SCREW_PERMILLE[DIAL_SCREW_COUNT][2] = {
+        { 280, -190 }, { 120, 260 }
+    };
+
+    *at_x = arc ? ( ( i == 0u ) ? -( int32_t )DIAL_ARC_SCREW_X
+                                : ( int32_t )DIAL_ARC_SCREW_X )
+                : UI_LEN( SCREW_PERMILLE[i][0] );
+    *at_y = arc ? ( int32_t )DIAL_ARC_SCREW_Y : UI_LEN( SCREW_PERMILLE[i][1] );
+}
+
+bool dial_screw_reach(
+    size_t i,
+    bool arc,
+    int32_t dy,
+    int32_t * dx_lo,
+    int32_t * dx_hi
+)
+{
+    int32_t at_x;
+    int32_t at_y;
+    bool reaches;
+
+    screw_at( i, arc, &at_x, &at_y );
+    reaches = ui_abs( dy - at_y ) <= DIAL_SCREW_REACH;
+    *dx_lo  = at_x - DIAL_SCREW_REACH;
+    *dx_hi  = at_x + DIAL_SCREW_REACH;
+    return reaches;
+}
+
 /* Both screws share the same lighting but have different slot rotations. */
 uint16_t dial_screws(
     uint16_t color,
@@ -65,11 +109,6 @@ uint16_t dial_screws(
     bool arc
 )
 {
-    /* Where the screws sit: x then y, thousandths of the radius from
-     * center. */
-    static const int16_t SCREW_PERMILLE[DIAL_SCREW_COUNT][2] = {
-        { 280, -190 }, { 120, 260 }
-    };
     /* Cosine and sine in thousandths: 15 degrees and -35 degrees. */
     static const int16_t SLOT_AXES[DIAL_SCREW_COUNT][2] = {
         { 966, 259 }, { 819, -574 }
@@ -78,18 +117,18 @@ uint16_t dial_screws(
 
     for ( size_t i = 0; i < DIAL_SCREW_COUNT; i++ )
     {
-        /* On the arc style they sit on the cover's two feet. */
-        int32_t at_x = arc ? ( ( i == 0u ) ? -( int32_t )DIAL_ARC_SCREW_X
-                                           : ( int32_t )DIAL_ARC_SCREW_X )
-                           : UI_LEN( SCREW_PERMILLE[i][0] );
-        int32_t at_y =
-            arc ? ( int32_t )DIAL_ARC_SCREW_Y : UI_LEN( SCREW_PERMILLE[i][1] );
-        int32_t sdx   = dx - at_x;
-        int32_t sdy   = dy - at_y;
-        int32_t reach = DIAL_SCREW_R + ( 2 * UI_LEN( 9 ) ) + 1;
+        int32_t at_x;
+        int32_t at_y;
+        int32_t sdx;
+        int32_t sdy;
+
+        screw_at( i, arc, &at_x, &at_y );
+        sdx = dx - at_x;
+        sdy = dy - at_y;
 
         /* Only pixels close to a screw, its head and its shadow, are shaded. */
-        if ( ( ui_abs( sdx ) <= reach ) && ( ui_abs( sdy ) <= reach ) )
+        if ( ( ui_abs( sdx ) <= DIAL_SCREW_REACH )
+             && ( ui_abs( sdy ) <= DIAL_SCREW_REACH ) )
         {
             int32_t dist_sq   = ( sdx * sdx ) + ( sdy * sdy );
             uint8_t ink       = dial_disc_alpha( dist_sq, DIAL_SCREW_R );
@@ -211,7 +250,7 @@ static int32_t hypot_m(
  * pixel, negative outside. The body is a trapezoid: its top edge is at the
  * middle of the panel, its sides spread toward the bottom, and its top
  * corners are rounded. dx and dy are from the middle of the panel. up_m
- * comes back too: how much the nearest edge faces up, from 0 (a side) to
+ * comes back too: how much the close_byest edge faces up, from 0 (a side) to
  * 1000 (the top), turning smoothly around a corner, so the shading has no
  * seam where the flat top meets the rounded shoulder. */
 static int32_t body_dist(
@@ -267,33 +306,36 @@ static uint16_t body_color(
     int32_t up_m
 )
 {
-    bool light      = is_light_face( cfg->face_bg );
-    uint16_t high   = light ? 0xFFFFu : cfg->tick_fg;
-    uint16_t color  = font_blend( high, cfg->face_bg, light ? 7u : 3u );
-    int32_t bevel_m = ( int32_t )DIAL_COVER_BEVEL * 1000;
-    int32_t shade_m = ( int32_t )DIAL_COVER_SIDE_SHADE * 1000;
-    int32_t near    = ui_max( rim_m, 0 );
+    bool light       = is_light_face( cfg->face_bg );
+    uint16_t high    = light ? 0xFFFFu : cfg->tick_fg;
+    uint16_t color   = font_blend( high, cfg->face_bg, light ? 7u : 3u );
+    int32_t bevel_m  = ( int32_t )DIAL_COVER_BEVEL * 1000;
+    int32_t shade_m  = ( int32_t )DIAL_COVER_SIDE_SHADE * 1000;
+    int32_t close_by = ui_max( rim_m, 0 );
 
-    if ( near < bevel_m )
+    if ( close_by < bevel_m )
     {
-        int32_t lift = ( ( 8 * ( bevel_m - near ) ) / bevel_m * up_m ) / 1000;
+        int32_t lift =
+            ( ( 8 * ( bevel_m - close_by ) ) / bevel_m * up_m ) / 1000;
 
         color = font_blend( high, color, ( uint8_t )lift );
     }
-    if ( near < shade_m )
+    if ( close_by < shade_m )
     {
         /* The raised shell has dark walls on either theme. The ink is light
          * on a dark face, so it cannot serve as the wall's shade. */
         int32_t shade =
-            ( ( 2 * ( shade_m - near ) ) / shade_m * ( 1000 - up_m ) ) / 1000;
+            ( ( 2 * ( shade_m - close_by ) ) / shade_m * ( 1000 - up_m ) )
+            / 1000;
 
         color = font_blend( 0x2104u, color, ( uint8_t )shade );
     }
-    if ( near < bevel_m )
+    if ( close_by < bevel_m )
     {
         /* A thin light lip along the walls. */
         int32_t lip =
-            ( ( 2 * ( bevel_m - near ) ) / bevel_m * ( 1000 - up_m ) ) / 1000;
+            ( ( 2 * ( bevel_m - close_by ) ) / bevel_m * ( 1000 - up_m ) )
+            / 1000;
 
         color = font_blend( high, color, ( uint8_t )lip );
     }
