@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package ssmtron.v1;
+
+import "google/protobuf/timestamp.proto";
+import "ssmtron/v1/reading.proto";
+
+// A reading plus the time the gateway received it. The gauge has no wall
+// clock, so the phone supplies the time; uptime_ms inside the reading still
+// orders readings within one session.
+message TimedReading {
+  google.protobuf.Timestamp received_at = 1;
+  Reading reading = 2;
+}
+
+// What the gateway (phone app) uploads to the cloud. Never seen by the
+// firmware.
+message ReadingBatch {
+  // UUID made by the gateway when it closes the batch. The server stores it
+  // and ignores a repeat, so a retried upload is safe.
+  string batch_id = 1;
+
+  // Stable identity of the gauge that produced the readings: the 64-bit
+  // factory device ID of its nRF52840, as 16 lowercase hex characters. It
+  // names a gauge but proves nothing; ownership comes from registration.
+  string device_id = 2;
+
+  // Identity of this app installation, to tell phones apart.
+  string gateway_id = 3;
+
+  // UUID of one BLE connection. uptime_ms restarts at each gauge reboot, so
+  // it is only comparable within a session.
+  string session_id = 4;
+
+  // In the order received. The server limits the batch size.
+  repeated TimedReading readings = 5;
+}

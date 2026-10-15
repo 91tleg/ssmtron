@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package ssmtron.v1;
+
+// One ECU value, as the gauge shows it. Replaces the CSV line the firmware
+// sends today ("<now_ms>,<name>,<value>,<unit>"), so a reading is the same
+// message on the BLE link and in the backend API.
+message Reading {
+  // Gauge uptime when the value was read, in milliseconds. Wraps after about
+  // 49 days; consumers must not treat it as wall-clock time. The phone adds
+  // its own receive time when it forwards the reading.
+  uint32 uptime_ms = 1;
+
+  // Parameter name from the ECU profile, such as "Coolant".
+  string name = 2;
+
+  // Value in units of 10^-decimals. For a flags parameter it is the raw
+  // byte, and decimals is 0.
+  sint32 value = 3;
+
+  // Number of implied decimal places in value.
+  uint32 decimals = 4;
+
+  // Unit label for this value, such as "psi" or "inHg". It can change with
+  // the sign of the value (see unit_neg in the firmware profile).
+  string unit = 5;
+}
