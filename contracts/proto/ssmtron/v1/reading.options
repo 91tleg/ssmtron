@@ -1,0 +1,3 @@
+# nanopb sizes. Static allocation only, so the firmware needs no heap.
+ssmtron.v1.Reading.name max_size:24
+ssmtron.v1.Reading.unit max_size:8
