@@ -34,7 +34,7 @@
 #define DIAL_UPPER_MIN_DEG     ( -45 )
 #define DIAL_UPPER_MAX_DEG     ( 45 )
 
-#define DIAL_TICK_R UI_LEN( 825 )
+#define DIAL_TICK_R UI_LEN( 945 )
 
 #define DIAL_TICK_MAJOR_LEN UI_LEN( 134 )
 #define DIAL_TICK_MINOR_LEN UI_LEN( 67 )
@@ -134,7 +134,7 @@
  * circle. On the arc style each number sits as close inside its ticks as it
  * can without touching, which depends on how wide it is and which way it
  * faces (see add_number). */
-#define DIAL_LABEL_R UI_LEN( 584 )
+#define DIAL_LABEL_R UI_LEN( 704 )
 
 /* Per-frame redraw covers only the needle's old and new position, not the
  * whole face (ticks/labels/face don't change between frames): one blit
