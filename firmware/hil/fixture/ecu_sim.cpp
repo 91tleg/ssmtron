@@ -138,12 +138,10 @@ static void send_frame()
     }
 }
 
-void ecu_sim_init(
-    int rx_pin,
-    int tx_pin
-)
+void ecu_sim_init()
 {
-    Serial1.begin( ECU_BAUD, SERIAL_8E1, rx_pin, tx_pin );
+    /* Mega 2560 Serial1 is fixed to pin 19 (RX1) and pin 18 (TX1). */
+    Serial1.begin( ECU_BAUD, SERIAL_8E1 );
 }
 
 void ecu_sim_poll()
