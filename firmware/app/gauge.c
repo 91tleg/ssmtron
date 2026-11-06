@@ -640,13 +640,14 @@ static void update_face( uint32_t now_ms )
     {
         sel_info = ecu_param_info( selected_idx );
     }
-    /* The flags page shows clear and save status itself. A dial gives way
-     * to the digital screen for them. */
+    /* The flags page shows clear and save status itself. A dial shows no
+     * save notice and stays up: swapping it for the number page would reset
+     * its needle. */
     want_update = gauge_update_active();
     want_info   = info_shown && !want_update;
     want_flags  = !want_info && !want_update && gauge_flags_handles( sel_info );
-    face_idle   = !want_update && !want_info && !save_notice_active
-                && ( sel_info != NULL ) && !want_flags;
+    face_idle =
+        !want_update && !want_info && ( sel_info != NULL ) && !want_flags;
     if ( face_idle )
     {
         for ( size_t i = 0; ( next_dial == NO_DIAL ) && ( i < DIAL_COUNT );

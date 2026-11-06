@@ -586,6 +586,25 @@ int main( void )
     press_action( false );
     tick( 1 );
 
+    /* Holding NEXT on a dial saves, but the dial stays up: no number page
+     * takes its place and the needle is not put back at rest. Frames are
+     * counted through the hold, the notice time and the release. */
+    press_next( true );
+    tick( 1 );
+    tick( 35 );
+    tick( 1600 ); /* past the 1.5 s hold */
+    CHECK_EQ( text_init_count, 2u );
+    CHECK_EQ( dial_init_count, 3u );
+    tick( 1500 ); /* past the 1 s the notice used to last */
+    CHECK_EQ( text_init_count, 2u );
+    CHECK_EQ( dial_init_count, 3u );
+    press_next( false );
+    tick( 1 );
+    tick( 35 );
+    CHECK_EQ( selected, BOOST_IDX ); /* a hold does not move the page */
+    CHECK_EQ( dial_init_count, 3u );
+    CHECK_EQ( text_init_count, 2u );
+
     tick( 35 ); /* settle the ACTION release before browsing */
     extra_params = true;
     tap_next(); /* RPM */

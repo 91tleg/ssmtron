@@ -103,14 +103,15 @@ static void test_a_hold_saves_once_and_does_not_move_the_page( void )
     button( &next_edges, false );
     run( 1500u );
 
-    /* A long hold on a new page: one save, and the notice ends after its
-     * second although the button is still down. */
+    /* A long hold on a dial page: one save, and the dial stays up at every
+     * point, with no number page taking its place. */
     press_next_for( 100u );
     run( SETTLE_MS );
     CHECK_EQ( page_now(), 3u );
     button( &next_edges, true );
     run( 1600u );
-    CHECK_EQ( strcmp( row( 0 ), "SAVED" ), 0 );
+    CHECK( page == NULL );
+    CHECK( strcmp( dial_cfg->label, "COOLANT" ) == 0 );
     run( 1100u ); /* 2.7 s into the hold */
     CHECK( page == NULL );
     CHECK( strcmp( dial_cfg->label, "COOLANT" ) == 0 );
