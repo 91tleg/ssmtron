@@ -4,7 +4,7 @@ Covers the four hardware-in-the-loop areas host tests can't reach:
 watchdog recovery, BLE DFU end-to-end, ACTION-button hold-to-clear, and
 exercising `lib/ssm1`/`ecu_io.c` against a real UART peer at real SSM1
 baud — all without a car. You already have the Raspberry Pi (test host)
-and the ESP32 (fixture controller); this covers everything else and how
+and the Arduino Mega 2560 (fixture controller); this covers everything else and how
 it all fits together.
 
 ## Parts to add
@@ -12,15 +12,17 @@ it all fits together.
 | Part | Spec | Qty | Why |
 | --- | --- | --- | --- |
 | N-channel logic-level MOSFET | 2N7000 or BS170 (TO-92) | 1 | Pulls the DK's P0.12 ACTION pin to GND, replicating the mechanical switch instead of driving voltage into the DK's rail (see `fixture/button_actuator.cpp`) |
-| Gate resistor | 220 Ω, 1/4 W | 1 | Limits the ESP32 GPIO current into the MOSFET gate |
-| Gate pull-down resistor | 10 kΩ, 1/4 W | 1 | Holds the MOSFET off (button released) if the ESP32 GPIO floats during its own power-up/reset |
-| Jumper wires, male-to-male | 0.1" (2.54 mm) pitch | ~6 | ESP32 `Serial1` TX/RX ↔ DK P1.01/P1.02, common ground, MOSFET-to-P0.12 |
+| Gate resistor | 220 Ω, 1/4 W | 1 | Limits the Mega GPIO current into the MOSFET gate |
+| Gate pull-down resistor | 10 kΩ, 1/4 W | 1 | Holds the MOSFET off (button released) if the Mega GPIO floats during its own power-up/reset |
+| Jumper wires, male-to-male | 0.1" (2.54 mm) pitch | ~6 | Mega `Serial1` ↔ level shifter ↔ DK P1.01/P1.02, common ground, MOSFET-to-P0.12 |
+| 4-channel BSS138 level shifter | LV, HV, A1-A4, B1-B4, 2x GND | 1 | 3.3V to 5V shift on the two ECU lines (channels 1 and 2) |
 | Small breadboard | Half-size, 400-point | 1 | Mounts the MOSFET + resistors cleanly |
 | Jumper wire kit | M-M / M-F / F-F assortment | 1 kit | General breadboard-to-header flexibility |
-| USB cable for the ESP32 | Micro-USB or USB-C (match your board) | 1 | Power/program the ESP32; also carries the button + ECU-sim serial link to the Pi |
+| USB cable for the Mega | USB-B (match your board) | 1 | Power/program the Mega; also carries the button + ECU-sim serial link to the Pi |
 
-No level shifter needed: the ESP32 and the nRF52840 DK are both native
-3.3V logic, so K-line and button wiring are direct cross-connects.
+A 3.3V to 5V level shifter is needed on the two ECU lines: the Mega is
+5V logic and the nRF52840 DK is 3.3V. Never wire Mega TX1 straight to
+the DK. The button MOSFET gate can be driven by the Mega directly.
 
 Optional / contingency:
 
@@ -32,21 +34,21 @@ Optional / contingency:
 ## Wiring
 
 ```
-ESP32                              nRF52840 DK
------                              -----------
-Serial1 TX (GPIO17)  -----------→  P1.01 (UART1 RX)
-Serial1 RX (GPIO16)  ←-----------  P1.02 (UART1 TX)
-GPIO5 --[220R]--[MOSFET gate]
+Mega 2560          level shifter                nRF52840 DK
+---------          -------------                -----------
+5V          -----> HV                           (3.3V -----> LV)
+Pin 18 TX1  -----> B2 ... A2  ----------------> P1.01 (UART1 RX)
+Pin 19 RX1  <----- B1 ... A1  <---------------- P1.02 (UART1 TX)
+Pin 5 --[220R]--[MOSFET gate]
                  MOSFET drain  --  P0.12 (ACTION)
                  MOSFET source --  GND
-GPIO5 --[10k pulldown]-- GND
-GND                  -----------   GND (common)
+Pin 5 --[10k pulldown]-- GND
+GND  -----------  shifter GND (both pins)  ---  GND (common)
 ```
 
-Check GPIO16/17 are actually free on your specific ESP32 board before
-wiring `Serial1` to them — on WROVER (PSRAM) variants those pins are
-used internally; use different free GPIOs and update `ECU_RX_PIN`/
-`ECU_TX_PIN` in `fixture/fixture.ino` if so.
+The shifter's LV pin goes to the DK's 3.3V pin, not to the Mega. Check
+A1 and A2 read about 3.3V and B1 and B2 about 5V before connecting the
+signal wires.
 
 ## One-time flashing (not per test run)
 
@@ -60,7 +62,7 @@ used internally; use different free GPIOs and update `ECU_RX_PIN`/
      -- -DEXTRA_CONF_FILE=../hil/prj_hil.conf
    west flash -d firmware/build
    ```
-2. **ESP32**: flash `firmware/hil/fixture/fixture.ino` (Arduino IDE or
+2. **Mega**: flash (board: Arduino Mega or Mega 2560) `firmware/hil/fixture/fixture.ino` (Arduino IDE or
    `arduino-cli`) once. Both the button actuator and the fake ECU run
    concurrently in its `loop()` — no per-suite reflashing.
 3. Bond the Pi to the DK over BLE once (interactive passkey pairing;
@@ -74,7 +76,7 @@ used internally; use different free GPIOs and update `ECU_RX_PIN`/
 pip install pytest pyserial
 
 export HIL_DUT_PORT=/dev/ttyACM0          # DK's console UART
-export HIL_ACTUATOR_PORT=/dev/ttyUSB0     # ESP32
+export HIL_ACTUATOR_PORT=/dev/ttyUSB0     # Mega
 export HIL_BLE_CONNSTRING="peer_name=Maxtek Datum"   # default if unset
 export HIL_DFU_IMAGE=/path/to/app.signed.bin       # for test_dfu.py only
 
@@ -103,8 +105,8 @@ test.
   clear for it to reach `ECU_CLEAR_DONE`.
 - **Matches the real interface**: SSM1 is a plain 5V TTL 2-wire
   full-duplex connection (separate TX/RX; see `docs/PARTS.md`) — the
-  same topology as this rig's ESP32↔DK cross-connect, just without the
-  car's 3.3V↔5V level shift (unneeded between two 3.3V boards). `ssm1.c`
+  same topology as this rig's Mega↔DK cross-connect, including the
+  3.3V↔5V level shift. `ssm1.c`
   keeps defensive echo-handling (`skip_first`, "if the line echoes our
   command") for interface hardware that might cause one, but a clean
   2-wire link — real or simulated — shouldn't trigger it, so this rig

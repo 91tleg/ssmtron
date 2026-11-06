@@ -86,7 +86,7 @@ firmware/
 
   hil/                          tests on real hardware, which need a bench fixture
     test_*.py, conftest.py      pytest tests: watchdog recovery, button hold, Bluetooth update
-    fixture/                    the ESP32 sketch that plays the ECU and presses the button
+    fixture/                    the Arduino Mega sketch that plays the ECU and presses the button
     prj_hil.conf                the settings that add the hang hook (never merged into prj.conf)
 
 tools/                          helpers that run on a computer, not on the gauge
